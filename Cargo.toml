@@ -1,0 +1,56 @@
+[package]
+name = "detail-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["Detail Team <engineering@detail.dev>"]
+license = "MIT"
+description = "CLI for Detail bug finder"
+homepage = "https://detail.dev"
+repository = "https://github.com/detail-dev/cli"
+
+[[bin]]
+name = "detail"
+path = "src/main.rs"
+
+[dependencies]
+# CLI framework
+clap = { version = "4.5", features = ["derive", "cargo", "env"] }
+
+# HTTP client
+reqwest = { version = "0.13", features = ["json"] }
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+url = "2.5"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+csv = "1.4"
+
+# Error handling
+anyhow = "1.0"
+
+# Config management
+directories = "6.0"
+toml = "0.9"
+
+# Secure token storage (platform-specific features required)
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service"] }
+
+# Terminal UI
+colored = "3.1"
+prettytable-rs = "0.10"
+console = "0.16"
+
+# Update checking (uses cargo-dist receipts)
+axoupdater = "0.8"
+
+# Version comparison (used by API client)
+semver = "1.0"
+
+# Date/time formatting
+chrono = "0.4"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
