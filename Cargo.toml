@@ -2,7 +2,7 @@
 name = "detail-cli"
 version = "0.1.0"
 edition = "2021"
-authors = ["Detail Team <engineering@detail.dev>"]
+authors = ["Detail Team <eng@detail.dev>"]
 license = "MIT"
 description = "CLI for Detail bug finder"
 homepage = "https://detail.dev"
