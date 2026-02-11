@@ -1,24 +1,36 @@
 use anyhow::{Context, Result};
-use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-
-const SERVICE_NAME: &str = "com.detail.cli";
-const TOKEN_KEY: &str = "api_token";
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Config {
     pub api_url: Option<String>,
     pub check_for_updates: bool,
     pub last_update_check: Option<u64>,
+    pub api_token: Option<String>,
 }
 
+/// Get the config file path, mirroring axoupdater's directory logic
+/// to ensure config.toml is stored alongside the install receipt.
 pub fn config_path() -> Result<PathBuf> {
-    let config_dir = directories::ProjectDirs::from("com", "detail", "cli")
-        .context("Failed to determine config directory")?;
+    // Check XDG_CONFIG_HOME first (works on all platforms)
+    let config_dir = if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
+        PathBuf::from(xdg_config).join("detail-cli")
+    } else if cfg!(windows) {
+        // Windows: use LOCALAPPDATA
+        let local_app_data = std::env::var("LOCALAPPDATA")
+            .context("LOCALAPPDATA environment variable not set")?;
+        PathBuf::from(local_app_data).join("detail-cli")
+    } else {
+        // Others: use ~/.config
+        let home = homedir::my_home()
+            .context("Failed to determine home directory")?
+            .context("Home directory not found")?;
+        home.join(".config").join("detail-cli")
+    };
 
-    std::fs::create_dir_all(config_dir.config_dir())?;
-    Ok(config_dir.config_dir().join("config.toml"))
+    std::fs::create_dir_all(&config_dir)?;
+    Ok(config_dir.join("config.toml"))
 }
 
 pub fn load_config() -> Result<Config> {
@@ -41,22 +53,24 @@ pub fn save_config(config: &Config) -> Result<()> {
     Ok(())
 }
 
-// Token storage using system keychain
+// Token storage in config file
 pub fn store_token(token: &str) -> Result<()> {
-    let entry = Entry::new(SERVICE_NAME, TOKEN_KEY)?;
-    entry.set_password(token)?;
+    let mut config = load_config()?;
+    config.api_token = Some(token.to_string());
+    save_config(&config)?;
     Ok(())
 }
 
 pub fn load_token() -> Result<String> {
-    let entry = Entry::new(SERVICE_NAME, TOKEN_KEY)?;
-    entry
-        .get_password()
+    let config = load_config()?;
+    config
+        .api_token
         .context("No token found. Run `detail auth login`")
 }
 
 pub fn clear_credentials() -> Result<()> {
-    let entry = Entry::new(SERVICE_NAME, TOKEN_KEY)?;
-    entry.delete_credential().ok(); // Ignore errors if already deleted
+    let mut config = load_config()?;
+    config.api_token = None;
+    save_config(&config)?;
     Ok(())
 }

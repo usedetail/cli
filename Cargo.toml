@@ -30,11 +30,8 @@ csv = "1.4"
 anyhow = "1.0"
 
 # Config management
-directories = "6.0"
 toml = "0.9"
-
-# Secure token storage (platform-specific features required)
-keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service"] }
+homedir = "0.3"
 
 # Terminal UI
 colored = "3.1"
