@@ -42,7 +42,7 @@ prettytable-rs = "0.10"
 console = "0.16"
 
 # Update checking (uses cargo-dist receipts)
-axoupdater = "0.8"
+axoupdater = "0.9.1"
 
 # Version comparison (used by API client)
 semver = "1.0"
