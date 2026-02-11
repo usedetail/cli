@@ -6,7 +6,7 @@ authors = ["Detail Team <engineering@detail.dev>"]
 license = "MIT"
 description = "CLI for Detail bug finder"
 homepage = "https://detail.dev"
-repository = "https://github.com/detail-dev/cli"
+repository = "https://github.com/usedetail/cli"
 
 [[bin]]
 name = "detail"
