@@ -46,15 +46,11 @@ detail bugs list --help
 
 ## Configuration
 
-Configuration is stored in:
-- macOS: `~/Library/Application Support/com.detail.cli/config.toml`
-- Linux: `~/.config/detail/cli/config.toml`
-- Windows: `%APPDATA%\detail\cli\config.toml`
+Configuration and API tokens are stored in `config.toml` at:
+- macOS/Linux: `~/.config/detail-cli/config.toml`
+- Windows: `%LOCALAPPDATA%\detail-cli\config.toml`
 
-API tokens are stored securely in your system's native credential store:
-- macOS: Keychain
-- Linux: Secret Service
-- Windows: Credential Manager
+You can override the config directory by setting the `XDG_CONFIG_HOME` environment variable.
 
 ### Updates
 
