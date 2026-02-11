@@ -1,6 +1,6 @@
 # Detail CLI
 
-> ⚠️ **Alpha Software**: This CLI is currently in alpha. Features and commands may change.
+> ⚠️ **NOTE**: This CLI is currently in alpha. Features and commands may change.
 
 Command-line interface for [Detail](https://detail.dev).
 
@@ -44,10 +44,6 @@ detail bugs --help
 detail bugs list --help
 ```
 
-## Updates
-
-The CLI automatically checks for updates once per day and installs them in the background. Updates take effect the next time you run a command.
-
 ## Configuration
 
 Configuration is stored in:
@@ -60,9 +56,10 @@ API tokens are stored securely in your system's native credential store:
 - Linux: Secret Service
 - Windows: Credential Manager
 
-### Auto-Updates
+### Updates
 
-The CLI automatically checks for updates once per day. To disable automatic updates, add this to your config file:
+The CLI automatically checks for updates once per day, and installs if found. 
+To disable automatic updates, add this to your config file:
 
 ```toml
 check_for_updates = false
