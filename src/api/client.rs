@@ -38,10 +38,6 @@ impl ApiClient {
         })
     }
 
-    pub fn base_url(&self) -> &str {
-        &self.base_url
-    }
-
     /// Make API request with version compatibility check
     async fn request<T: serde::de::DeserializeOwned>(
         &self,

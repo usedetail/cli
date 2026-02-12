@@ -72,7 +72,6 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
                     Ok(user) => {
                         println!("{}", "✓ Authenticated".green());
                         println!("Email: {}", user.email);
-                        println!("API URL: {}", client.base_url());
                     }
                     Err(e) => {
                         println!("{}", "✗ Authentication invalid".red());
