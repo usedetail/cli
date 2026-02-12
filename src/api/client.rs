@@ -97,9 +97,7 @@ impl ApiClient {
                 Ok(api_err) => {
                     format!(
                         "{} ({}): {}",
-                        api_err.error_type,
-                        api_err.status_code,
-                        api_err.message
+                        api_err.error_type, api_err.status_code, api_err.message
                     )
                 }
                 Err(_) => {
@@ -153,7 +151,8 @@ impl ApiClient {
             }
         }
         let path_and_query = format!("{}?{}", url.path(), url.query().unwrap_or(""));
-        self.request(reqwest::Method::GET, &path_and_query, None).await
+        self.request(reqwest::Method::GET, &path_and_query, None)
+            .await
     }
 
     pub async fn get_bug(&self, bug_id: &BugId) -> Result<Bug> {
@@ -175,8 +174,7 @@ impl ApiClient {
             notes: notes.map(String::from),
         };
         let body = serde_json::to_value(request)?;
-        self.request(reqwest::Method::POST, &path, Some(body))
-            .await
+        self.request(reqwest::Method::POST, &path, Some(body)).await
     }
 
     pub async fn list_repos(&self, limit: u32, offset: u32) -> Result<ReposResponse> {
@@ -187,7 +185,8 @@ impl ApiClient {
             query.append_pair("offset", &offset.to_string());
         }
         let path_and_query = format!("{}?{}", url.path(), url.query().unwrap_or(""));
-        self.request(reqwest::Method::GET, &path_and_query, None).await
+        self.request(reqwest::Method::GET, &path_and_query, None)
+            .await
     }
 }
 
@@ -195,8 +194,7 @@ fn check_version_compatibility(api_version: &str) -> Result<()> {
     // CLI v0.1.x supports API v1.x
     const SUPPORTED_API_VERSIONS: &str = "^1.0";
 
-    let api_version =
-        Version::parse(api_version).context("Failed to parse API version")?;
+    let api_version = Version::parse(api_version).context("Failed to parse API version")?;
 
     let requirement = VersionReq::parse(SUPPORTED_API_VERSIONS)?;
 

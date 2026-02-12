@@ -62,21 +62,16 @@ fn print_update_success(result: &axoupdater::UpdateResult) {
     let new_version = result.new_version.to_string();
 
     eprintln!();
+    eprintln!("{}", "─".repeat(60).dimmed());
     eprintln!(
         "{}",
-        "─".repeat(60).dimmed()
+        format!(
+            "✓ Updated Detail CLI from v{} to v{}",
+            old_version, new_version
+        )
+        .green()
     );
-    eprintln!(
-        "{}",
-        format!("✓ Updated Detail CLI from v{} to v{}", old_version, new_version).green()
-    );
-    eprintln!(
-        "{}",
-        "  Changes will apply on next run".dimmed()
-    );
-    eprintln!(
-        "{}",
-        "─".repeat(60).dimmed()
-    );
+    eprintln!("{}", "  Changes will apply on next run".dimmed());
+    eprintln!("{}", "─".repeat(60).dimmed());
     eprintln!();
 }

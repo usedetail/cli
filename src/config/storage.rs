@@ -18,8 +18,8 @@ pub fn config_path() -> Result<PathBuf> {
         PathBuf::from(xdg_config).join("detail-cli")
     } else if cfg!(windows) {
         // Windows: use LOCALAPPDATA
-        let local_app_data = std::env::var("LOCALAPPDATA")
-            .context("LOCALAPPDATA environment variable not set")?;
+        let local_app_data =
+            std::env::var("LOCALAPPDATA").context("LOCALAPPDATA environment variable not set")?;
         PathBuf::from(local_app_data).join("detail-cli")
     } else {
         // Others: use ~/.config
