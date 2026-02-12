@@ -235,12 +235,11 @@ impl crate::output::Formattable for Bug {
 // Implement Formattable for Repo
 impl crate::output::Formattable for Repo {
     fn csv_headers() -> &'static [&'static str] {
-        &["id", "repository", "organization"]
+        &["repository", "organization"]
     }
 
     fn to_csv_row(&self) -> Vec<String> {
         vec![
-            self.id.to_string(),
             self.full_name.clone(),
             self.org_name.clone(),
         ]
@@ -248,7 +247,6 @@ impl crate::output::Formattable for Repo {
 
     fn table_headers() -> Vec<Cell> {
         vec![
-            Cell::new("Repo ID"),
             Cell::new("Repository"),
             Cell::new("Organization"),
         ]
@@ -256,7 +254,6 @@ impl crate::output::Formattable for Repo {
 
     fn to_table_row(&self) -> Vec<Cell> {
         vec![
-            Cell::new(self.id.as_str()),
             Cell::new(&self.full_name),
             Cell::new(&self.org_name),
         ]
