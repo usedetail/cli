@@ -130,7 +130,9 @@ async fn resolve_repo_id(
         let mut offset = 0;
 
         loop {
-            let repos = client.list_repos(limit, offset).await
+            let repos = client
+                .list_repos(limit, offset)
+                .await
                 .context("Failed to fetch repositories while resolving identifier")?;
 
             if let Some(repo) = repos.repos.iter().find(|r| r.full_name == repo_identifier) {
@@ -155,7 +157,9 @@ async fn resolve_repo_id(
         let mut matching_repos = Vec::new();
 
         loop {
-            let repos = client.list_repos(limit, offset).await
+            let repos = client
+                .list_repos(limit, offset)
+                .await
                 .context("Failed to fetch repositories while resolving identifier")?;
 
             let page_size = repos.repos.len();
@@ -209,7 +213,8 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             format,
         } => {
             // Resolve owner/repo or repo to internal repo ID
-            let resolved_repo_id = resolve_repo_id(&client, repo).await
+            let resolved_repo_id = resolve_repo_id(&client, repo)
+                .await
                 .context("Failed to resolve repository identifier")?;
 
             let offset = crate::utils::page_to_offset(*page, *limit);
@@ -225,10 +230,11 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
         BugCommands::Show { bug_id } => {
             use crate::api::types::BugId;
 
-            let bug_id = BugId::new(bug_id)
-                .map_err(|e| anyhow::anyhow!(e))?;
+            let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
 
-            let bug = client.get_bug(&bug_id).await
+            let bug = client
+                .get_bug(&bug_id)
+                .await
                 .context("Failed to fetch bug details")?;
 
             println!("{}", "Bug Details".bold());
@@ -236,7 +242,10 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             println!("Title:    {}", bug.title);
             println!("Report:   {}", bug.summary);
             println!("File:     {}", bug.file_path.as_deref().unwrap_or("-"));
-            println!("Created:  {}", crate::utils::format_datetime(bug.created_at));
+            println!(
+                "Created:  {}",
+                crate::utils::format_datetime(bug.created_at)
+            );
             println!(
                 "Security: {}",
                 bug.is_security_vulnerability
@@ -246,7 +255,10 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             if let Some(review) = bug.review {
                 println!("\nReview:");
                 println!("  State:  {}", review.state);
-                println!("  Date:   {}", crate::utils::format_datetime(review.created_at));
+                println!(
+                    "  Date:   {}",
+                    crate::utils::format_datetime(review.created_at)
+                );
                 if let Some(reason) = review.dismissal_reason {
                     println!("  Reason: {}", reason);
                 }
@@ -271,17 +283,24 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 bail!("--dismissal-reason is required when state is 'dismissed'");
             }
 
-            let bug_id = BugId::new(bug_id)
-                .map_err(|e| anyhow::anyhow!(e))?;
+            let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
 
             let dismissal_reason_str = dismissal_reason.as_ref().map(|r| r.as_str());
 
             client
-                .update_bug_review(&bug_id, state.as_str(), dismissal_reason_str, notes.as_deref())
+                .update_bug_review(
+                    &bug_id,
+                    state.as_str(),
+                    dismissal_reason_str,
+                    notes.as_deref(),
+                )
                 .await
                 .context("Failed to update bug review")?;
 
-            println!("{}", format!("✓ Updated bug review to: {}", state.as_str()).green());
+            println!(
+                "{}",
+                format!("✓ Updated bug review to: {}", state.as_str()).green()
+            );
             Ok(())
         }
     }

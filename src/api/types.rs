@@ -218,10 +218,7 @@ impl crate::output::Formattable for Bug {
 
         // Wrap long fields for better table display
         let wrapped_title = crate::utils::wrap_text(&self.title, 50);
-        let wrapped_file = crate::utils::wrap_path(
-            self.file_path.as_deref().unwrap_or("-"),
-            40
-        );
+        let wrapped_file = crate::utils::wrap_path(self.file_path.as_deref().unwrap_or("-"), 40);
 
         vec![
             Cell::new(self.id.as_str()),
@@ -239,23 +236,14 @@ impl crate::output::Formattable for Repo {
     }
 
     fn to_csv_row(&self) -> Vec<String> {
-        vec![
-            self.full_name.clone(),
-            self.org_name.clone(),
-        ]
+        vec![self.full_name.clone(), self.org_name.clone()]
     }
 
     fn table_headers() -> Vec<Cell> {
-        vec![
-            Cell::new("Repository"),
-            Cell::new("Organization"),
-        ]
+        vec![Cell::new("Repository"), Cell::new("Organization")]
     }
 
     fn to_table_row(&self) -> Vec<Cell> {
-        vec![
-            Cell::new(&self.full_name),
-            Cell::new(&self.org_name),
-        ]
+        vec![Cell::new(&self.full_name), Cell::new(&self.org_name)]
     }
 }
