@@ -29,7 +29,7 @@ pub async fn auto_update() -> Result<()> {
 
     // Automatically update using axoupdater
     // This uses the install receipt created by cargo-dist
-    match AxoUpdater::new_for("detail").load_receipt() {
+    match AxoUpdater::new_for("detail-cli").load_receipt() {
         Ok(updater) => {
             match updater.run().await {
                 Ok(update_result) => {
