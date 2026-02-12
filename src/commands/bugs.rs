@@ -66,7 +66,7 @@ impl BugStatus {
 pub enum BugCommands {
     /// List bugs
     List {
-        /// Repository ID or owner/repo
+        /// Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli)
         repo: String,
 
         /// Status filter
@@ -111,17 +111,21 @@ pub enum BugCommands {
     },
 }
 
-/// Resolve repo identifier to repo ID
-/// Accepts either a repo ID (uuid) or owner/repo format
+/// Resolve owner/repo or repo name to repo ID
 async fn resolve_repo_id(
     client: &crate::api::client::ApiClient,
     repo_identifier: &str,
 ) -> Result<crate::api::types::RepoId> {
-    use crate::api::types::RepoId;
-
-    // If it contains a slash, treat it as owner/repo format
+    // If it contains a slash, validate as owner/repo format
     if repo_identifier.contains('/') {
-        // Paginate through all repos to find the matching one
+        let parts: Vec<&str> = repo_identifier.split('/').collect();
+        if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+            bail!(
+                "Invalid repository format. Please use owner/repo (e.g., 'usedetail/cli') or just the repo name. Run 'detail repos list' to see your repositories."
+            );
+        }
+
+        // Search for exact match on full_name
         let limit = 100;
         let mut offset = 0;
 
@@ -129,29 +133,67 @@ async fn resolve_repo_id(
             let repos = client.list_repos(limit, offset).await
                 .context("Failed to fetch repositories while resolving identifier")?;
 
-            // Check if we found the repo in this page
             if let Some(repo) = repos.repos.iter().find(|r| r.full_name == repo_identifier) {
                 return Ok(repo.id.clone());
             }
 
-            // If we got fewer results than the limit, we've reached the end
             if repos.repos.len() < limit as usize {
                 break;
             }
 
-            // Move to next page
             offset += limit;
         }
 
-        // Repo not found after checking all pages
         bail!(
             "Repository '{}' not found. Make sure you have access to this repository.",
             repo_identifier
         )
     } else {
-        // Assume it's already a repo ID and validate it
-        RepoId::new(repo_identifier)
-            .map_err(|e| anyhow::anyhow!(e))
+        // Repo without owner, search all repos and collect matches
+        let limit = 100;
+        let mut offset = 0;
+        let mut matching_repos = Vec::new();
+
+        loop {
+            let repos = client.list_repos(limit, offset).await
+                .context("Failed to fetch repositories while resolving identifier")?;
+
+            let page_size = repos.repos.len();
+
+            // Collect all repos with matching name
+            for repo in repos.repos {
+                if repo.name == repo_identifier {
+                    matching_repos.push(repo);
+                }
+            }
+
+            if page_size < limit as usize {
+                break;
+            }
+
+            offset += limit;
+        }
+
+        match matching_repos.len() {
+            0 => bail!(
+                "Repository '{}' not found. Run 'detail repos list' to see your repositories.",
+                repo_identifier
+            ),
+            1 => Ok(matching_repos[0].id.clone()),
+            _ => {
+                let repo_list: Vec<String> = matching_repos
+                    .iter()
+                    .map(|r| format!("  - {}", r.full_name))
+                    .collect();
+
+                bail!(
+                    "Multiple repositories with name '{}' found:\n{}\n\nPlease specify using owner/repo format (e.g., '{}').",
+                    repo_identifier,
+                    repo_list.join("\n"),
+                    matching_repos[0].full_name
+                )
+            }
+        }
     }
 }
 
@@ -166,7 +208,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             page,
             format,
         } => {
-            // Resolve repo identifier to ID (handles both UUID and owner/repo format)
+            // Resolve owner/repo or repo to internal repo ID
             let resolved_repo_id = resolve_repo_id(&client, repo).await
                 .context("Failed to resolve repository identifier")?;
 

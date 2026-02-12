@@ -54,7 +54,7 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
             println!("{}", "✓ Successfully authenticated!".green());
             println!("Logged in as: {}", user_info.email);
             println!("\nExample commands:");
-            println!("  detail bugs list <repo_id>");
+            println!("  detail bugs list <owner>/<repo>");
             println!("  detail bugs show <bug_id>");
 
             Ok(())
