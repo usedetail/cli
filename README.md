@@ -36,12 +36,44 @@ detail auth status
 
 ## Usage
 
-The CLI provides commands for managing bugs and repositories. Use `--help` with any command to see detailed usage information:
+The CLI provides commands for managing bugs and repositories. Use `--help` with any command to see detailed usage information.
+
+### Bug Management
 
 ```bash
-detail --help
-detail bugs --help
-detail bugs list --help
+# List bugs for a repository
+detail bugs list owner/repo --status pending
+
+# Show details for a specific bug
+detail bugs show bug_abc123
+
+# Review a bug (mark as resolved)
+detail bugs review bug_abc123 --state resolved
+
+# Dismiss a bug with a note
+detail bugs review bug_abc123 --state dismissed --dismissal-reason not-a-bug --notes "Example note"
+```
+
+### Repository Management
+
+```bash
+# List all repositories you have access to
+detail repos list
+```
+
+### Output Formats
+
+All list commands support multiple output formats:
+
+```bash
+# Table format (default)
+detail bugs list owner/repo --format table
+
+# JSON format
+detail bugs list owner/repo --format json
+
+# CSV format
+detail bugs list owner/repo --format csv
 ```
 
 ## Configuration
@@ -61,7 +93,7 @@ To disable automatic updates, add this to your config file:
 check_for_updates = false
 ```
 
-You can run `detail-update` to manually update the CLI to the latest version.
+You can run `detail-cli-update` to manually update the CLI to the latest version.
 
 ### Environment Variables
 
