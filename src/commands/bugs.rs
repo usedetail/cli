@@ -219,7 +219,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bugs from repository")?;
 
-            crate::output::output_list(&bugs.bugs, bugs.total, format)
+            crate::output::output_list(&bugs.bugs, bugs.total, *page, *limit, format)
         }
 
         BugCommands::Show { bug_id } => {
