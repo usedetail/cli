@@ -23,13 +23,19 @@ pub trait Formattable {
 pub fn output_list<T: Formattable + Serialize>(
     items: &[T],
     total: usize,
+    page: u32,
+    limit: u32,
     format: &crate::OutputFormat,
 ) -> Result<()> {
+    let total_pages = (total as u32).div_ceil(limit).max(1);
+
     match format {
         crate::OutputFormat::Json => {
             let response = serde_json::json!({
                 "items": items,
                 "total": total,
+                "page": page,
+                "total_pages": total_pages,
             });
             println!("{}", serde_json::to_string_pretty(&response)?);
         }
@@ -49,7 +55,7 @@ pub fn output_list<T: Formattable + Serialize>(
                 table.add_row(Row::new(item.to_table_row()));
             }
             table.printstd();
-            println!("\nTotal: {}", total);
+            println!("\nPage: {} of {}", page, total_pages);
         }
     }
     Ok(())

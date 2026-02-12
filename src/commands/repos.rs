@@ -29,7 +29,7 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
             let repos = client.list_repos(*limit, offset).await
                 .context("Failed to fetch repositories")?;
 
-            crate::output::output_list(&repos.repos, repos.total, format)
+            crate::output::output_list(&repos.repos, repos.total, *page, *limit, format)
         }
     }
 }
