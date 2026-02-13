@@ -1,5 +1,8 @@
+use std::collections::BTreeMap;
+
 use anyhow::{Context, Result};
 use clap::Subcommand;
+use console::{style, Term};
 
 #[derive(Subcommand)]
 pub enum RepoCommands {
@@ -35,7 +38,33 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch repositories")?;
 
-            crate::output::output_list(&repos.repos, repos.total, *page, *limit, format)
+            match format {
+                crate::OutputFormat::Table => {
+                    let term = Term::stdout();
+                    let width = term.size().1 as usize;
+                    let separator = "─".repeat(width);
+
+                    // Group repos by organization, preserving insertion order
+                    let mut by_org: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+                    for repo in &repos.repos {
+                        by_org.entry(&repo.org_name).or_default().push(&repo.name);
+                    }
+
+                    for (org_name, repo_names) in &by_org {
+                        term.write_line(&format!("{} {}", style("Organization").bold(), org_name))?;
+                        term.write_line(&format!("{}", style(&separator).dim()))?;
+                        for name in repo_names {
+                            term.write_line(&format!("- {}", name))?;
+                        }
+                        term.write_line("")?;
+                    }
+
+                    let total_pages = (repos.total as u32).div_ceil(*limit).max(1);
+                    term.write_line(&format!("Page: {} of {}", page, total_pages))?;
+                    Ok(())
+                }
+                _ => crate::output::output_list(&repos.repos, repos.total, *page, *limit, format),
+            }
         }
     }
 }
