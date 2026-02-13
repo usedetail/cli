@@ -43,7 +43,13 @@ impl SectionRenderer {
     pub fn print(self) {
         let width = self.term.size().1 as usize;
         let separator = "─".repeat(width);
-        let skin = termimad::MadSkin::default();
+        let mut skin = termimad::MadSkin::default();
+        let dim = termimad::crossterm::style::Attribute::Dim;
+        skin.code_block.compound_style = termimad::CompoundStyle::with_attr(dim);
+        skin.inline_code = termimad::CompoundStyle::with_attr(dim);
+        for h in &mut skin.headers {
+            h.align = termimad::Alignment::Left;
+        }
 
         for (header, content) in &self.sections {
             let _ = self.term.write_line(&format!("{}", style(header).bold()));
