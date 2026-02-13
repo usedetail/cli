@@ -60,6 +60,9 @@ enum Commands {
         command: commands::repos::RepoCommands,
     },
 
+    /// Install the triage-detail-bugs skill into the current repository
+    Skill,
+
     /// Show version information
     Version,
 }
@@ -78,6 +81,7 @@ async fn main() -> Result<()> {
         Commands::Auth { command } => commands::auth::handle(command, &cli).await,
         Commands::Bugs { command } => commands::bugs::handle(command, &cli).await,
         Commands::Repos { command } => commands::repos::handle(command, &cli).await,
+        Commands::Skill => commands::skill::handle(),
         Commands::Version => {
             console::Term::stdout().write_line(&format!("detail-cli v{}", VERSION))?;
             Ok(())
