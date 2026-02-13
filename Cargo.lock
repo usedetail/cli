@@ -413,9 +413,9 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "tokio",
  "toml",
- "url",
 ]
 
 [[package]]
