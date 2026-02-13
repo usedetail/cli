@@ -52,25 +52,25 @@ pub enum OutputFormat {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Authentication commands
+    /// Manage login credentials
     Auth {
         #[command(subcommand)]
         command: commands::auth::AuthCommands,
     },
 
-    /// Bug management commands
+    /// List, show, and review bugs
     Bugs {
         #[command(subcommand)]
         command: commands::bugs::BugCommands,
     },
 
-    /// Repository management commands
+    /// Manage repos tracked with Detail
     Repos {
         #[command(subcommand)]
         command: commands::repos::RepoCommands,
     },
 
-    /// Install the triage-detail-bugs skill into the current repository
+    /// Install the triage-detail-bugs skill
     Skill,
 
     /// Show version information

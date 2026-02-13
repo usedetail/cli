@@ -6,7 +6,7 @@ use crate::api::types::{BugDismissalReason, BugReviewState};
 
 #[derive(Subcommand)]
 pub enum BugCommands {
-    /// List bugs
+    /// List bugs for a given repository
     List {
         /// Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli)
         repo: String,
@@ -28,7 +28,7 @@ pub enum BugCommands {
         format: crate::OutputFormat,
     },
 
-    /// Show bug details
+    /// Show the report for a bug
     Show {
         /// Bug ID
         bug_id: String,
