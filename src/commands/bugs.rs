@@ -179,31 +179,36 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bug details")?;
 
-            let mut renderer = crate::output::SectionRenderer::new()
-                .section("ID", &bug.id)
-                .section("Title", &bug.title)
-                .section("File", bug.file_path.as_deref().unwrap_or("-"))
-                .section("Created", crate::utils::format_datetime(bug.created_at))
-                .section(
+            let mut pairs: Vec<(&str, String)> = vec![
+                ("ID", bug.id.to_string()),
+                ("Title", bug.title.clone()),
+                ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
+                ("Created", crate::utils::format_datetime(bug.created_at)),
+                (
                     "Security",
                     bug.is_security_vulnerability
                         .map(|v| if v { "Yes" } else { "No" })
-                        .unwrap_or("-"),
-                );
+                        .unwrap_or("-")
+                        .to_string(),
+                ),
+            ];
             if let Some(review) = &bug.review {
-                let mut pairs = vec![
-                    ("State", review.state.to_string()),
-                    ("Date", crate::utils::format_datetime(review.created_at)),
-                ];
+                pairs.push(("Review", review.state.to_string()));
+                pairs.push((
+                    "Review Date",
+                    crate::utils::format_datetime(review.created_at),
+                ));
                 if let Some(reason) = &review.dismissal_reason {
-                    pairs.push(("Reason", reason.to_string()));
+                    pairs.push(("Dismissal", reason.to_string()));
                 }
                 if let Some(notes) = &review.notes {
                     pairs.push(("Notes", notes.clone()));
                 }
-                renderer = renderer.key_value("Review", &pairs);
             }
-            renderer.markdown("Report", &bug.summary).print()
+            crate::output::SectionRenderer::new()
+                .key_value("", &pairs)
+                .markdown("", &bug.summary)
+                .print()
         }
 
         BugCommands::Review {
