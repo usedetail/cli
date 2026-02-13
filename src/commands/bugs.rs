@@ -35,6 +35,7 @@ pub enum DismissalReason {
 }
 
 impl DismissalReason {
+    #[allow(dead_code)]
     fn as_str(&self) -> &str {
         match self {
             DismissalReason::NotABug => "not_a_bug",
@@ -276,7 +277,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             dismissal_reason,
             notes,
         } => {
-            use crate::api::types::BugId;
+            use crate::api::types::{BugDismissalReason, BugId, BugReviewState};
 
             // Validate that dismissal_reason is provided when state is dismissed
             if matches!(state, ReviewState::Dismissed) && dismissal_reason.is_none() {
@@ -285,15 +286,20 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
 
             let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
 
-            let dismissal_reason_str = dismissal_reason.as_ref().map(|r| r.as_str());
+            let api_state = match state {
+                ReviewState::Pending => BugReviewState::Pending,
+                ReviewState::Resolved => BugReviewState::Resolved,
+                ReviewState::Dismissed => BugReviewState::Dismissed,
+            };
+            let api_reason = dismissal_reason.as_ref().map(|r| match r {
+                DismissalReason::NotABug => BugDismissalReason::NotABug,
+                DismissalReason::WontFix => BugDismissalReason::WontFix,
+                DismissalReason::Duplicate => BugDismissalReason::Duplicate,
+                DismissalReason::Other => BugDismissalReason::Other,
+            });
 
             client
-                .update_bug_review(
-                    &bug_id,
-                    state.as_str(),
-                    dismissal_reason_str,
-                    notes.as_deref(),
-                )
+                .update_bug_review(&bug_id, api_state, api_reason, notes.as_deref())
                 .await
                 .context("Failed to update bug review")?;
 

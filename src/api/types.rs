@@ -154,9 +154,9 @@ impl std::fmt::Display for BugDismissalReason {
 
 #[derive(Debug, Serialize)]
 pub struct BugReviewRequest {
-    pub state: String,
+    pub state: BugReviewState,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dismissal_reason: Option<String>,
+    pub dismissal_reason: Option<BugDismissalReason>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
