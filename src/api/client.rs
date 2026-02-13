@@ -8,11 +8,11 @@ use super::types::*;
 
 /// Structured error response from the Detail API
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ApiError {
     #[serde(rename = "type")]
     error_type: String,
     message: String,
-    #[serde(rename = "statusCode")]
     status_code: u16,
 }
 
