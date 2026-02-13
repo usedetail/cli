@@ -114,7 +114,7 @@ pub struct BugReview {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum BugReviewState {
     Pending,
@@ -132,7 +132,7 @@ impl std::fmt::Display for BugReviewState {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum BugDismissalReason {
     NotABug,

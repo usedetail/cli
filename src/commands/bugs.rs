@@ -1,67 +1,8 @@
 use anyhow::{bail, Context, Result};
-use clap::{Subcommand, ValueEnum};
+use clap::Subcommand;
 use colored::*;
 
-#[derive(Clone, ValueEnum)]
-pub enum ReviewState {
-    /// Mark as pending (reopen)
-    Pending,
-    /// Mark as resolved
-    Resolved,
-    /// Mark as dismissed
-    Dismissed,
-}
-
-impl ReviewState {
-    fn as_str(&self) -> &str {
-        match self {
-            ReviewState::Pending => "pending",
-            ReviewState::Resolved => "resolved",
-            ReviewState::Dismissed => "dismissed",
-        }
-    }
-}
-
-#[derive(Clone, ValueEnum)]
-pub enum DismissalReason {
-    /// Not a bug
-    NotABug,
-    /// Won't fix
-    WontFix,
-    /// Duplicate issue
-    Duplicate,
-    /// Other reason
-    Other,
-}
-
-impl DismissalReason {
-    #[allow(dead_code)]
-    fn as_str(&self) -> &str {
-        match self {
-            DismissalReason::NotABug => "not_a_bug",
-            DismissalReason::WontFix => "wont_fix",
-            DismissalReason::Duplicate => "duplicate",
-            DismissalReason::Other => "other",
-        }
-    }
-}
-
-#[derive(Clone, ValueEnum)]
-pub enum BugStatus {
-    Pending,
-    Resolved,
-    Dismissed,
-}
-
-impl BugStatus {
-    fn as_str(&self) -> &str {
-        match self {
-            BugStatus::Pending => "pending",
-            BugStatus::Resolved => "resolved",
-            BugStatus::Dismissed => "dismissed",
-        }
-    }
-}
+use crate::api::types::{BugDismissalReason, BugReviewState};
 
 #[derive(Subcommand)]
 pub enum BugCommands {
@@ -72,7 +13,7 @@ pub enum BugCommands {
 
         /// Status filter
         #[arg(long, value_enum, default_value = "pending")]
-        status: BugStatus,
+        status: BugReviewState,
 
         /// Maximum number of results per page
         #[arg(long, default_value = "50")]
@@ -100,11 +41,11 @@ pub enum BugCommands {
 
         /// Review state
         #[arg(long, value_enum)]
-        state: ReviewState,
+        state: BugReviewState,
 
         /// Dismissal reason (required if state is dismissed)
         #[arg(long, value_enum)]
-        dismissal_reason: Option<DismissalReason>,
+        dismissal_reason: Option<BugDismissalReason>,
 
         /// Additional notes
         #[arg(long)]
@@ -221,7 +162,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             let offset = crate::utils::page_to_offset(*page, *limit);
 
             let bugs = client
-                .list_bugs(&resolved_repo_id, Some(status.as_str()), *limit, offset)
+                .list_bugs(&resolved_repo_id, Some(status), *limit, offset)
                 .await
                 .context("Failed to fetch bugs from repository")?;
 
@@ -277,36 +218,26 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             dismissal_reason,
             notes,
         } => {
-            use crate::api::types::{BugDismissalReason, BugId, BugReviewState};
+            use crate::api::types::BugId;
 
             // Validate that dismissal_reason is provided when state is dismissed
-            if matches!(state, ReviewState::Dismissed) && dismissal_reason.is_none() {
+            if matches!(state, BugReviewState::Dismissed) && dismissal_reason.is_none() {
                 bail!("--dismissal-reason is required when state is 'dismissed'");
             }
 
             let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
 
-            let api_state = match state {
-                ReviewState::Pending => BugReviewState::Pending,
-                ReviewState::Resolved => BugReviewState::Resolved,
-                ReviewState::Dismissed => BugReviewState::Dismissed,
-            };
-            let api_reason = dismissal_reason.as_ref().map(|r| match r {
-                DismissalReason::NotABug => BugDismissalReason::NotABug,
-                DismissalReason::WontFix => BugDismissalReason::WontFix,
-                DismissalReason::Duplicate => BugDismissalReason::Duplicate,
-                DismissalReason::Other => BugDismissalReason::Other,
-            });
-
             client
-                .update_bug_review(&bug_id, api_state, api_reason, notes.as_deref())
+                .update_bug_review(
+                    &bug_id,
+                    state.clone(),
+                    dismissal_reason.clone(),
+                    notes.as_deref(),
+                )
                 .await
                 .context("Failed to update bug review")?;
 
-            println!(
-                "{}",
-                format!("✓ Updated bug review to: {}", state.as_str()).green()
-            );
+            println!("{}", format!("✓ Updated bug review to: {}", state).green());
             Ok(())
         }
     }
