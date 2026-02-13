@@ -12,10 +12,20 @@ mod utils;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+const LONG_ABOUT: &str = "\
+Detail CLI - Manage bugs from your terminal
+
+Common workflow:
+  1. List pending bugs:   detail bugs list <owner/repo>
+  2. View a bug report:   detail bugs show <bug_id>
+  3. Fix the bug
+  4. Review the bug:      detail bugs review <bug_id>";
+
 #[derive(Parser)]
 #[command(name = "detail")]
 #[command(version = VERSION)]
-#[command(about = "Detail CLI - Manage bugs from your terminal", long_about = None)]
+#[command(about = "Detail CLI - Manage bugs from your terminal")]
+#[command(long_about = LONG_ABOUT)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
