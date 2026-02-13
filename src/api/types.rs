@@ -89,30 +89,27 @@ pub struct BugsResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Bug {
     pub id: BugId,
     pub title: String,
     pub summary: String,
-    #[serde(rename = "filePath")]
     pub file_path: Option<String>,
-    #[serde(rename = "createdAt", deserialize_with = "deserialize_timestamp")]
+    #[serde(deserialize_with = "deserialize_timestamp")]
     pub created_at: i64,
     pub review: Option<BugReview>,
-    #[serde(rename = "repoId")]
     pub repo_id: RepoId,
-    #[serde(rename = "commitSha")]
     pub commit_sha: Option<String>,
-    #[serde(rename = "isSecurityVulnerability")]
     pub is_security_vulnerability: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BugReview {
     pub id: BugReviewId,
     pub state: BugReviewState,
-    #[serde(rename = "createdAt", deserialize_with = "deserialize_timestamp")]
+    #[serde(deserialize_with = "deserialize_timestamp")]
     pub created_at: i64,
-    #[serde(rename = "dismissalReason")]
     pub dismissal_reason: Option<BugDismissalReason>,
     pub notes: Option<String>,
 }
@@ -171,19 +168,15 @@ pub struct ReposResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Repo {
     pub id: RepoId,
     pub name: String,
-    #[serde(rename = "ownerName")]
     pub owner_name: String,
-    #[serde(rename = "fullName")]
     pub full_name: String,
     pub visibility: String,
-    #[serde(rename = "primaryBranch")]
     pub primary_branch: String,
-    #[serde(rename = "orgId")]
     pub org_id: OrgId,
-    #[serde(rename = "orgName")]
     pub org_name: String,
 }
 
