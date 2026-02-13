@@ -56,12 +56,36 @@ pub enum BugCommands {
 /// Page size used when paginating through repos to resolve identifiers.
 const REPO_PAGE_SIZE: u32 = 100;
 
+/// Fetch all repos by paginating through the API.
+async fn fetch_all_repos(
+    client: &crate::api::client::ApiClient,
+) -> Result<Vec<crate::api::types::Repo>> {
+    let mut all_repos = Vec::new();
+    let mut offset = 0;
+
+    loop {
+        let repos = client
+            .list_repos(REPO_PAGE_SIZE, offset)
+            .await
+            .context("Failed to fetch repositories while resolving identifier")?;
+
+        let page_size = repos.repos.len();
+        all_repos.extend(repos.repos);
+
+        if page_size < REPO_PAGE_SIZE as usize {
+            break;
+        }
+        offset += REPO_PAGE_SIZE;
+    }
+
+    Ok(all_repos)
+}
+
 /// Resolve owner/repo or repo name to repo ID
 async fn resolve_repo_id(
     client: &crate::api::client::ApiClient,
     repo_identifier: &str,
 ) -> Result<crate::api::types::RepoId> {
-    // If it contains a slash, validate as owner/repo format
     if repo_identifier.contains('/') {
         let parts: Vec<&str> = repo_identifier.split('/').collect();
         if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
@@ -70,76 +94,35 @@ async fn resolve_repo_id(
             );
         }
 
-        // Search for exact match on full_name
-        let limit = REPO_PAGE_SIZE;
-        let mut offset = 0;
-
-        loop {
-            let repos = client
-                .list_repos(limit, offset)
-                .await
-                .context("Failed to fetch repositories while resolving identifier")?;
-
-            if let Some(repo) = repos.repos.iter().find(|r| r.full_name == repo_identifier) {
-                return Ok(repo.id.clone());
-            }
-
-            if repos.repos.len() < limit as usize {
-                break;
-            }
-
-            offset += limit;
-        }
-
-        bail!(
-            "Repository '{}' not found. Make sure you have access to this repository.",
-            repo_identifier
-        )
+        let repos = fetch_all_repos(client).await?;
+        repos
+            .iter()
+            .find(|r| r.full_name == repo_identifier)
+            .map(|r| r.id.clone())
+            .context(format!(
+                "Repository '{}' not found. Make sure you have access to this repository.",
+                repo_identifier
+            ))
     } else {
-        // Repo without owner, search all repos and collect matches
-        let limit = REPO_PAGE_SIZE;
-        let mut offset = 0;
-        let mut matching_repos = Vec::new();
+        let repos = fetch_all_repos(client).await?;
+        let matching: Vec<_> = repos.iter().filter(|r| r.name == repo_identifier).collect();
 
-        loop {
-            let repos = client
-                .list_repos(limit, offset)
-                .await
-                .context("Failed to fetch repositories while resolving identifier")?;
-
-            let page_size = repos.repos.len();
-
-            // Collect all repos with matching name
-            for repo in repos.repos {
-                if repo.name == repo_identifier {
-                    matching_repos.push(repo);
-                }
-            }
-
-            if page_size < limit as usize {
-                break;
-            }
-
-            offset += limit;
-        }
-
-        match matching_repos.len() {
+        match matching.len() {
             0 => bail!(
                 "Repository '{}' not found. Run 'detail repos list' to see your repositories.",
                 repo_identifier
             ),
-            1 => Ok(matching_repos[0].id.clone()),
+            1 => Ok(matching[0].id.clone()),
             _ => {
-                let repo_list: Vec<String> = matching_repos
+                let repo_list: Vec<String> = matching
                     .iter()
                     .map(|r| format!("  - {}", r.full_name))
                     .collect();
-
                 bail!(
                     "Multiple repositories with name '{}' found:\n{}\n\nPlease specify using owner/repo format (e.g., '{}').",
                     repo_identifier,
                     repo_list.join("\n"),
-                    matching_repos[0].full_name
+                    matching[0].full_name
                 )
             }
         }
