@@ -135,7 +135,7 @@ impl ApiClient {
     pub async fn list_bugs(
         &self,
         repo_id: &RepoId,
-        status: Option<&BugReviewState>,
+        status: Option<&BugCloseState>,
         limit: u32,
         offset: u32,
     ) -> Result<BugsResponse> {
@@ -145,7 +145,7 @@ impl ApiClient {
             limit: u32,
             offset: u32,
             #[serde(skip_serializing_if = "Option::is_none")]
-            status: Option<&'a BugReviewState>,
+            status: Option<&'a BugCloseState>,
         }
 
         let query = ListBugsQuery {
@@ -164,15 +164,15 @@ impl ApiClient {
         self.request(reqwest::Method::GET, &path, None).await
     }
 
-    pub async fn update_bug_review(
+    pub async fn update_bug_close(
         &self,
         bug_id: &BugId,
-        state: BugReviewState,
+        state: BugCloseState,
         dismissal_reason: Option<BugDismissalReason>,
         notes: Option<&str>,
-    ) -> Result<BugReview> {
+    ) -> Result<BugClose> {
         let path = format!("/public/v1/bugs/{}/review", bug_id);
-        let request = BugReviewRequest {
+        let request = BugCloseRequest {
             state,
             dismissal_reason,
             notes: notes.map(String::from),

@@ -48,8 +48,8 @@ to confirm with the user before implementing.
 After implementing the fix, mark the bug as resolved. If we are not going to
 fix the bug, mark it as dismissed.
 
-- **Resolve**: `detail bugs review <bug_id> --state resolved`
-- **Dismiss**: `detail bugs review <bug_id> --state dismissed --dismissal-reason <reason>`
+- **Resolve**: `detail bugs close <bug_id> --state resolved`
+- **Dismiss**: `detail bugs close <bug_id> --state dismissed --dismissal-reason <reason>`
   - Valid dismiss reasons: `not-a-bug`, `wont-fix`, `duplicate`, `other`
   - Add `--notes "..."` if the user provides context.
 

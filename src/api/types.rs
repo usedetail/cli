@@ -67,7 +67,7 @@ macro_rules! define_id_type {
 define_id_type!(BugId, "bug_", "bug");
 define_id_type!(RepoId, "repo_", "repository");
 define_id_type!(OrgId, "org_", "organization");
-define_id_type!(BugReviewId, "bfrv_", "bug review");
+define_id_type!(BugCloseId, "bfrv_", "bug close");
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserInfo {
@@ -96,7 +96,8 @@ pub struct Bug {
     pub file_path: Option<String>,
     #[serde(deserialize_with = "deserialize_timestamp")]
     pub created_at: i64,
-    pub review: Option<BugReview>,
+    #[serde(rename = "review")]
+    pub close: Option<BugClose>,
     pub repo_id: RepoId,
     pub commit_sha: Option<String>,
     pub is_security_vulnerability: Option<bool>,
@@ -104,9 +105,9 @@ pub struct Bug {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BugReview {
-    pub id: BugReviewId,
-    pub state: BugReviewState,
+pub struct BugClose {
+    pub id: BugCloseId,
+    pub state: BugCloseState,
     #[serde(deserialize_with = "deserialize_timestamp")]
     pub created_at: i64,
     pub dismissal_reason: Option<BugDismissalReason>,
@@ -115,13 +116,13 @@ pub struct BugReview {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
-pub enum BugReviewState {
+pub enum BugCloseState {
     Pending,
     Resolved,
     Dismissed,
 }
 
-impl std::fmt::Display for BugReviewState {
+impl std::fmt::Display for BugCloseState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Pending => write!(f, "Pending"),
@@ -152,8 +153,8 @@ impl std::fmt::Display for BugDismissalReason {
 }
 
 #[derive(Debug, Serialize)]
-pub struct BugReviewRequest {
-    pub state: BugReviewState,
+pub struct BugCloseRequest {
+    pub state: BugCloseState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dismissal_reason: Option<BugDismissalReason>,
     #[serde(skip_serializing_if = "Option::is_none")]

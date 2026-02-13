@@ -19,7 +19,7 @@ Common workflow:
   1. List pending bugs:   detail bugs list <owner/repo>
   2. View a bug report:   detail bugs show <bug_id>
   3. Fix the bug
-  4. Review the bug:      detail bugs review <bug_id>";
+  4. Close the bug:       detail bugs close <bug_id>";
 
 #[derive(Parser)]
 #[command(name = "detail")]
@@ -58,7 +58,7 @@ enum Commands {
         command: commands::auth::AuthCommands,
     },
 
-    /// List, show, and review bugs
+    /// List, show, and close bugs
     Bugs {
         #[command(subcommand)]
         command: commands::bugs::BugCommands,

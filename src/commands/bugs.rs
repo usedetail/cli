@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use console::{style, Term};
 
-use crate::api::types::{BugDismissalReason, BugReviewState};
+use crate::api::types::{BugCloseState, BugDismissalReason};
 
 #[derive(Subcommand)]
 pub enum BugCommands {
@@ -13,7 +13,7 @@ pub enum BugCommands {
 
         /// Status filter
         #[arg(long, value_enum, default_value = "pending")]
-        status: BugReviewState,
+        status: BugCloseState,
 
         /// Maximum number of results per page
         #[arg(long, default_value = "50")]
@@ -34,14 +34,14 @@ pub enum BugCommands {
         bug_id: String,
     },
 
-    /// Mark bug as resolved or dismissed
-    Review {
+    /// Close a bug as resolved or dismissed
+    Close {
         /// Bug ID
         bug_id: String,
 
-        /// Review state
+        /// Close state
         #[arg(long, value_enum)]
-        state: BugReviewState,
+        state: BugCloseState,
 
         /// Dismissal reason (required if state is dismissed)
         #[arg(long, value_enum)]
@@ -178,16 +178,16 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                         .to_string(),
                 ),
             ];
-            if let Some(review) = &bug.review {
-                pairs.push(("Review", review.state.to_string()));
+            if let Some(close) = &bug.close {
+                pairs.push(("Close", close.state.to_string()));
                 pairs.push((
-                    "Review Date",
-                    crate::utils::format_datetime(review.created_at),
+                    "Close Date",
+                    crate::utils::format_datetime(close.created_at),
                 ));
-                if let Some(reason) = &review.dismissal_reason {
+                if let Some(reason) = &close.dismissal_reason {
                     pairs.push(("Dismissal", reason.to_string()));
                 }
-                if let Some(notes) = &review.notes {
+                if let Some(notes) = &close.notes {
                     pairs.push(("Notes", notes.clone()));
                 }
             }
@@ -197,7 +197,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .print()
         }
 
-        BugCommands::Review {
+        BugCommands::Close {
             bug_id,
             state,
             dismissal_reason,
@@ -206,21 +206,21 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             use crate::api::types::BugId;
 
             // Validate that dismissal_reason is provided when state is dismissed
-            if matches!(state, BugReviewState::Dismissed) && dismissal_reason.is_none() {
+            if matches!(state, BugCloseState::Dismissed) && dismissal_reason.is_none() {
                 bail!("--dismissal-reason is required when state is 'dismissed'");
             }
 
             let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
 
             client
-                .update_bug_review(&bug_id, *state, *dismissal_reason, notes.as_deref())
+                .update_bug_close(&bug_id, *state, *dismissal_reason, notes.as_deref())
                 .await
-                .context("Failed to update bug review")?;
+                .context("Failed to close bug")?;
 
             Term::stdout()
                 .write_line(&format!(
                     "{}",
-                    style(format!("✓ Updated bug review to: {}", state)).green()
+                    style(format!("✓ Bug closed as: {}", state)).green()
                 ))
                 .ok();
             Ok(())
