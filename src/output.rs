@@ -65,25 +65,25 @@ impl SectionRenderer {
         self
     }
 
-    pub fn print(self) {
+    pub fn print(self) -> Result<()> {
         let width = self.term.size().1 as usize;
         let separator = "─".repeat(width);
 
         for (header, content) in &self.sections {
-            let _ = self.term.write_line(&format!("{}", style(header).bold()));
-            let _ = self
-                .term
-                .write_line(&format!("{}", style(&separator).dim()));
+            self.term.write_line(&format!("{}", style(header).bold()))?;
+            self.term
+                .write_line(&format!("{}", style(&separator).dim()))?;
             match content {
                 SectionContent::Plain(text) => {
-                    let _ = self.term.write_line(text);
+                    self.term.write_line(text)?;
                 }
                 SectionContent::Markdown(text) => {
-                    let _ = write!(&self.term, "{}", MARKDOWN_SKIN.term_text(text));
+                    write!(&self.term, "{}", MARKDOWN_SKIN.term_text(text))?;
                 }
             }
-            let _ = self.term.write_line("");
+            self.term.write_line("")?;
         }
+        Ok(())
     }
 }
 
