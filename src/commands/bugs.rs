@@ -53,6 +53,9 @@ pub enum BugCommands {
     },
 }
 
+/// Page size used when paginating through repos to resolve identifiers.
+const REPO_PAGE_SIZE: u32 = 100;
+
 /// Resolve owner/repo or repo name to repo ID
 async fn resolve_repo_id(
     client: &crate::api::client::ApiClient,
@@ -68,7 +71,7 @@ async fn resolve_repo_id(
         }
 
         // Search for exact match on full_name
-        let limit = 100;
+        let limit = REPO_PAGE_SIZE;
         let mut offset = 0;
 
         loop {
@@ -94,7 +97,7 @@ async fn resolve_repo_id(
         )
     } else {
         // Repo without owner, search all repos and collect matches
-        let limit = 100;
+        let limit = REPO_PAGE_SIZE;
         let mut offset = 0;
         let mut matching_repos = Vec::new();
 
