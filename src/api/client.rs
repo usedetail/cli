@@ -136,7 +136,7 @@ impl ApiClient {
     pub async fn list_bugs(
         &self,
         repo_id: &RepoId,
-        status: Option<&str>,
+        status: Option<&BugReviewState>,
         limit: u32,
         offset: u32,
     ) -> Result<BugsResponse> {
@@ -147,7 +147,10 @@ impl ApiClient {
             query.append_pair("limit", &limit.to_string());
             query.append_pair("offset", &offset.to_string());
             if let Some(s) = status {
-                query.append_pair("status", s);
+                let value = serde_json::to_value(s)?;
+                if let Some(status_str) = value.as_str() {
+                    query.append_pair("status", status_str);
+                }
             }
         }
         let path_and_query = format!("{}?{}", url.path(), url.query().unwrap_or(""));
