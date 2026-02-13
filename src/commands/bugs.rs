@@ -203,9 +203,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 }
                 renderer = renderer.key_value("Review", &pairs);
             }
-            renderer.markdown("Report", &bug.summary).print();
-
-            Ok(())
+            renderer.markdown("Report", &bug.summary).print()
         }
 
         BugCommands::Review {
