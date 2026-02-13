@@ -2,7 +2,7 @@ use anyhow::Result;
 use axoupdater::AxoUpdater;
 use console::{style, Term};
 
-const UPDATE_CHECK_INTERVAL: u64 = 86400; // 24 hours in seconds
+const UPDATE_CHECK_INTERVAL: u64 = 3600; // 1 hour in seconds
 
 /// Automatically check for and install updates in the background
 pub async fn auto_update() -> Result<()> {
