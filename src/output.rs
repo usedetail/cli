@@ -1,36 +1,64 @@
 //! CLI output formatting utilities
 
+use std::io::Write as _;
+
 use anyhow::Result;
-use colored::Colorize;
+use console::{style, Term};
 use prettytable::{Cell, Row, Table};
 use serde::Serialize;
 
+enum SectionContent {
+    Plain(String),
+    Markdown(String),
+}
+
 /// Renders detail views as sections with bold headers and terminal-width separators.
 pub struct SectionRenderer {
-    sections: Vec<(String, String)>,
+    term: Term,
+    sections: Vec<(String, SectionContent)>,
 }
 
 impl SectionRenderer {
     pub fn new() -> Self {
         Self {
+            term: Term::stdout(),
             sections: Vec::new(),
         }
     }
 
     pub fn section(mut self, header: &str, value: impl std::fmt::Display) -> Self {
-        self.sections.push((header.to_string(), value.to_string()));
+        self.sections
+            .push((header.to_string(), SectionContent::Plain(value.to_string())));
+        self
+    }
+
+    pub fn markdown(mut self, header: &str, value: impl std::fmt::Display) -> Self {
+        self.sections.push((
+            header.to_string(),
+            SectionContent::Markdown(value.to_string()),
+        ));
         self
     }
 
     pub fn print(self) {
-        let width = console::Term::stdout().size().1 as usize;
+        let width = self.term.size().1 as usize;
         let separator = "─".repeat(width);
+        let skin = termimad::MadSkin::default();
 
-        for (header, value) in &self.sections {
-            println!("{}", header.bold());
-            println!("{}", separator.dimmed());
-            println!("{}", value);
-            println!();
+        for (header, content) in &self.sections {
+            let _ = self.term.write_line(&format!("{}", style(header).bold()));
+            let _ = self
+                .term
+                .write_line(&format!("{}", style(&separator).dim()));
+            match content {
+                SectionContent::Plain(text) => {
+                    let _ = self.term.write_line(text);
+                }
+                SectionContent::Markdown(text) => {
+                    let _ = write!(&self.term, "{}", skin.term_text(text));
+                }
+            }
+            let _ = self.term.write_line("");
         }
     }
 }
