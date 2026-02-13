@@ -70,7 +70,7 @@ enum Commands {
         command: commands::repos::RepoCommands,
     },
 
-    /// Install the triage-detail-bugs skill
+    /// Install the detail-bugs skill
     Skill,
 
     /// Show version information
