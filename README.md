@@ -47,11 +47,11 @@ detail bugs list owner/repo --status pending
 # Show details for a specific bug
 detail bugs show bug_abc123
 
-# Review a bug (mark as resolved)
-detail bugs review bug_abc123 --state resolved
+# Close a bug (mark as resolved)
+detail bugs close bug_abc123 --state resolved
 
 # Dismiss a bug with a note
-detail bugs review bug_abc123 --state dismissed --dismissal-reason not-a-bug --notes "Example note"
+detail bugs close bug_abc123 --state dismissed --dismissal-reason not-a-bug --notes "Example note"
 ```
 
 ### Repository Management
