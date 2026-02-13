@@ -1,4 +1,4 @@
-#![deny(clippy::print_stdout)]
+#![deny(clippy::print_stdout, clippy::print_stderr)]
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -70,7 +70,8 @@ async fn main() -> Result<()> {
 
     // Auto-update in background (async, non-blocking)
     if let Err(e) = upgrade::auto_update().await {
-        eprintln!("Warning: Failed to check for updates: {}", e);
+        let _ = console::Term::stderr()
+            .write_line(&format!("Warning: Failed to check for updates: {}", e));
     }
 
     match &cli.command {

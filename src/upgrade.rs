@@ -1,6 +1,6 @@
 use anyhow::Result;
 use axoupdater::AxoUpdater;
-use colored::*;
+use console::{style, Term};
 
 const UPDATE_CHECK_INTERVAL: u64 = 86400; // 24 hours in seconds
 
@@ -61,17 +61,21 @@ fn print_update_success(result: &axoupdater::UpdateResult) {
         .unwrap_or_else(|| "unknown".to_string());
     let new_version = result.new_version.to_string();
 
-    eprintln!();
-    eprintln!("{}", "─".repeat(60).dimmed());
-    eprintln!(
+    let term = Term::stderr();
+    let _ = term.write_line("");
+    let _ = term.write_line(&format!("{}", style("─".repeat(60)).dim()));
+    let _ = term.write_line(&format!(
         "{}",
-        format!(
+        style(format!(
             "✓ Updated Detail CLI from v{} to v{}",
             old_version, new_version
-        )
+        ))
         .green()
-    );
-    eprintln!("{}", "  Changes will apply on next run".dimmed());
-    eprintln!("{}", "─".repeat(60).dimmed());
-    eprintln!();
+    ));
+    let _ = term.write_line(&format!(
+        "{}",
+        style("  Changes will apply on next run").dim()
+    ));
+    let _ = term.write_line(&format!("{}", style("─".repeat(60)).dim()));
+    let _ = term.write_line("");
 }

@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use colored::*;
+use console::{style, Term};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 
@@ -66,15 +66,15 @@ impl ApiClient {
         if let Some(deprecation) = response.headers().get("deprecation") {
             if deprecation == "true" {
                 if let Some(sunset) = response.headers().get("sunset") {
-                    eprintln!(
+                    let _ = Term::stderr().write_line(&format!(
                         "{}",
-                        format!(
+                        style(format!(
                             "Warning: This API version will be deprecated on {}. \
                             Please update your CLI.",
                             sunset.to_str().unwrap_or("unknown date")
-                        )
+                        ))
                         .yellow()
-                    );
+                    ));
                 }
             }
         }
@@ -204,15 +204,15 @@ fn check_version_compatibility(api_version: &str) -> Result<()> {
     let requirement = VersionReq::parse(SUPPORTED_API_VERSIONS)?;
 
     if !requirement.matches(&api_version) {
-        eprintln!(
+        let _ = Term::stderr().write_line(&format!(
             "{}",
-            format!(
+            style(format!(
                 "Warning: API version {} may not be fully compatible. \
                 Consider updating your CLI.",
                 api_version
-            )
+            ))
             .yellow()
-        );
+        ));
     }
 
     Ok(())
