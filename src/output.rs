@@ -44,6 +44,19 @@ impl SectionRenderer {
         self
     }
 
+    /// Add a section with key-value pairs rendered as aligned rows.
+    pub fn key_value(mut self, header: &str, pairs: &[(&str, String)]) -> Self {
+        let max_key = pairs.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
+        let text = pairs
+            .iter()
+            .map(|(k, v)| format!("{:<width$}  {}", k, v, width = max_key))
+            .collect::<Vec<_>>()
+            .join("\n");
+        self.sections
+            .push((header.to_string(), SectionContent::Plain(text)));
+        self
+    }
+
     pub fn markdown(mut self, header: &str, value: impl std::fmt::Display) -> Self {
         self.sections.push((
             header.to_string(),

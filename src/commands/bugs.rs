@@ -191,18 +191,17 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                         .unwrap_or("-"),
                 );
             if let Some(review) = &bug.review {
-                let mut review_text = format!("State:  {}", review.state);
-                review_text.push_str(&format!(
-                    "\nDate:   {}",
-                    crate::utils::format_datetime(review.created_at)
-                ));
+                let mut pairs = vec![
+                    ("State", review.state.to_string()),
+                    ("Date", crate::utils::format_datetime(review.created_at)),
+                ];
                 if let Some(reason) = &review.dismissal_reason {
-                    review_text.push_str(&format!("\nReason: {}", reason));
+                    pairs.push(("Reason", reason.to_string()));
                 }
                 if let Some(notes) = &review.notes {
-                    review_text.push_str(&format!("\nNotes:  {}", notes));
+                    pairs.push(("Notes", notes.clone()));
                 }
-                renderer = renderer.section("Review", review_text);
+                renderer = renderer.key_value("Review", &pairs);
             }
             renderer.markdown("Report", &bug.summary).print();
 
