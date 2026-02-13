@@ -1,11 +1,23 @@
 //! CLI output formatting utilities
 
 use std::io::Write as _;
+use std::sync::LazyLock;
 
 use anyhow::Result;
 use console::{style, Term};
 use prettytable::{Cell, Row, Table};
 use serde::Serialize;
+
+static MARKDOWN_SKIN: LazyLock<termimad::MadSkin> = LazyLock::new(|| {
+    let mut skin = termimad::MadSkin::default();
+    let dim = termimad::crossterm::style::Attribute::Dim;
+    skin.code_block.compound_style = termimad::CompoundStyle::with_attr(dim);
+    skin.inline_code = termimad::CompoundStyle::with_attr(dim);
+    for h in &mut skin.headers {
+        h.align = termimad::Alignment::Left;
+    }
+    skin
+});
 
 enum SectionContent {
     Plain(String),
@@ -43,13 +55,6 @@ impl SectionRenderer {
     pub fn print(self) {
         let width = self.term.size().1 as usize;
         let separator = "─".repeat(width);
-        let mut skin = termimad::MadSkin::default();
-        let dim = termimad::crossterm::style::Attribute::Dim;
-        skin.code_block.compound_style = termimad::CompoundStyle::with_attr(dim);
-        skin.inline_code = termimad::CompoundStyle::with_attr(dim);
-        for h in &mut skin.headers {
-            h.align = termimad::Alignment::Left;
-        }
 
         for (header, content) in &self.sections {
             let _ = self.term.write_line(&format!("{}", style(header).bold()));
@@ -61,7 +66,7 @@ impl SectionRenderer {
                     let _ = self.term.write_line(text);
                 }
                 SectionContent::Markdown(text) => {
-                    let _ = write!(&self.term, "{}", skin.term_text(text));
+                    let _ = write!(&self.term, "{}", MARKDOWN_SKIN.term_text(text));
                 }
             }
             let _ = self.term.write_line("");
