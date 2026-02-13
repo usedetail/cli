@@ -163,14 +163,14 @@ impl ApiClient {
     pub async fn update_bug_review(
         &self,
         bug_id: &BugId,
-        state: &str,
-        dismissal_reason: Option<&str>,
+        state: BugReviewState,
+        dismissal_reason: Option<BugDismissalReason>,
         notes: Option<&str>,
     ) -> Result<BugReview> {
         let path = format!("/public/v1/bugs/{}/review", bug_id);
         let request = BugReviewRequest {
-            state: state.to_string(),
-            dismissal_reason: dismissal_reason.map(String::from),
+            state,
+            dismissal_reason,
             notes: notes.map(String::from),
         };
         let body = serde_json::to_value(request)?;
