@@ -1,565 +1,626 @@
 {
-    "openapi": "3.0.3",
-    "info": {
-        "title": "Detail Public API",
-        "version": "1.0.0",
-        "description": "Public API for programmatic access to Detail bug findings."
-    },
-    "servers": [
-        {
-            "url": "https://api.detail.dev",
-            "description": "Production"
-        }
-    ],
-    "components": {
-        "securitySchemes": {
-            "BearerAuth": {
-                "type": "http",
-                "scheme": "bearer",
-                "description": "API key authentication. Keys are prefixed with \"dtl_live_\" or \"dtl_test_\"."
-            }
-        },
-        "schemas": {
-            "BugReviewState": {
-                "type": "string",
-                "enum": [
-                    "resolved",
-                    "dismissed",
-                    "pending"
-                ]
-            },
-            "BugDismissalReason": {
-                "type": "string",
-                "enum": [
-                    "not_a_bug",
-                    "wont_fix",
-                    "duplicate",
-                    "other"
-                ]
-            },
-            "BugReview": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    },
-                    "state": {
-                        "$ref": "#/components/schemas/BugReviewState"
-                    },
-                    "createdAt": {
-                        "type": "integer"
-                    },
-                    "dismissalReason": {
-                        "$ref": "#/components/schemas/BugDismissalReason"
-                    },
-                    "notes": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "id",
-                    "state",
-                    "createdAt"
-                ]
-            },
-            "Bug": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    },
-                    "title": {
-                        "type": "string"
-                    },
-                    "summary": {
-                        "type": "string"
-                    },
-                    "filePath": {
-                        "type": "string"
-                    },
-                    "createdAt": {
-                        "type": "integer"
-                    },
-                    "review": {
-                        "$ref": "#/components/schemas/BugReview"
-                    },
-                    "repoId": {
-                        "type": "string"
-                    },
-                    "commitSha": {
-                        "type": "string"
-                    },
-                    "isSecurityVulnerability": {
-                        "type": "boolean"
-                    }
-                },
-                "required": [
-                    "id",
-                    "title",
-                    "summary",
-                    "createdAt",
-                    "repoId"
-                ]
-            },
-            "Org": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "id",
-                    "name"
-                ]
-            },
-            "Repo": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    },
-                    "name": {
-                        "type": "string"
-                    },
-                    "ownerName": {
-                        "type": "string"
-                    },
-                    "fullName": {
-                        "type": "string"
-                    },
-                    "visibility": {
-                        "type": "string"
-                    },
-                    "primaryBranch": {
-                        "type": "string"
-                    },
-                    "orgId": {
-                        "type": "string"
-                    },
-                    "orgName": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "id",
-                    "name",
-                    "ownerName",
-                    "fullName",
-                    "visibility",
-                    "primaryBranch",
-                    "orgId",
-                    "orgName"
-                ]
-            },
-            "ApiError": {
-                "type": "object",
-                "description": "Unified error type returned by all endpoints. Discriminate on type or statusCode.",
-                "properties": {
-                    "type": {
-                        "type": "string",
-                        "enum": [
-                            "DETAIL_AUTHENTICATION_ERROR",
-                            "AUTHORIZATION_ERROR",
-                            "NOT_FOUND",
-                            "INTERNAL_ERROR"
-                        ]
-                    },
-                    "message": {
-                        "type": "string"
-                    },
-                    "statusCode": {
-                        "type": "integer"
-                    },
-                    "requiredRole": {
-                        "type": "string"
-                    },
-                    "resource": {
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "type",
-                    "message",
-                    "statusCode"
-                ]
-            }
-        }
-    },
-    "paths": {
-        "/public/v1/bugs": {
-            "get": {
-                "operationId": "listPublicBugs",
-                "summary": "List bugs",
-                "description": "Returns a paginated list of bugs for a given repository, filtered by review status.",
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "repo_id",
-                        "in": "query",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "name": "status",
-                        "in": "query",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/components/schemas/BugReviewState"
-                        }
-                    },
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 100,
-                            "default": 50
-                        }
-                    },
-                    {
-                        "name": "offset",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "default": 0
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "bugs": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/components/schemas/Bug"
-                                            }
-                                        },
-                                        "total": {
-                                            "type": "integer"
-                                        }
-                                    },
-                                    "required": [
-                                        "bugs",
-                                        "total"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "4XX": {
-                        "description": "Client error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    },
-                    "5XX": {
-                        "description": "Server error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/public/v1/bugs/{bug_id}": {
-            "get": {
-                "operationId": "getPublicBug",
-                "summary": "Get a bug",
-                "description": "Returns a single bug by its ID.",
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "bug_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Bug"
-                                }
-                            }
-                        }
-                    },
-                    "4XX": {
-                        "description": "Client error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    },
-                    "5XX": {
-                        "description": "Server error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/public/v1/bugs/{bug_id}/review": {
-            "post": {
-                "operationId": "createPublicBugReview",
-                "summary": "Review a bug",
-                "description": "Creates or updates a review on a bug (resolve, dismiss, or reopen).",
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "bug_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "state": {
-                                        "$ref": "#/components/schemas/BugReviewState"
-                                    },
-                                    "dismissalReason": {
-                                        "$ref": "#/components/schemas/BugDismissalReason"
-                                    },
-                                    "notes": {
-                                        "type": "string"
-                                    }
-                                },
-                                "required": [
-                                    "state"
-                                ]
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BugReview"
-                                }
-                            }
-                        }
-                    },
-                    "4XX": {
-                        "description": "Client error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    },
-                    "5XX": {
-                        "description": "Server error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/public/v1/user": {
-            "get": {
-                "operationId": "getPublicUser",
-                "summary": "Get current user",
-                "description": "Returns the authenticated user's email and organization memberships.",
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "email": {
-                                            "type": "string"
-                                        },
-                                        "orgs": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/components/schemas/Org"
-                                            }
-                                        }
-                                    },
-                                    "required": [
-                                        "email",
-                                        "orgs"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "4XX": {
-                        "description": "Client error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    },
-                    "5XX": {
-                        "description": "Server error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/public/v1/repos": {
-            "get": {
-                "operationId": "listPublicRepos",
-                "summary": "List repositories",
-                "description": "Returns a paginated list of repositories accessible to the authenticated user.",
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 100,
-                            "default": 50
-                        }
-                    },
-                    {
-                        "name": "offset",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "default": 0
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "repos": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/components/schemas/Repo"
-                                            }
-                                        },
-                                        "total": {
-                                            "type": "integer"
-                                        }
-                                    },
-                                    "required": [
-                                        "repos",
-                                        "total"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "4XX": {
-                        "description": "Client error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    },
-                    "5XX": {
-                        "description": "Server error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Detail Public API",
+    "version": "1.0.0",
+    "description": "Public API for programmatic access to Detail bug findings."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4317",
+      "description": "Production"
     }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key authentication. Keys are prefixed with \"dtl_live_\" or \"dtl_test_\"."
+      }
+    },
+    "schemas": {
+      "Schema0": {
+        "type": "string",
+        "enum": [
+          "resolved",
+          "dismissed",
+          "pending"
+        ]
+      },
+      "Schema1": {
+        "type": "string",
+        "enum": [
+          "not_a_bug",
+          "wont_fix",
+          "duplicate",
+          "other"
+        ]
+      },
+      "Schema2": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "INTERNAL_ERROR"
+          },
+          "message": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "integer",
+            "const": 500
+          }
+        },
+        "required": [
+          "type",
+          "message",
+          "statusCode"
+        ],
+        "additionalProperties": false
+      },
+      "Schema3": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "DETAIL_AUTHENTICATION_ERROR"
+          },
+          "message": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "integer",
+            "const": 401
+          }
+        },
+        "required": [
+          "type",
+          "message",
+          "statusCode"
+        ],
+        "additionalProperties": false
+      },
+      "Schema4": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "NOT_FOUND"
+          },
+          "message": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "integer",
+            "const": 404
+          }
+        },
+        "required": [
+          "type",
+          "message",
+          "statusCode"
+        ],
+        "additionalProperties": false
+      },
+      "Schema5": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "AUTHORIZATION_ERROR"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requiredRole": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "integer",
+            "const": 403
+          }
+        },
+        "required": [
+          "type",
+          "message",
+          "statusCode"
+        ],
+        "additionalProperties": false
+      },
+      "Schema6": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/Schema0"
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "dismissalReason": {
+            "$ref": "#/components/schemas/Schema1"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Schema7": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "review": {
+            "$ref": "#/components/schemas/Schema6"
+          },
+          "repoId": {
+            "type": "string"
+          },
+          "commitSha": {
+            "type": "string"
+          },
+          "isSecurityVulnerability": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "createdAt",
+          "repoId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/public/v1/bugs": {
+      "get": {
+        "operationId": "listPublicBugs",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Schema0"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bugs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Schema7"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "bugs",
+                    "total"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Schema3"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema5"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema2"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/v1/bugs/{bug_id}": {
+      "get": {
+        "operationId": "getPublicBug",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bug_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema7"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Schema3"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema5"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema4"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema2"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/v1/bugs/{bug_id}/review": {
+      "post": {
+        "operationId": "createPublicBugReview",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "bug_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "$ref": "#/components/schemas/Schema0"
+                  },
+                  "dismissalReason": {
+                    "$ref": "#/components/schemas/Schema1"
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema6"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Schema3"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema5"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema4"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema2"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/v1/user": {
+      "get": {
+        "operationId": "getPublicUser",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "orgs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "orgs"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Schema3"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema2"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/v1/repos": {
+      "get": {
+        "operationId": "listPublicRepos",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "repos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "ownerName": {
+                            "type": "string"
+                          },
+                          "fullName": {
+                            "type": "string"
+                          },
+                          "visibility": {
+                            "type": "string"
+                          },
+                          "primaryBranch": {
+                            "type": "string"
+                          },
+                          "orgId": {
+                            "type": "string"
+                          },
+                          "orgName": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "ownerName",
+                          "fullName",
+                          "visibility",
+                          "primaryBranch",
+                          "orgId",
+                          "orgName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "repos",
+                    "total"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Schema3"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Schema2"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
