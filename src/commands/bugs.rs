@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use console::{style, Term};
+use dialoguer::{Input, Select};
 
 use crate::api::types::{BugCloseState, BugDismissalReason};
 
@@ -39,9 +40,9 @@ pub enum BugCommands {
         /// Bug ID
         bug_id: String,
 
-        /// Close state
+        /// Close state (prompted interactively if omitted in a TTY)
         #[arg(long, value_enum)]
-        state: BugCloseState,
+        state: Option<BugCloseState>,
 
         /// Dismissal reason (required if state is dismissed)
         #[arg(long, value_enum)]
@@ -51,6 +52,54 @@ pub enum BugCommands {
         #[arg(long)]
         notes: Option<String>,
     },
+}
+
+// ── Interactive prompt helpers ──────────────────────────────────────
+
+/// Prompt for close state (Resolved / Dismissed) via arrow-key selection.
+fn prompt_close_state() -> Result<BugCloseState> {
+    let items = ["Resolved", "Dismissed"];
+    let selection = Select::new()
+        .with_prompt("Close state")
+        .items(&items)
+        .default(0)
+        .interact()
+        .context("Failed to read close state selection")?;
+    match selection {
+        0 => Ok(BugCloseState::Resolved),
+        _ => Ok(BugCloseState::Dismissed),
+    }
+}
+
+/// Prompt for dismissal reason via arrow-key selection.
+fn prompt_dismissal_reason() -> Result<BugDismissalReason> {
+    let items = ["Not a Bug", "Won't Fix", "Duplicate", "Other"];
+    let selection = Select::new()
+        .with_prompt("Dismissal reason")
+        .items(&items)
+        .default(0)
+        .interact()
+        .context("Failed to read dismissal reason selection")?;
+    match selection {
+        0 => Ok(BugDismissalReason::NotABug),
+        1 => Ok(BugDismissalReason::WontFix),
+        2 => Ok(BugDismissalReason::Duplicate),
+        _ => Ok(BugDismissalReason::Other),
+    }
+}
+
+/// Prompt for optional notes via text input.
+fn prompt_notes() -> Result<Option<String>> {
+    let input: String = Input::new()
+        .with_prompt("Notes (optional)")
+        .allow_empty(true)
+        .interact_text()
+        .context("Failed to read notes input")?;
+    if input.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(input))
+    }
 }
 
 /// Page size used when paginating through repos to resolve identifiers.
@@ -205,15 +254,46 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
         } => {
             use crate::api::types::BugId;
 
-            // Validate that dismissal_reason is provided when state is dismissed
-            if matches!(state, BugCloseState::Dismissed) && dismissal_reason.is_none() {
-                bail!("--dismissal-reason is required when state is 'dismissed'");
+            let is_interactive = Term::stdout().is_term();
+
+            // Reject --state pending (only used as a list filter)
+            if matches!(state, Some(BugCloseState::Pending)) {
+                bail!("'pending' is not a valid close state. Use 'resolved' or 'dismissed'.");
             }
+
+            // Resolve state: flag → prompt → error
+            let state = match state {
+                Some(s) => *s,
+                None if is_interactive => prompt_close_state()?,
+                None => bail!(
+                    "--state is required in non-interactive mode. Use --state resolved or --state dismissed."
+                ),
+            };
+
+            // Resolve dismissal_reason (only when dismissed)
+            let dismissal_reason = if matches!(state, BugCloseState::Dismissed) {
+                match dismissal_reason {
+                    Some(r) => Some(*r),
+                    None if is_interactive => Some(prompt_dismissal_reason()?),
+                    None => bail!(
+                        "--dismissal-reason is required when state is 'dismissed' in non-interactive mode."
+                    ),
+                }
+            } else {
+                *dismissal_reason
+            };
+
+            // Resolve notes: flag → prompt → None
+            let notes = match notes {
+                Some(n) => Some(n.clone()),
+                None if is_interactive => prompt_notes()?,
+                None => None,
+            };
 
             let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
 
             client
-                .update_bug_close(&bug_id, *state, *dismissal_reason, notes.as_deref())
+                .update_bug_close(&bug_id, state, dismissal_reason, notes.as_deref())
                 .await
                 .context("Failed to close bug")?;
 
