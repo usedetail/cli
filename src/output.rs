@@ -96,7 +96,7 @@ pub fn output_list<T: Formattable + Serialize>(
                 "page": page,
                 "total_pages": total_pages,
             });
-            println!("{}", serde_json::to_string_pretty(&response)?);
+            Term::stdout().write_line(&serde_json::to_string_pretty(&response)?)?;
         }
         crate::OutputFormat::Csv => {
             use csv::Writer;
@@ -114,7 +114,7 @@ pub fn output_list<T: Formattable + Serialize>(
                 table.add_row(Row::new(item.to_table_row()));
             }
             table.printstd();
-            println!("\nPage: {} of {}", page, total_pages);
+            Term::stdout().write_line(&format!("\nPage: {} of {}", page, total_pages))?;
         }
     }
     Ok(())
