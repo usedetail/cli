@@ -19,7 +19,7 @@ static MARKDOWN_SKIN: LazyLock<termimad::MadSkin> = LazyLock::new(|| {
 });
 
 enum SectionContent {
-    Plain(String),
+    KeyValue(Vec<(String, String)>, usize),
     Markdown(String),
 }
 
@@ -37,22 +37,15 @@ impl SectionRenderer {
         }
     }
 
-    pub fn section(mut self, header: &str, value: impl std::fmt::Display) -> Self {
-        self.sections
-            .push((header.to_string(), SectionContent::Plain(value.to_string())));
-        self
-    }
-
-    /// Add a section with key-value pairs rendered as aligned rows.
+    /// Add a section with key-value pairs rendered as aligned rows with bold keys.
     pub fn key_value(mut self, header: &str, pairs: &[(&str, String)]) -> Self {
         let max_key = pairs.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
-        let text = pairs
+        let owned: Vec<(String, String)> = pairs
             .iter()
-            .map(|(k, v)| format!("{:<width$}  {}", k, v, width = max_key))
-            .collect::<Vec<_>>()
-            .join("\n");
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect();
         self.sections
-            .push((header.to_string(), SectionContent::Plain(text)));
+            .push((header.to_string(), SectionContent::KeyValue(owned, max_key)));
         self
     }
 
@@ -68,13 +61,25 @@ impl SectionRenderer {
         let width = self.term.size().1 as usize;
         let separator = "─".repeat(width);
 
-        for (header, content) in &self.sections {
-            self.term.write_line(&format!("{}", style(header).bold()))?;
-            self.term
-                .write_line(&format!("{}", style(&separator).dim()))?;
+        for (i, (header, content)) in self.sections.iter().enumerate() {
+            if !header.is_empty() {
+                self.term.write_line(&format!("{}", style(header).bold()))?;
+            }
+            // Show separator between sections or under non-empty headers
+            if i > 0 || !header.is_empty() {
+                self.term
+                    .write_line(&format!("{}", style(&separator).dim()))?;
+            }
             match content {
-                SectionContent::Plain(text) => {
-                    self.term.write_line(text)?;
+                SectionContent::KeyValue(pairs, max_key) => {
+                    for (k, v) in pairs {
+                        self.term.write_line(&format!(
+                            "{:<width$}  {}",
+                            style(k).bold(),
+                            v,
+                            width = max_key
+                        ))?;
+                    }
                 }
                 SectionContent::Markdown(text) => {
                     write!(&self.term, "{}", MARKDOWN_SKIN.term_text(text))?;
