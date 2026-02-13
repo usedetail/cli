@@ -1,8 +1,39 @@
 //! CLI output formatting utilities
 
 use anyhow::Result;
+use colored::Colorize;
 use prettytable::{Cell, Row, Table};
 use serde::Serialize;
+
+/// Renders detail views as sections with bold headers and terminal-width separators.
+pub struct SectionRenderer {
+    sections: Vec<(String, String)>,
+}
+
+impl SectionRenderer {
+    pub fn new() -> Self {
+        Self {
+            sections: Vec::new(),
+        }
+    }
+
+    pub fn section(mut self, header: &str, value: impl std::fmt::Display) -> Self {
+        self.sections.push((header.to_string(), value.to_string()));
+        self
+    }
+
+    pub fn print(self) {
+        let width = console::Term::stdout().size().1 as usize;
+        let separator = "─".repeat(width);
+
+        for (header, value) in &self.sections {
+            println!("{}", header.bold());
+            println!("{}", separator.dimmed());
+            println!("{}", value);
+            println!();
+        }
+    }
+}
 
 /// Trait for types that can be formatted as CSV or Table output
 pub trait Formattable {

@@ -179,26 +179,17 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bug details")?;
 
-            let width = console::Term::stdout().size().1 as usize;
-            let separator = "─".repeat(width);
-
-            let section = |header: &str, value: &str| {
-                println!("{}", header.bold());
-                println!("{}", separator.dimmed());
-                println!("{}", value);
-                println!();
-            };
-
-            section("ID", &bug.id.to_string());
-            section("Title", &bug.title);
-            section("File", bug.file_path.as_deref().unwrap_or("-"));
-            section("Created", &crate::utils::format_datetime(bug.created_at));
-            section(
-                "Security",
-                bug.is_security_vulnerability
-                    .map(|v| if v { "Yes" } else { "No" })
-                    .unwrap_or("-"),
-            );
+            let mut renderer = crate::output::SectionRenderer::new()
+                .section("ID", &bug.id)
+                .section("Title", &bug.title)
+                .section("File", bug.file_path.as_deref().unwrap_or("-"))
+                .section("Created", crate::utils::format_datetime(bug.created_at))
+                .section(
+                    "Security",
+                    bug.is_security_vulnerability
+                        .map(|v| if v { "Yes" } else { "No" })
+                        .unwrap_or("-"),
+                );
             if let Some(review) = &bug.review {
                 let mut review_text = format!("State:  {}", review.state);
                 review_text.push_str(&format!(
@@ -211,9 +202,9 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 if let Some(notes) = &review.notes {
                     review_text.push_str(&format!("\nNotes:  {}", notes));
                 }
-                section("Review", &review_text);
+                renderer = renderer.section("Review", review_text);
             }
-            section("Report", &bug.summary);
+            renderer.section("Report", &bug.summary).print();
 
             Ok(())
         }
