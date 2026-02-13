@@ -1,8 +1,7 @@
 use anyhow::{bail, Context, Result};
 use colored::*;
 use semver::{Version, VersionReq};
-use serde::Deserialize;
-use url::Url;
+use serde::{Deserialize, Serialize};
 
 use super::types::*;
 
@@ -140,22 +139,24 @@ impl ApiClient {
         limit: u32,
         offset: u32,
     ) -> Result<BugsResponse> {
-        let mut url = Url::parse(&format!("{}/public/v1/bugs", self.base_url))?;
-        {
-            let mut query = url.query_pairs_mut();
-            query.append_pair("repo_id", &repo_id.to_string());
-            query.append_pair("limit", &limit.to_string());
-            query.append_pair("offset", &offset.to_string());
-            if let Some(s) = status {
-                let value = serde_json::to_value(s)?;
-                if let Some(status_str) = value.as_str() {
-                    query.append_pair("status", status_str);
-                }
-            }
+        #[derive(Serialize)]
+        struct ListBugsQuery<'a> {
+            repo_id: &'a str,
+            limit: u32,
+            offset: u32,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            status: Option<&'a BugReviewState>,
         }
-        let path_and_query = format!("{}?{}", url.path(), url.query().unwrap_or(""));
-        self.request(reqwest::Method::GET, &path_and_query, None)
-            .await
+
+        let query = ListBugsQuery {
+            repo_id: repo_id.as_str(),
+            limit,
+            offset,
+            status,
+        };
+        let query_string = serde_urlencoded::to_string(&query)?;
+        let path = format!("/public/v1/bugs?{}", query_string);
+        self.request(reqwest::Method::GET, &path, None).await
     }
 
     pub async fn get_bug(&self, bug_id: &BugId) -> Result<Bug> {
@@ -181,15 +182,16 @@ impl ApiClient {
     }
 
     pub async fn list_repos(&self, limit: u32, offset: u32) -> Result<ReposResponse> {
-        let mut url = Url::parse(&format!("{}/public/v1/repos", self.base_url))?;
-        {
-            let mut query = url.query_pairs_mut();
-            query.append_pair("limit", &limit.to_string());
-            query.append_pair("offset", &offset.to_string());
+        #[derive(Serialize)]
+        struct ListReposQuery {
+            limit: u32,
+            offset: u32,
         }
-        let path_and_query = format!("{}?{}", url.path(), url.query().unwrap_or(""));
-        self.request(reqwest::Method::GET, &path_and_query, None)
-            .await
+
+        let query = ListReposQuery { limit, offset };
+        let query_string = serde_urlencoded::to_string(&query)?;
+        let path = format!("/public/v1/repos?{}", query_string);
+        self.request(reqwest::Method::GET, &path, None).await
     }
 }
 
