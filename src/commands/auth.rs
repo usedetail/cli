@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
-use colored::*;
+use console::{style, Term};
 
 #[derive(Subcommand)]
 pub enum AuthCommands {
@@ -25,7 +25,6 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
                 Some(t) => t.clone(),
                 None => {
                     // Prompt for token
-                    use console::Term;
                     let term = Term::stdout();
                     term.write_line("Please enter your API token:")?;
                     term.read_line()?
@@ -49,37 +48,49 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
             // Store token securely
             crate::config::storage::store_token(&token)?;
 
-            println!("{}", "✓ Successfully authenticated!".green());
-            println!("Logged in as: {}", user_info.email);
-            println!("\nExample commands:");
-            println!("  detail bugs list <owner>/<repo>");
-            println!("  detail bugs show <bug_id>");
+            let term = Term::stdout();
+            term.write_line(&format!(
+                "{}",
+                style("✓ Successfully authenticated!").green()
+            ))?;
+            term.write_line(&format!("Logged in as: {}", user_info.email))?;
+            term.write_line("\nExample commands:")?;
+            term.write_line("  detail bugs list <owner>/<repo>")?;
+            term.write_line("  detail bugs show <bug_id>")?;
 
             Ok(())
         }
 
         AuthCommands::Logout => {
             crate::config::storage::clear_credentials()?;
-            println!("{}", "✓ Logged out successfully".green());
+            Term::stdout()
+                .write_line(&format!("{}", style("✓ Logged out successfully").green()))?;
             Ok(())
         }
 
         AuthCommands::Status => {
             match cli.create_client() {
-                Ok(client) => match client.get_current_user().await {
-                    Ok(user) => {
-                        println!("{}", "✓ Authenticated".green());
-                        println!("Email: {}", user.email);
+                Ok(client) => {
+                    let term = Term::stdout();
+                    match client.get_current_user().await {
+                        Ok(user) => {
+                            term.write_line(&format!("{}", style("✓ Authenticated").green()))?;
+                            term.write_line(&format!("Email: {}", user.email))?;
+                        }
+                        Err(e) => {
+                            term.write_line(&format!(
+                                "{}",
+                                style("✗ Authentication invalid").red()
+                            ))?;
+                            term.write_line(&format!("Error: {}", e))?;
+                            term.write_line("\nRun `detail auth login` to re-authenticate")?;
+                        }
                     }
-                    Err(e) => {
-                        println!("{}", "✗ Authentication invalid".red());
-                        println!("Error: {}", e);
-                        println!("\nRun `detail auth login` to re-authenticate");
-                    }
-                },
+                }
                 Err(_) => {
-                    println!("{}", "✗ Not authenticated".red());
-                    println!("\nRun `detail auth login` to authenticate");
+                    let term = Term::stdout();
+                    term.write_line(&format!("{}", style("✗ Not authenticated").red()))?;
+                    term.write_line("\nRun `detail auth login` to authenticate")?;
                 }
             }
             Ok(())

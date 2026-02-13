@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
-use colored::*;
+use console::{style, Term};
 
 use crate::api::types::{BugDismissalReason, BugReviewState};
 
@@ -204,7 +204,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 }
                 renderer = renderer.section("Review", review_text);
             }
-            renderer.section("Report", &bug.summary).print();
+            renderer.markdown("Report", &bug.summary).print();
 
             Ok(())
         }
@@ -234,7 +234,12 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to update bug review")?;
 
-            println!("{}", format!("✓ Updated bug review to: {}", state).green());
+            Term::stdout()
+                .write_line(&format!(
+                    "{}",
+                    style(format!("✓ Updated bug review to: {}", state)).green()
+                ))
+                .ok();
             Ok(())
         }
     }

@@ -34,9 +34,9 @@ toml = "0.9"
 homedir = "0.3"
 
 # Terminal UI
-colored = "3.1"
 prettytable-rs = "0.10"
 console = "0.16"
+termimad = "0.30"
 
 # Update checking (uses cargo-dist receipts)
 axoupdater = "0.9.1"
