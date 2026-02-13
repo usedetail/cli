@@ -182,7 +182,6 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             println!("{}", "Bug Details".bold());
             println!("ID:       {}", bug.id);
             println!("Title:    {}", bug.title);
-            println!("Report:   {}", bug.summary);
             println!("File:     {}", bug.file_path.as_deref().unwrap_or("-"));
             println!(
                 "Created:  {}",
@@ -194,20 +193,21 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     .map(|is_vuln| if is_vuln { "Yes" } else { "No" })
                     .unwrap_or("-")
             );
-            if let Some(review) = bug.review {
+            if let Some(review) = &bug.review {
                 println!("\nReview:");
                 println!("  State:  {}", review.state);
                 println!(
                     "  Date:   {}",
                     crate::utils::format_datetime(review.created_at)
                 );
-                if let Some(reason) = review.dismissal_reason {
+                if let Some(reason) = &review.dismissal_reason {
                     println!("  Reason: {}", reason);
                 }
-                if let Some(notes) = review.notes {
+                if let Some(notes) = &review.notes {
                     println!("  Notes:  {}", notes);
                 }
             }
+            println!("\nReport:   {}", bug.summary);
 
             Ok(())
         }
