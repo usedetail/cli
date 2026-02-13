@@ -179,35 +179,41 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bug details")?;
 
-            println!("{}", "Bug Details".bold());
-            println!("ID:       {}", bug.id);
-            println!("Title:    {}", bug.title);
-            println!("File:     {}", bug.file_path.as_deref().unwrap_or("-"));
-            println!(
-                "Created:  {}",
-                crate::utils::format_datetime(bug.created_at)
-            );
-            println!(
-                "Security: {}",
+            let width = console::Term::stdout().size().1 as usize;
+            let separator = "─".repeat(width);
+
+            let section = |header: &str, value: &str| {
+                println!("{}", header.bold());
+                println!("{}", separator.dimmed());
+                println!("{}", value);
+                println!();
+            };
+
+            section("ID", &bug.id.to_string());
+            section("Title", &bug.title);
+            section("File", bug.file_path.as_deref().unwrap_or("-"));
+            section("Created", &crate::utils::format_datetime(bug.created_at));
+            section(
+                "Security",
                 bug.is_security_vulnerability
-                    .map(|is_vuln| if is_vuln { "Yes" } else { "No" })
-                    .unwrap_or("-")
+                    .map(|v| if v { "Yes" } else { "No" })
+                    .unwrap_or("-"),
             );
             if let Some(review) = &bug.review {
-                println!("\nReview:");
-                println!("  State:  {}", review.state);
-                println!(
-                    "  Date:   {}",
+                let mut review_text = format!("State:  {}", review.state);
+                review_text.push_str(&format!(
+                    "\nDate:   {}",
                     crate::utils::format_datetime(review.created_at)
-                );
+                ));
                 if let Some(reason) = &review.dismissal_reason {
-                    println!("  Reason: {}", reason);
+                    review_text.push_str(&format!("\nReason: {}", reason));
                 }
                 if let Some(notes) = &review.notes {
-                    println!("  Notes:  {}", notes);
+                    review_text.push_str(&format!("\nNotes:  {}", notes));
                 }
+                section("Review", &review_text);
             }
-            println!("\nReport:   {}", bug.summary);
+            section("Report", &bug.summary);
 
             Ok(())
         }
