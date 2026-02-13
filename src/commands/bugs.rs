@@ -227,12 +227,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
 
             client
-                .update_bug_review(
-                    &bug_id,
-                    state.clone(),
-                    dismissal_reason.clone(),
-                    notes.as_deref(),
-                )
+                .update_bug_review(&bug_id, *state, *dismissal_reason, notes.as_deref())
                 .await
                 .context("Failed to update bug review")?;
 
