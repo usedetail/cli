@@ -5,7 +5,6 @@ use std::sync::LazyLock;
 
 use anyhow::Result;
 use console::{style, Term};
-use prettytable::{Cell, Row, Table};
 use serde::Serialize;
 
 static MARKDOWN_SKIN: LazyLock<termimad::MadSkin> = LazyLock::new(|| {
@@ -87,7 +86,7 @@ impl SectionRenderer {
     }
 }
 
-/// Trait for types that can be formatted as CSV or Table output
+/// Trait for types that can be formatted for list output
 pub trait Formattable {
     /// Column headers for CSV output
     fn csv_headers() -> &'static [&'static str];
@@ -95,11 +94,8 @@ pub trait Formattable {
     /// Convert this item to a CSV row
     fn to_csv_row(&self) -> Vec<String>;
 
-    /// Column headers for table output
-    fn table_headers() -> Vec<Cell>;
-
-    /// Convert this item to a table row
-    fn to_table_row(&self) -> Vec<Cell>;
+    /// Return a card header and key-value pairs for terminal list display
+    fn to_card(&self) -> (String, Vec<(&'static str, String)>);
 }
 
 /// Generic helper to output a list of items in the requested format
@@ -132,13 +128,21 @@ pub fn output_list<T: Formattable + Serialize>(
             wtr.flush()?;
         }
         crate::OutputFormat::Table => {
-            let mut table = Table::new();
-            table.add_row(Row::new(T::table_headers()));
-            for item in items {
-                table.add_row(Row::new(item.to_table_row()));
+            let term = Term::stdout();
+            let max_key = items
+                .iter()
+                .flat_map(|item| item.to_card().1)
+                .map(|(k, _)| k.len())
+                .max()
+                .unwrap_or(0);
+            for (i, item) in items.iter().enumerate() {
+                let (header, pairs) = item.to_card();
+                term.write_line(&format!("{}. {}", i + 1, header))?;
+                for (k, v) in &pairs {
+                    term.write_line(&format!("    {:<width$}  {}", k, v, width = max_key))?;
+                }
             }
-            table.printstd();
-            Term::stdout().write_line(&format!("\nPage: {} of {}", page, total_pages))?;
+            term.write_line(&format!("\nPage: {} of {}", page, total_pages))?;
         }
     }
     Ok(())
