@@ -1,4 +1,3 @@
-use prettytable::Cell;
 use serde::{Deserialize, Deserializer, Serialize};
 
 // Helper to deserialize timestamps that can be either string or number
@@ -187,38 +186,22 @@ impl crate::output::Formattable for Bug {
     }
 
     fn to_csv_row(&self) -> Vec<String> {
-        let created_date = crate::utils::format_date(self.created_at);
-
         vec![
             self.id.to_string(),
             self.title.clone(),
             self.file_path.as_deref().unwrap_or("-").to_string(),
-            created_date,
+            crate::utils::format_date(self.created_at),
         ]
     }
 
-    fn table_headers() -> Vec<Cell> {
-        vec![
-            Cell::new("ID"),
-            Cell::new("Title"),
-            Cell::new("File"),
-            Cell::new("Created"),
-        ]
-    }
-
-    fn to_table_row(&self) -> Vec<Cell> {
-        let created_date = crate::utils::format_date(self.created_at);
-
-        // Wrap long fields for better table display
-        let wrapped_title = crate::utils::wrap_text(&self.title, 50);
-        let wrapped_file = crate::utils::wrap_path(self.file_path.as_deref().unwrap_or("-"), 40);
-
-        vec![
-            Cell::new(self.id.as_str()),
-            Cell::new(&wrapped_title),
-            Cell::new(&wrapped_file),
-            Cell::new(&created_date),
-        ]
+    fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
+        (
+            self.title.clone(),
+            vec![
+                ("Bug ID", self.id.to_string()),
+                ("Created", crate::utils::format_date(self.created_at)),
+            ],
+        )
     }
 }
 
@@ -232,11 +215,10 @@ impl crate::output::Formattable for Repo {
         vec![self.full_name.clone(), self.org_name.clone()]
     }
 
-    fn table_headers() -> Vec<Cell> {
-        vec![Cell::new("Repository"), Cell::new("Organization")]
-    }
-
-    fn to_table_row(&self) -> Vec<Cell> {
-        vec![Cell::new(&self.full_name), Cell::new(&self.org_name)]
+    fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
+        (
+            self.full_name.clone(),
+            vec![("Organization", self.org_name.clone())],
+        )
     }
 }

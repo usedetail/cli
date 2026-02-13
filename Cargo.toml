@@ -34,7 +34,6 @@ toml = "0.9"
 homedir = "0.3"
 
 # Terminal UI
-prettytable-rs = "0.10"
 console = "0.16"
 termimad = "0.30"
 
