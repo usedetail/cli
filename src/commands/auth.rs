@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
-use console::{style, Term};
+use console::{style, Key, Term};
 
 #[derive(Subcommand)]
 pub enum AuthCommands {
@@ -24,10 +24,33 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
             let token = match token {
                 Some(t) => t.clone(),
                 None => {
-                    // Prompt for token
                     let term = Term::stdout();
-                    term.write_line("Please enter your API token:")?;
-                    term.read_line()?
+                    term.write_str("Paste your API token: ")?;
+
+                    // Read character-by-character (hidden) and auto-submit
+                    // when a complete token is detected
+                    let mut token = String::new();
+                    loop {
+                        let key = term.read_key()?;
+                        match key {
+                            Key::Char(c) if !c.is_whitespace() => {
+                                token.push(c);
+                                if is_complete_token(&token) {
+                                    term.write_line("")?;
+                                    break;
+                                }
+                            }
+                            Key::Enter => {
+                                term.write_line("")?;
+                                break;
+                            }
+                            Key::Backspace => {
+                                token.pop();
+                            }
+                            _ => {}
+                        }
+                    }
+                    token
                 }
             };
 
@@ -96,4 +119,16 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// Check if the string matches the expected API token format: dtl_{env}_{32hex}.{64hex}
+fn is_complete_token(s: &str) -> bool {
+    if !s.starts_with("dtl_") {
+        return false;
+    }
+    let Some(dot_pos) = s.rfind('.') else {
+        return false;
+    };
+    let after_dot = &s[dot_pos + 1..];
+    after_dot.len() == 64 && after_dot.chars().all(|c| c.is_ascii_hexdigit())
 }
