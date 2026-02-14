@@ -14,9 +14,7 @@ if not provided) and help the user triage them.
 
 The Detail CLI must be installed. If it is not available, install it with:
 ```
-curl --proto '=https' --tlsv1.2 \
-  -LsSf https://github.com/usedetail/cli/releases/latest/download/detail-cli-installer.sh \
-  | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://cli.detail.dev | sh
 ```
 
 The user must be authenticated. Ask the user for their Detail API token, then
