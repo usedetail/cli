@@ -9,7 +9,7 @@ Command-line interface for [Detail](https://detail.dev).
 ### macOS/Linux/Windows
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/usedetail/cli/releases/latest/download/detail-cli-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://cli.detail.dev | sh
 ```
 
 ### From Source
