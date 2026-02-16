@@ -74,27 +74,3 @@ detail bugs list owner/repo --format json
 
 # CSV format
 detail bugs list owner/repo --format csv
-```
-
-## Configuration
-
-Configuration and API tokens are stored in `config.toml` at:
-- macOS/Linux: `~/.config/detail-cli/config.toml`
-- Windows: `%LOCALAPPDATA%\detail-cli\config.toml`
-
-You can override the config directory by setting the `XDG_CONFIG_HOME` environment variable.
-
-### Updates
-
-The CLI automatically checks for updates once per day, and installs if found. 
-To disable automatic updates, add this to your config file:
-
-```toml
-check_for_updates = false
-```
-
-You can run `detail-cli-update` to manually update the CLI to the latest version.
-
-### Environment Variables
-
-- `DETAIL_API_URL` - Override the API endpoint (for testing)
