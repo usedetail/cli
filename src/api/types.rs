@@ -1,25 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
-// Helper to deserialize timestamps that can be either string or number.
-fn deserialize_timestamp<'de, D>(deserializer: D) -> Result<i64, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::Error;
-
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrInt {
-        String(String),
-        Int(i64),
-    }
-
-    match StringOrInt::deserialize(deserializer)? {
-        StringOrInt::Int(i) => Ok(i),
-        StringOrInt::String(s) => s.parse::<i64>().map_err(Error::custom),
-    }
-}
-
 // Macro to generate type-safe ID newtypes with validation
 macro_rules! define_id_type {
     ($name:ident, $prefix:literal, $type_name:literal) => {
@@ -94,7 +74,6 @@ pub struct Bug {
     pub title: String,
     pub summary: String,
     pub file_path: Option<String>,
-    #[serde(deserialize_with = "deserialize_timestamp")]
     pub created_at: i64,
     #[serde(rename = "review")]
     pub close: Option<BugClose>,
@@ -108,7 +87,6 @@ pub struct Bug {
 pub struct BugClose {
     pub id: BugCloseId,
     pub state: BugCloseState,
-    #[serde(deserialize_with = "deserialize_timestamp")]
     pub created_at: i64,
     pub dismissal_reason: Option<BugDismissalReason>,
     pub notes: Option<String>,
