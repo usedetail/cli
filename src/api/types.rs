@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
-// Helper to deserialize timestamps that can be either string or number
+// Helper to deserialize timestamps that can be either string or number.
 fn deserialize_timestamp<'de, D>(deserializer: D) -> Result<i64, D::Error>
 where
     D: Deserializer<'de>,
@@ -150,15 +150,6 @@ impl std::fmt::Display for BugDismissalReason {
             Self::Other => write!(f, "Other"),
         }
     }
-}
-
-#[derive(Debug, Serialize)]
-pub struct BugCloseRequest {
-    pub state: BugCloseState,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dismissal_reason: Option<BugDismissalReason>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

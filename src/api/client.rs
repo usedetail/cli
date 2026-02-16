@@ -1,135 +1,53 @@
-use anyhow::{bail, Context, Result};
-use console::{style, Term};
-use semver::{Version, VersionReq};
-use serde::{Deserialize, Serialize};
+use anyhow::{Context, Result};
 
 use super::types::*;
 
-/// Structured error response from the Detail API
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ApiError {
-    #[serde(rename = "type")]
-    error_type: String,
-    message: String,
-    status_code: u16,
+pub struct ApiClient {
+    inner: super::generated::Client,
 }
 
-pub struct ApiClient {
-    client: reqwest::Client,
-    base_url: String,
-    token: Option<String>,
+/// Convert a generated response type to one of our hand-written domain types
+/// by round-tripping through JSON. The generated types handle API deserialization
+/// (including timestamp quirks), then we re-deserialize into our types which
+/// have ID newtypes, field renames, etc.
+fn convert<T: serde::de::DeserializeOwned>(val: impl serde::Serialize) -> Result<T> {
+    serde_json::from_value(serde_json::to_value(val)?).map_err(Into::into)
 }
 
 impl ApiClient {
     pub fn new(base_url: Option<String>, token: Option<String>) -> Result<Self> {
         let base_url = base_url.unwrap_or_else(|| "https://api.detail.dev".into());
 
-        let client = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .user_agent(format!("detail-cli/{}", env!("CARGO_PKG_VERSION")))
-            .timeout(std::time::Duration::from_secs(30))
-            .build()?;
+            .timeout(std::time::Duration::from_secs(30));
 
-        Ok(Self {
-            client,
-            base_url,
-            token,
-        })
-    }
-
-    /// Make API request with version compatibility check
-    async fn request<T: serde::de::DeserializeOwned>(
-        &self,
-        method: reqwest::Method,
-        path: &str,
-        body: Option<serde_json::Value>,
-    ) -> Result<T> {
-        let token = self
-            .token
-            .as_ref()
-            .context("Not authenticated. Run `detail auth login`")?;
-
-        let url = format!("{}{}", self.base_url, path);
-
-        let mut request = self
-            .client
-            .request(method, &url)
-            .header("Authorization", format!("Bearer {}", token));
-
-        if let Some(b) = body {
-            request = request.json(&b);
+        if let Some(token) = token {
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", token)
+                    .parse()
+                    .context("Invalid token format")?,
+            );
+            builder = builder.default_headers(headers);
         }
 
-        let response = request.send().await?;
+        let reqwest_client = builder.build()?;
+        let inner = super::generated::Client::new_with_client(&base_url, reqwest_client);
 
-        // Check for deprecation warnings
-        if let Some(deprecation) = response.headers().get("deprecation") {
-            if deprecation == "true" {
-                if let Some(sunset) = response.headers().get("sunset") {
-                    let _ = Term::stderr().write_line(&format!(
-                        "{}",
-                        style(format!(
-                            "Warning: This API version will be deprecated on {}. \
-                            Please update your CLI.",
-                            sunset.to_str().unwrap_or("unknown date")
-                        ))
-                        .yellow()
-                    ));
-                }
-            }
-        }
-
-        // Check API version compatibility
-        if let Some(api_version) = response.headers().get("x-api-version") {
-            let api_version = api_version.to_str()?;
-            check_version_compatibility(api_version)?;
-        }
-
-        if !response.status().is_success() {
-            let status = response.status();
-
-            // Get response body as bytes so we can try multiple parsers
-            let body_bytes = response.bytes().await?;
-
-            // Try to parse as structured API error
-            let error_message = match serde_json::from_slice::<ApiError>(&body_bytes) {
-                Ok(api_err) => {
-                    format!(
-                        "{} ({}): {}",
-                        api_err.error_type, api_err.status_code, api_err.message
-                    )
-                }
-                Err(_) => {
-                    // Fallback: treat as plain text
-                    let text = String::from_utf8_lossy(&body_bytes);
-
-                    // Check if response looks like HTML
-                    if text.trim_start().starts_with('<') {
-                        // It's HTML, don't dump it all
-                        format!(
-                            "HTTP {} - Received HTML error page (expected JSON). \
-                            This might indicate the endpoint doesn't exist or there's a routing issue.",
-                            status.as_u16()
-                        )
-                    } else if text.is_empty() {
-                        format!("HTTP {} error", status.as_u16())
-                    } else {
-                        // Plain text error
-                        format!("HTTP {} error: {}", status.as_u16(), text)
-                    }
-                }
-            };
-
-            bail!("API error: {}", error_message);
-        }
-
-        let data = response.json().await?;
-        Ok(data)
+        Ok(Self { inner })
     }
 
     pub async fn get_current_user(&self) -> Result<UserInfo> {
-        self.request(reqwest::Method::GET, "/public/v1/user", None)
+        let resp = self
+            .inner
+            .get_public_user()
             .await
+            .map(|r| r.into_inner())
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))?;
+
+        convert(resp)
     }
 
     pub async fn list_bugs(
@@ -139,29 +57,38 @@ impl ApiClient {
         limit: u32,
         offset: u32,
     ) -> Result<BugsResponse> {
-        #[derive(Serialize)]
-        struct ListBugsQuery<'a> {
-            repo_id: &'a str,
-            limit: u32,
-            offset: u32,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            status: Option<&'a BugCloseState>,
-        }
+        use std::num::NonZeroU64;
 
-        let query = ListBugsQuery {
-            repo_id: repo_id.as_str(),
-            limit,
-            offset,
-            status,
-        };
-        let query_string = serde_urlencoded::to_string(&query)?;
-        let path = format!("/public/v1/bugs?{}", query_string);
-        self.request(reqwest::Method::GET, &path, None).await
+        // Convert our BugCloseState to the generated BugReviewState via JSON
+        let gen_status: super::generated::types::BugReviewState = status
+            .map(convert)
+            .transpose()?
+            .unwrap_or(super::generated::types::BugReviewState::Pending);
+
+        let resp = self
+            .inner
+            .list_public_bugs(
+                NonZeroU64::new(limit as u64),
+                Some(offset as u64),
+                repo_id.as_str(),
+                gen_status,
+            )
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))?;
+
+        convert(resp)
     }
 
     pub async fn get_bug(&self, bug_id: &BugId) -> Result<Bug> {
-        let path = format!("/public/v1/bugs/{}", bug_id);
-        self.request(reqwest::Method::GET, &path, None).await
+        let resp = self
+            .inner
+            .get_public_bug(bug_id.as_str())
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))?;
+
+        convert(resp)
     }
 
     pub async fn update_bug_close(
@@ -171,49 +98,34 @@ impl ApiClient {
         dismissal_reason: Option<BugDismissalReason>,
         notes: Option<&str>,
     ) -> Result<BugClose> {
-        let path = format!("/public/v1/bugs/{}/review", bug_id);
-        let request = BugCloseRequest {
-            state,
-            dismissal_reason,
-            notes: notes.map(String::from),
-        };
-        let body = serde_json::to_value(request)?;
-        self.request(reqwest::Method::POST, &path, Some(body)).await
+        // Build the request body by converting our types through JSON
+        let body: super::generated::types::CreatePublicBugReviewBody =
+            serde_json::from_value(serde_json::json!({
+                "state": state,
+                "dismissalReason": dismissal_reason,
+                "notes": notes,
+            }))?;
+
+        let resp = self
+            .inner
+            .create_public_bug_review(bug_id.as_str(), &body)
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))?;
+
+        convert(resp)
     }
 
     pub async fn list_repos(&self, limit: u32, offset: u32) -> Result<ReposResponse> {
-        #[derive(Serialize)]
-        struct ListReposQuery {
-            limit: u32,
-            offset: u32,
-        }
+        use std::num::NonZeroU64;
 
-        let query = ListReposQuery { limit, offset };
-        let query_string = serde_urlencoded::to_string(&query)?;
-        let path = format!("/public/v1/repos?{}", query_string);
-        self.request(reqwest::Method::GET, &path, None).await
+        let resp = self
+            .inner
+            .list_public_repos(NonZeroU64::new(limit as u64), Some(offset as u64))
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))?;
+
+        convert(resp)
     }
-}
-
-fn check_version_compatibility(api_version: &str) -> Result<()> {
-    // CLI v0.1.x supports API v1.x
-    const SUPPORTED_API_VERSIONS: &str = "^1.0";
-
-    let api_version = Version::parse(api_version).context("Failed to parse API version")?;
-
-    let requirement = VersionReq::parse(SUPPORTED_API_VERSIONS)?;
-
-    if !requirement.matches(&api_version) {
-        let _ = Term::stderr().write_line(&format!(
-            "{}",
-            style(format!(
-                "Warning: API version {} may not be fully compatible. \
-                Consider updating your CLI.",
-                api_version
-            ))
-            .yellow()
-        ));
-    }
-
-    Ok(())
 }
