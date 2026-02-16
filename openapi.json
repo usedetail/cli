@@ -46,7 +46,9 @@
                     "state": {
                         "$ref": "#/components/schemas/BugReviewState"
                     },
-                    "createdAt": {},
+                    "createdAt": {
+                        "type": "integer"
+                    },
                     "dismissalReason": {
                         "$ref": "#/components/schemas/BugDismissalReason"
                     },
@@ -75,7 +77,9 @@
                     "filePath": {
                         "type": "string"
                     },
-                    "createdAt": {},
+                    "createdAt": {
+                        "type": "integer"
+                    },
                     "review": {
                         "$ref": "#/components/schemas/BugReview"
                     },
@@ -153,15 +157,28 @@
             },
             "ApiError": {
                 "type": "object",
+                "description": "Unified error type returned by all endpoints. Discriminate on type or statusCode.",
                 "properties": {
                     "type": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "DETAIL_AUTHENTICATION_ERROR",
+                            "AUTHORIZATION_ERROR",
+                            "NOT_FOUND",
+                            "INTERNAL_ERROR"
+                        ]
                     },
                     "message": {
                         "type": "string"
                     },
                     "statusCode": {
                         "type": "integer"
+                    },
+                    "requiredRole": {
+                        "type": "string"
+                    },
+                    "resource": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -249,7 +266,7 @@
                         }
                     },
                     "4XX": {
-                        "description": "Error",
+                        "description": "Client error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -259,7 +276,7 @@
                         }
                     },
                     "5XX": {
-                        "description": "Error",
+                        "description": "Server error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -303,7 +320,7 @@
                         }
                     },
                     "4XX": {
-                        "description": "Error",
+                        "description": "Client error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -313,7 +330,7 @@
                         }
                     },
                     "5XX": {
-                        "description": "Error",
+                        "description": "Server error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -381,7 +398,7 @@
                         }
                     },
                     "4XX": {
-                        "description": "Error",
+                        "description": "Client error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -391,7 +408,7 @@
                         }
                     },
                     "5XX": {
-                        "description": "Error",
+                        "description": "Server error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -440,7 +457,7 @@
                         }
                     },
                     "4XX": {
-                        "description": "Error",
+                        "description": "Client error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -450,7 +467,7 @@
                         }
                     },
                     "5XX": {
-                        "description": "Error",
+                        "description": "Server error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -522,7 +539,7 @@
                         }
                     },
                     "4XX": {
-                        "description": "Error",
+                        "description": "Client error",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -532,7 +549,7 @@
                         }
                     },
                     "5XX": {
-                        "description": "Error",
+                        "description": "Server error",
                         "content": {
                             "application/json": {
                                 "schema": {
