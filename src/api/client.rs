@@ -7,9 +7,8 @@ pub struct ApiClient {
 }
 
 /// Convert a generated response type to one of our hand-written domain types
-/// by round-tripping through JSON. The generated types handle API deserialization
-/// (including timestamp quirks), then we re-deserialize into our types which
-/// have ID newtypes, field renames, etc.
+/// by round-tripping through JSON. The generated types handle API deserialization,
+/// then we re-deserialize into our types which have ID newtypes, field renames, etc.
 fn convert<T: serde::de::DeserializeOwned>(val: impl serde::Serialize) -> Result<T> {
     serde_json::from_value(serde_json::to_value(val)?).map_err(Into::into)
 }
