@@ -25,8 +25,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 csv = "1.4"
 
-# Generated API client runtime
-progenitor-client = "0.12.0"
+# Generated API client
+progenitor = "0.12.0"
 
 # Error handling
 anyhow = "1.0"
@@ -45,13 +45,6 @@ axoupdater = "0.9.1"
 
 # Date/time formatting
 chrono = "0.4"
-
-[build-dependencies]
-progenitor = "0.12.0"
-serde_json = "1.0"
-openapiv3 = "2.0"
-prettyplease = "0.2"
-syn = { version = "2.0", features = ["full"] }
 
 # The profile that 'dist' will build with
 [profile.dist]

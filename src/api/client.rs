@@ -61,7 +61,7 @@ impl ApiClient {
 
         // Convert our BugCloseState to the generated BugReviewState via JSON
         let gen_status: super::generated::types::BugReviewState = status
-            .map(|s| convert(s))
+            .map(convert)
             .transpose()?
             .unwrap_or(super::generated::types::BugReviewState::Pending);
 

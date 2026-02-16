@@ -1,8 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
 // Helper to deserialize timestamps that can be either string or number.
-// Also used by the generated code via build.rs patching.
-pub fn deserialize_timestamp<'de, D>(deserializer: D) -> Result<i64, D::Error>
+fn deserialize_timestamp<'de, D>(deserializer: D) -> Result<i64, D::Error>
 where
     D: Deserializer<'de>,
 {

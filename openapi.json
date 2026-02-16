@@ -46,9 +46,7 @@
                     "state": {
                         "$ref": "#/components/schemas/BugReviewState"
                     },
-                    "createdAt": {
-                        "type": "integer"
-                    },
+                    "createdAt": {},
                     "dismissalReason": {
                         "$ref": "#/components/schemas/BugDismissalReason"
                     },
@@ -77,9 +75,7 @@
                     "filePath": {
                         "type": "string"
                     },
-                    "createdAt": {
-                        "type": "integer"
-                    },
+                    "createdAt": {},
                     "review": {
                         "$ref": "#/components/schemas/BugReview"
                     },
