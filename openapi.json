@@ -155,104 +155,17 @@
                     "orgName"
                 ]
             },
-            "AuthenticationError": {
+            "ApiError": {
                 "type": "object",
                 "properties": {
                     "type": {
-                        "type": "string",
-                        "enum": [
-                            "DETAIL_AUTHENTICATION_ERROR"
-                        ]
+                        "type": "string"
                     },
                     "message": {
                         "type": "string"
                     },
                     "statusCode": {
-                        "type": "integer",
-                        "enum": [
-                            401
-                        ]
-                    }
-                },
-                "required": [
-                    "type",
-                    "message",
-                    "statusCode"
-                ]
-            },
-            "AuthorizationError": {
-                "type": "object",
-                "properties": {
-                    "type": {
-                        "type": "string",
-                        "enum": [
-                            "AUTHORIZATION_ERROR"
-                        ]
-                    },
-                    "message": {
-                        "type": "string"
-                    },
-                    "requiredRole": {
-                        "type": "string"
-                    },
-                    "statusCode": {
-                        "type": "integer",
-                        "enum": [
-                            403
-                        ]
-                    }
-                },
-                "required": [
-                    "type",
-                    "message",
-                    "statusCode"
-                ]
-            },
-            "NotFoundError": {
-                "type": "object",
-                "properties": {
-                    "type": {
-                        "type": "string",
-                        "enum": [
-                            "NOT_FOUND"
-                        ]
-                    },
-                    "message": {
-                        "type": "string"
-                    },
-                    "resource": {
-                        "type": "string"
-                    },
-                    "statusCode": {
-                        "type": "integer",
-                        "enum": [
-                            404
-                        ]
-                    }
-                },
-                "required": [
-                    "type",
-                    "message",
-                    "statusCode"
-                ]
-            },
-            "InternalError": {
-                "type": "object",
-                "properties": {
-                    "type": {
-                        "type": "string",
-                        "enum": [
-                            "INTERNAL_ERROR"
-                        ]
-                    },
-                    "message": {
-                        "type": "string"
-                    },
-                    "statusCode": {
-                        "type": "integer",
-                        "enum": [
-                            500
-                        ]
+                        "type": "integer"
                     }
                 },
                 "required": [
@@ -339,22 +252,22 @@
                             }
                         }
                     },
-                    "default": {
+                    "4XX": {
                         "description": "Error",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "oneOf": [
-                                        {
-                                            "$ref": "#/components/schemas/AuthenticationError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/AuthorizationError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/InternalError"
-                                        }
-                                    ]
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "5XX": {
+                        "description": "Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
                                 }
                             }
                         }
@@ -393,25 +306,22 @@
                             }
                         }
                     },
-                    "default": {
+                    "4XX": {
                         "description": "Error",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "oneOf": [
-                                        {
-                                            "$ref": "#/components/schemas/AuthenticationError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/AuthorizationError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/NotFoundError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/InternalError"
-                                        }
-                                    ]
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "5XX": {
+                        "description": "Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
                                 }
                             }
                         }
@@ -474,25 +384,22 @@
                             }
                         }
                     },
-                    "default": {
+                    "4XX": {
                         "description": "Error",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "oneOf": [
-                                        {
-                                            "$ref": "#/components/schemas/AuthenticationError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/AuthorizationError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/NotFoundError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/InternalError"
-                                        }
-                                    ]
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "5XX": {
+                        "description": "Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
                                 }
                             }
                         }
@@ -536,19 +443,22 @@
                             }
                         }
                     },
-                    "default": {
+                    "4XX": {
                         "description": "Error",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "oneOf": [
-                                        {
-                                            "$ref": "#/components/schemas/AuthenticationError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/InternalError"
-                                        }
-                                    ]
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "5XX": {
+                        "description": "Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
                                 }
                             }
                         }
@@ -615,19 +525,22 @@
                             }
                         }
                     },
-                    "default": {
+                    "4XX": {
                         "description": "Error",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "oneOf": [
-                                        {
-                                            "$ref": "#/components/schemas/AuthenticationError"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/InternalError"
-                                        }
-                                    ]
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "5XX": {
+                        "description": "Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
                                 }
                             }
                         }
