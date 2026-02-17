@@ -1,155 +1,67 @@
-use serde::{Deserialize, Deserializer, Serialize};
+// Re-export generated types as the public API for this crate.
+pub use super::generated::types::{
+    Bug, BugDismissalReason, BugReview, BugReviewState, CreatePublicBugReviewBody, Org, Repo,
+};
 
-// Macro to generate type-safe ID newtypes with validation
-macro_rules! define_id_type {
-    ($name:ident, $prefix:literal, $type_name:literal) => {
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
-        #[serde(transparent)]
-        pub struct $name(String);
+// Friendlier aliases for the generated response-wrapper names.
+pub type UserInfo = super::generated::types::GetPublicUserResponse;
+pub type BugsResponse = super::generated::types::ListPublicBugsResponse;
+pub type ReposResponse = super::generated::types::ListPublicReposResponse;
 
-        impl $name {
-            pub fn new(id: impl Into<String>) -> Result<Self, String> {
-                let id_str = id.into();
-                if !id_str.starts_with($prefix) {
-                    return Err(format!(
-                        "Invalid {} ID: must start with '{}', got '{}'",
-                        $type_name, $prefix, id_str
-                    ));
-                }
-                Ok(Self(id_str))
-            }
+// ── Display helpers ──────────────────────────────────────────────────
+// progenitor already implements Display for the generated enums, so we
+// provide standalone helpers for user-friendly labels where needed.
 
-            #[allow(dead_code)]
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $name {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                let s = String::deserialize(deserializer)?;
-                $name::new(s).map_err(serde::de::Error::custom)
-            }
-        }
-
-        impl std::fmt::Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0)
-            }
-        }
-    };
+pub fn review_state_label(s: &BugReviewState) -> &'static str {
+    match s {
+        BugReviewState::Pending => "Pending",
+        BugReviewState::Resolved => "Resolved",
+        BugReviewState::Dismissed => "Dismissed",
+    }
 }
 
-// Define all ID types with their prefixes
-define_id_type!(BugId, "bug_", "bug");
-define_id_type!(RepoId, "repo_", "repository");
-define_id_type!(OrgId, "org_", "organization");
-define_id_type!(BugCloseId, "bfrv_", "bug close");
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct UserInfo {
-    pub email: String,
-    pub orgs: Vec<OrgInfo>,
+pub fn dismissal_reason_label(r: &BugDismissalReason) -> &'static str {
+    match r {
+        BugDismissalReason::NotABug => "Not a Bug",
+        BugDismissalReason::WontFix => "Won't Fix",
+        BugDismissalReason::Duplicate => "Duplicate",
+        BugDismissalReason::Other => "Other",
+    }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct OrgInfo {
-    pub id: OrgId,
-    pub name: String,
-}
+// ── clap::ValueEnum ──────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct BugsResponse {
-    pub bugs: Vec<Bug>,
-    pub total: usize,
-}
+impl clap::ValueEnum for BugReviewState {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Pending, Self::Resolved, Self::Dismissed]
+    }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Bug {
-    pub id: BugId,
-    pub title: String,
-    pub summary: String,
-    pub file_path: Option<String>,
-    pub created_at: i64,
-    #[serde(rename = "review")]
-    pub close: Option<BugClose>,
-    pub repo_id: RepoId,
-    pub commit_sha: Option<String>,
-    pub is_security_vulnerability: Option<bool>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BugClose {
-    pub id: BugCloseId,
-    pub state: BugCloseState,
-    pub created_at: i64,
-    pub dismissal_reason: Option<BugDismissalReason>,
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, clap::ValueEnum)]
-#[serde(rename_all = "lowercase")]
-pub enum BugCloseState {
-    Pending,
-    Resolved,
-    Dismissed,
-}
-
-impl std::fmt::Display for BugCloseState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
         match self {
-            Self::Pending => write!(f, "Pending"),
-            Self::Resolved => write!(f, "Resolved"),
-            Self::Dismissed => write!(f, "Dismissed"),
+            Self::Pending => Some(clap::builder::PossibleValue::new("pending")),
+            Self::Resolved => Some(clap::builder::PossibleValue::new("resolved")),
+            Self::Dismissed => Some(clap::builder::PossibleValue::new("dismissed")),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, clap::ValueEnum)]
-#[serde(rename_all = "snake_case")]
-pub enum BugDismissalReason {
-    NotABug,
-    WontFix,
-    Duplicate,
-    Other,
-}
+impl clap::ValueEnum for BugDismissalReason {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::NotABug, Self::WontFix, Self::Duplicate, Self::Other]
+    }
 
-impl std::fmt::Display for BugDismissalReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
         match self {
-            Self::NotABug => write!(f, "Not a Bug"),
-            Self::WontFix => write!(f, "Won't Fix"),
-            Self::Duplicate => write!(f, "Duplicate"),
-            Self::Other => write!(f, "Other"),
+            Self::NotABug => Some(clap::builder::PossibleValue::new("not-a-bug")),
+            Self::WontFix => Some(clap::builder::PossibleValue::new("wont-fix")),
+            Self::Duplicate => Some(clap::builder::PossibleValue::new("duplicate")),
+            Self::Other => Some(clap::builder::PossibleValue::new("other")),
         }
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ReposResponse {
-    pub repos: Vec<Repo>,
-    pub total: usize,
-}
+// ── Formattable ──────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Repo {
-    pub id: RepoId,
-    pub name: String,
-    pub owner_name: String,
-    pub full_name: String,
-    pub visibility: String,
-    pub primary_branch: String,
-    pub org_id: OrgId,
-    pub org_name: String,
-}
-
-// Implement Formattable for Bug
 impl crate::output::Formattable for Bug {
     fn csv_headers() -> &'static [&'static str] {
         &["id", "title", "file", "created"]
@@ -157,7 +69,7 @@ impl crate::output::Formattable for Bug {
 
     fn to_csv_row(&self) -> Vec<String> {
         vec![
-            self.id.to_string(),
+            self.id.clone(),
             self.title.clone(),
             self.file_path.as_deref().unwrap_or("-").to_string(),
             crate::utils::format_date(self.created_at),
@@ -168,14 +80,13 @@ impl crate::output::Formattable for Bug {
         (
             self.title.clone(),
             vec![
-                ("Bug ID", self.id.to_string()),
+                ("Bug ID", self.id.clone()),
                 ("Created", crate::utils::format_date(self.created_at)),
             ],
         )
     }
 }
 
-// Implement Formattable for Repo
 impl crate::output::Formattable for Repo {
     fn csv_headers() -> &'static [&'static str] {
         &["repository", "organization"]

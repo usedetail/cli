@@ -63,7 +63,13 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                     term.write_line(&format!("Page: {} of {}", page, total_pages))?;
                     Ok(())
                 }
-                _ => crate::output::output_list(&repos.repos, repos.total, *page, *limit, format),
+                _ => crate::output::output_list(
+                    &repos.repos,
+                    repos.total as usize,
+                    *page,
+                    *limit,
+                    format,
+                ),
             }
         }
     }
