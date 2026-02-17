@@ -48,16 +48,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
 
-  openapi:
-    name: OpenAPI Spec
+  vendored:
+    name: Vendored Artifacts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check vendored spec matches upstream
-        run: |
-          curl -sf https://api.detail.dev/public/v1/openapi.json \
-            | python3 -m json.tool \
-            | diff - openapi.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: make check
 
   audit:
     name: Security Audit
