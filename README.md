@@ -36,65 +36,11 @@ detail auth status
 
 ## Usage
 
-The CLI provides commands for managing bugs and repositories. Use `--help` with any command to see detailed usage information.
+See the full [command-line reference](docs/HELP.md) for detailed usage of every command and option.
 
-### Bug Management
-
-```bash
-# List bugs for a repository
-detail bugs list owner/repo --status pending
-
-# Show details for a specific bug
-detail bugs show bug_abc123
-
-# Close a bug (mark as resolved)
-detail bugs close bug_abc123 --state resolved
-
-# Dismiss a bug with a note
-detail bugs close bug_abc123 --state dismissed --dismissal-reason not-a-bug --notes "Example note"
-```
-
-### Repository Management
+Use `--help` with any command for quick reference:
 
 ```bash
-# List all repositories you have access to
-detail repos list
+detail --help
+detail bugs --help
 ```
-
-### Output Formats
-
-All list commands support multiple output formats:
-
-```bash
-# Table format (default)
-detail bugs list owner/repo --format table
-
-# JSON format
-detail bugs list owner/repo --format json
-
-# CSV format
-detail bugs list owner/repo --format csv
-```
-
-## Configuration
-
-Configuration and API tokens are stored in `config.toml` at:
-- macOS/Linux: `~/.config/detail-cli/config.toml`
-- Windows: `%LOCALAPPDATA%\detail-cli\config.toml`
-
-You can override the config directory by setting the `XDG_CONFIG_HOME` environment variable.
-
-### Updates
-
-The CLI automatically checks for updates once per day, and installs if found. 
-To disable automatic updates, add this to your config file:
-
-```toml
-check_for_updates = false
-```
-
-You can run `detail-cli-update` to manually update the CLI to the latest version.
-
-### Environment Variables
-
-- `DETAIL_API_URL` - Override the API endpoint (for testing)
