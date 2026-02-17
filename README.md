@@ -27,50 +27,13 @@ Once you have your token, authenticate with:
 ```bash
 detail auth login
 ```
-
-You can check your authentication status at any time:
-
-```bash
-detail auth status
-```
-
 ## Usage
 
-The CLI provides commands for managing bugs and repositories. Use `--help` with any command to see detailed usage information.
+See the full [command-line reference](docs/HELP.md) for detailed usage of every command and option.
 
-### Bug Management
+Use `--help` with any command for quick reference:
 
 ```bash
-# List bugs for a repository
-detail bugs list owner/repo --status pending
-
-# Show details for a specific bug
-detail bugs show bug_abc123
-
-# Close a bug (mark as resolved)
-detail bugs close bug_abc123 --state resolved
-
-# Dismiss a bug with a note
-detail bugs close bug_abc123 --state dismissed --dismissal-reason not-a-bug --notes "Example note"
+detail --help
+detail bugs --help
 ```
-
-### Repository Management
-
-```bash
-# List all repositories you have access to
-detail repos list
-```
-
-### Output Formats
-
-All list commands support multiple output formats:
-
-```bash
-# Table format (default)
-detail bugs list owner/repo --format table
-
-# JSON format
-detail bugs list owner/repo --format json
-
-# CSV format
-detail bugs list owner/repo --format csv

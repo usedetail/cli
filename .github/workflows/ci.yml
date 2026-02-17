@@ -59,6 +59,16 @@ jobs:
             | python3 -m json.tool \
             | diff - openapi.json
 
+  cli-help:
+    name: CLI Help Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check docs/HELP.md matches Clap definitions
+        run: cargo run --example generate_help | diff - docs/HELP.md
+
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
