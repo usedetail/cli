@@ -10,7 +10,7 @@ check-openapi:
 
 check-help:
 	@echo "Checking docs/HELP.md is up to date..."
-	@diff <(cargo run --quiet --example generate_help) docs/HELP.md
+	@cargo run --quiet --example generate_help | diff - docs/HELP.md
 
 generate: generate-openapi generate-help
 
