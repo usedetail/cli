@@ -48,26 +48,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
 
-  openapi:
-    name: OpenAPI Spec
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check vendored spec matches upstream
-        run: |
-          curl -sf https://api.detail.dev/public/v1/openapi.json \
-            | python3 -m json.tool \
-            | diff - openapi.json
-
-  cli-help:
-    name: CLI Help Docs
+  generated-files:
+    name: Generated Files
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Check docs/HELP.md matches Clap definitions
-        run: cargo run --example generate_help | diff - docs/HELP.md
+      - name: Check all generated files are up to date
+        run: make check
 
   audit:
     name: Security Audit
