@@ -3,7 +3,9 @@ use clap::Subcommand;
 use console::{style, Term};
 use dialoguer::{Input, Select};
 
-use crate::api::types::{BugCloseState, BugDismissalReason};
+use crate::api::types::{
+    dismissal_reason_label, review_state_label, BugDismissalReason, BugReviewState,
+};
 
 #[derive(Subcommand)]
 pub enum BugCommands {
@@ -14,7 +16,7 @@ pub enum BugCommands {
 
         /// Status filter
         #[arg(long, value_enum, default_value = "pending")]
-        status: BugCloseState,
+        status: BugReviewState,
 
         /// Maximum number of results per page
         #[arg(long, default_value = "50")]
@@ -42,7 +44,7 @@ pub enum BugCommands {
 
         /// Close state (prompted interactively if omitted in a TTY)
         #[arg(long, value_enum)]
-        state: Option<BugCloseState>,
+        state: Option<BugReviewState>,
 
         /// Dismissal reason (required if state is dismissed)
         #[arg(long, value_enum)]
@@ -57,7 +59,7 @@ pub enum BugCommands {
 // ── Interactive prompt helpers ──────────────────────────────────────
 
 /// Prompt for close state (Resolved / Dismissed) via arrow-key selection.
-fn prompt_close_state() -> Result<BugCloseState> {
+fn prompt_close_state() -> Result<BugReviewState> {
     let items = ["Resolved", "Dismissed"];
     let selection = Select::new()
         .with_prompt("Close state")
@@ -66,8 +68,8 @@ fn prompt_close_state() -> Result<BugCloseState> {
         .interact()
         .context("Failed to read close state selection")?;
     match selection {
-        0 => Ok(BugCloseState::Resolved),
-        _ => Ok(BugCloseState::Dismissed),
+        0 => Ok(BugReviewState::Resolved),
+        _ => Ok(BugReviewState::Dismissed),
     }
 }
 
@@ -121,7 +123,7 @@ async fn fetch_all_repos(
         let page_size = repos.repos.len();
         all_repos.extend(repos.repos);
 
-        if page_size < REPO_PAGE_SIZE as usize {
+        if (page_size as u32) < REPO_PAGE_SIZE {
             break;
         }
         offset += REPO_PAGE_SIZE;
@@ -134,7 +136,7 @@ async fn fetch_all_repos(
 async fn resolve_repo_id(
     client: &crate::api::client::ApiClient,
     repo_identifier: &str,
-) -> Result<crate::api::types::RepoId> {
+) -> Result<String> {
     if repo_identifier.contains('/') {
         let parts: Vec<&str> = repo_identifier.split('/').collect();
         if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
@@ -197,25 +199,21 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             let offset = crate::utils::page_to_offset(*page, *limit);
 
             let bugs = client
-                .list_bugs(&resolved_repo_id, Some(status), *limit, offset)
+                .list_bugs(&resolved_repo_id, *status, *limit, offset)
                 .await
                 .context("Failed to fetch bugs from repository")?;
 
-            crate::output::output_list(&bugs.bugs, bugs.total, *page, *limit, format)
+            crate::output::output_list(&bugs.bugs, bugs.total as usize, *page, *limit, format)
         }
 
         BugCommands::Show { bug_id } => {
-            use crate::api::types::BugId;
-
-            let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
-
             let bug = client
-                .get_bug(&bug_id)
+                .get_bug(bug_id)
                 .await
                 .context("Failed to fetch bug details")?;
 
             let mut pairs: Vec<(&str, String)> = vec![
-                ("ID", bug.id.to_string()),
+                ("ID", bug.id.clone()),
                 ("Title", bug.title.clone()),
                 ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
                 ("Created", crate::utils::format_datetime(bug.created_at)),
@@ -227,16 +225,16 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                         .to_string(),
                 ),
             ];
-            if let Some(close) = &bug.close {
-                pairs.push(("Close", close.state.to_string()));
+            if let Some(review) = &bug.review {
+                pairs.push(("Close", review_state_label(&review.state).to_string()));
                 pairs.push((
                     "Close Date",
-                    crate::utils::format_datetime(close.created_at),
+                    crate::utils::format_datetime(review.created_at),
                 ));
-                if let Some(reason) = &close.dismissal_reason {
-                    pairs.push(("Dismissal", reason.to_string()));
+                if let Some(reason) = &review.dismissal_reason {
+                    pairs.push(("Dismissal", dismissal_reason_label(reason).to_string()));
                 }
-                if let Some(notes) = &close.notes {
+                if let Some(notes) = &review.notes {
                     pairs.push(("Notes", notes.clone()));
                 }
             }
@@ -252,12 +250,10 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             dismissal_reason,
             notes,
         } => {
-            use crate::api::types::BugId;
-
             let is_interactive = Term::stdout().is_term();
 
             // Reject --state pending (only used as a list filter)
-            if matches!(state, Some(BugCloseState::Pending)) {
+            if matches!(state, Some(BugReviewState::Pending)) {
                 bail!("'pending' is not a valid close state. Use 'resolved' or 'dismissed'.");
             }
 
@@ -271,7 +267,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             };
 
             // Resolve dismissal_reason (only when dismissed)
-            let dismissal_reason = if matches!(state, BugCloseState::Dismissed) {
+            let dismissal_reason = if matches!(state, BugReviewState::Dismissed) {
                 match dismissal_reason {
                     Some(r) => Some(*r),
                     None if is_interactive => Some(prompt_dismissal_reason()?),
@@ -290,17 +286,15 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 None => None,
             };
 
-            let bug_id = BugId::new(bug_id).map_err(|e| anyhow::anyhow!(e))?;
-
             client
-                .update_bug_close(&bug_id, state, dismissal_reason, notes.as_deref())
+                .update_bug_close(bug_id, state, dismissal_reason, notes.as_deref())
                 .await
                 .context("Failed to close bug")?;
 
             Term::stdout()
                 .write_line(&format!(
                     "{}",
-                    style(format!("✓ Bug closed as: {}", state)).green()
+                    style(format!("✓ Bug closed as: {}", review_state_label(&state))).green()
                 ))
                 .ok();
             Ok(())
