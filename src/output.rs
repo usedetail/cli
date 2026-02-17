@@ -29,6 +29,12 @@ pub struct SectionRenderer {
     sections: Vec<(String, SectionContent)>,
 }
 
+impl Default for SectionRenderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SectionRenderer {
     pub fn new() -> Self {
         Self {

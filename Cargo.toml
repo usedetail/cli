@@ -46,6 +46,9 @@ axoupdater = "0.9.1"
 # Date/time formatting
 chrono = "0.4"
 
+[dev-dependencies]
+clap-markdown = "0.1"
+
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
