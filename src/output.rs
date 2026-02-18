@@ -1,15 +1,17 @@
 //! CLI output formatting utilities
 
-use std::io::Write as _;
+use std::fmt::Display;
+use std::io::{self, Write as _};
 use std::sync::LazyLock;
 
 use anyhow::Result;
 use console::{style, Term};
 use serde::Serialize;
+use termimad::crossterm::style::Attribute;
 
 static MARKDOWN_SKIN: LazyLock<termimad::MadSkin> = LazyLock::new(|| {
     let mut skin = termimad::MadSkin::default();
-    let dim = termimad::crossterm::style::Attribute::Dim;
+    let dim = Attribute::Dim;
     skin.code_block.compound_style = termimad::CompoundStyle::with_attr(dim);
     skin.inline_code = termimad::CompoundStyle::with_attr(dim);
     for h in &mut skin.headers {
@@ -55,7 +57,7 @@ impl SectionRenderer {
         self
     }
 
-    pub fn markdown(mut self, header: &str, value: impl std::fmt::Display) -> Self {
+    pub fn markdown(mut self, header: &str, value: impl Display) -> Self {
         self.sections.push((
             header.to_string(),
             SectionContent::Markdown(value.to_string()),
@@ -131,7 +133,7 @@ pub fn output_list<T: Formattable + Serialize>(
         }
         crate::OutputFormat::Csv => {
             use csv::Writer;
-            let mut wtr = Writer::from_writer(std::io::stdout());
+            let mut wtr = Writer::from_writer(io::stdout());
             wtr.write_record(T::csv_headers())?;
             for item in items {
                 wtr.write_record(item.to_csv_row())?;
