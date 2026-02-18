@@ -363,6 +363,21 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                         .to_string(),
                 ),
             ];
+            if let Some(intro) = &bug.introduced_in {
+                let commit = if intro.sha.len() >= 7 {
+                    &intro.sha[..7]
+                } else {
+                    &intro.sha
+                };
+                let ref_label = match intro.pr_number {
+                    Some(pr) => format!("PR #{} ({})", pr, commit),
+                    None => commit.to_string(),
+                };
+                pairs.push((
+                    "Introduced",
+                    format!("{} on {} by {}", ref_label, intro.date, intro.author),
+                ));
+            }
             if let Some(review) = &bug.review {
                 pairs.push(("Close", review_state_label(&review.state).to_string()));
                 pairs.push(("Close Date", format_datetime(review.created_at)));
