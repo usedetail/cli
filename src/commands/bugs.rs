@@ -35,11 +35,11 @@ pub enum BugCommands {
         security: bool,
 
         /// Maximum number of results per page
-        #[arg(long, default_value = "50")]
+        #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..))]
         limit: u32,
 
         /// Page number (starts at 1)
-        #[arg(long, default_value = "1")]
+        #[arg(long, default_value = "1", value_parser = clap::value_parser!(u32).range(1..))]
         page: u32,
 
         /// Output format
