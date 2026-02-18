@@ -30,18 +30,13 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
                     let term = Term::stdout();
                     term.write_str("Paste your API token: ")?;
 
-                    // Read character-by-character (hidden) and auto-submit
-                    // when a complete token is detected
+                    // Read character-by-character (hidden) until Enter is pressed.
                     let mut token = String::new();
                     loop {
                         let key = term.read_key()?;
                         match key {
                             Key::Char(c) if !c.is_whitespace() => {
                                 token.push(c);
-                                if is_complete_token(&token) {
-                                    term.write_line("")?;
-                                    break;
-                                }
                             }
                             Key::Enter => {
                                 term.write_line("")?;
@@ -124,7 +119,8 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
 }
 
 /// Check if the string matches the expected API token format: dtl_{env}_{32hex}.{64hex}
-pub(crate) fn is_complete_token(s: &str) -> bool {
+#[cfg(test)]
+fn is_complete_token(s: &str) -> bool {
     if !s.starts_with("dtl_") {
         return false;
     }
