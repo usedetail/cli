@@ -67,7 +67,6 @@ impl Cli {
 pub enum OutputFormat {
     Table,
     Json,
-    Csv,
 }
 
 #[derive(Subcommand)]

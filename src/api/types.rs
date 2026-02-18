@@ -69,19 +69,6 @@ impl clap::ValueEnum for BugDismissalReason {
 // ── Formattable ──────────────────────────────────────────────────────
 
 impl Formattable for Bug {
-    fn csv_headers() -> &'static [&'static str] {
-        &["id", "title", "file", "created"]
-    }
-
-    fn to_csv_row(&self) -> Vec<String> {
-        vec![
-            self.id.to_string(),
-            self.title.clone(),
-            self.file_path.as_deref().unwrap_or("-").to_string(),
-            format_date(self.created_at),
-        ]
-    }
-
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
         (
             self.title.clone(),
@@ -94,14 +81,6 @@ impl Formattable for Bug {
 }
 
 impl Formattable for Repo {
-    fn csv_headers() -> &'static [&'static str] {
-        &["repository", "organization"]
-    }
-
-    fn to_csv_row(&self) -> Vec<String> {
-        vec![self.full_name.clone(), self.org_name.clone()]
-    }
-
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
         (
             self.full_name.clone(),

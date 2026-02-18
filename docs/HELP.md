@@ -124,7 +124,7 @@ List bugs for a given repository
 
   Default value: `table`
 
-  Possible values: `table`, `json`, `csv`
+  Possible values: `table`, `json`
 
 
 
@@ -195,7 +195,7 @@ List all repositories you have access to
 
   Default value: `table`
 
-  Possible values: `table`, `json`, `csv`
+  Possible values: `table`, `json`
 
 
 

@@ -1,7 +1,7 @@
 //! CLI output formatting utilities
 
 use std::fmt::Display;
-use std::io::{self, Write as _};
+use std::io::Write as _;
 use std::sync::LazyLock;
 
 use anyhow::Result;
@@ -101,12 +101,6 @@ impl SectionRenderer {
 
 /// Trait for types that can be formatted for list output
 pub trait Formattable {
-    /// Column headers for CSV output
-    fn csv_headers() -> &'static [&'static str];
-
-    /// Convert this item to a CSV row
-    fn to_csv_row(&self) -> Vec<String>;
-
     /// Return a card header and key-value pairs for terminal list display
     fn to_card(&self) -> (String, Vec<(&'static str, String)>);
 }
@@ -130,15 +124,6 @@ pub fn output_list<T: Formattable + Serialize>(
                 "total_pages": total_pages,
             });
             Term::stdout().write_line(&serde_json::to_string_pretty(&response)?)?;
-        }
-        crate::OutputFormat::Csv => {
-            use csv::Writer;
-            let mut wtr = Writer::from_writer(io::stdout());
-            wtr.write_record(T::csv_headers())?;
-            for item in items {
-                wtr.write_record(item.to_csv_row())?;
-            }
-            wtr.flush()?;
         }
         crate::OutputFormat::Table => {
             let term = Term::stdout();
