@@ -114,18 +114,7 @@ List bugs for a given repository
 
   Possible values: `pending`, `resolved`, `dismissed`
 
-* `--security <SECURITY>` — Filter by security vulnerability
-
-  Default value: `all`
-
-  Possible values:
-  - `all`:
-    Show all bugs (no security filter)
-  - `true`:
-    Show only security vulnerabilities
-  - `false`:
-    Show only non-security bugs
-
+* `--security` — Only show security vulnerabilities
 * `--limit <LIMIT>` — Maximum number of results per page
 
   Default value: `50`

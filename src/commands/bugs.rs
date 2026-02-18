@@ -11,33 +11,12 @@ use crate::api::types::{
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::{format_datetime, page_to_offset};
 
-/// Client-side filter for the `isSecurityVulnerability` field.
-#[derive(Clone, Copy, Default, clap::ValueEnum)]
-pub enum SecurityFilter {
-    /// Show all bugs (no security filter)
-    #[default]
-    All,
-    /// Show only security vulnerabilities
-    True,
-    /// Show only non-security bugs
-    False,
-}
-
-/// Apply a `SecurityFilter` to a list of bugs, returning only those that match.
-fn filter_by_security(bugs: &[Bug], filter: SecurityFilter) -> Vec<Bug> {
-    match filter {
-        SecurityFilter::All => bugs.to_vec(),
-        SecurityFilter::True => bugs
-            .iter()
-            .filter(|b| b.is_security_vulnerability == Some(true))
-            .cloned()
-            .collect(),
-        SecurityFilter::False => bugs
-            .iter()
-            .filter(|b| !matches!(b.is_security_vulnerability, Some(true)))
-            .cloned()
-            .collect(),
-    }
+/// Return only bugs where `isSecurityVulnerability` is `true`.
+fn filter_security_only(bugs: &[Bug]) -> Vec<Bug> {
+    bugs.iter()
+        .filter(|b| b.is_security_vulnerability == Some(true))
+        .cloned()
+        .collect()
 }
 
 #[derive(Subcommand)]
@@ -51,9 +30,9 @@ pub enum BugCommands {
         #[arg(long, value_enum, default_value = "pending")]
         status: BugReviewState,
 
-        /// Filter by security vulnerability
-        #[arg(long, value_enum, default_value = "all")]
-        security: SecurityFilter,
+        /// Only show security vulnerabilities
+        #[arg(long)]
+        security: bool,
 
         /// Maximum number of results per page
         #[arg(long, default_value = "50")]
@@ -300,8 +279,12 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bugs from repository")?;
 
-            let filtered = filter_by_security(&bugs.bugs, *security);
-            output_list(&filtered, filtered.len(), *page, *limit, format)
+            let items = if *security {
+                filter_security_only(&bugs.bugs)
+            } else {
+                bugs.bugs
+            };
+            output_list(&items, items.len(), *page, *limit, format)
         }
 
         BugCommands::Show { bug_id } => {
@@ -571,7 +554,7 @@ mod tests {
         assert!(matches!(reason, Some(BugDismissalReason::Duplicate)));
     }
 
-    // ── filter_by_security ───────────────────────────────────────────
+    // ── filter_security_only ────────────────────────────────────────
 
     fn sample_bugs() -> Vec<Bug> {
         vec![
@@ -596,44 +579,34 @@ mod tests {
     }
 
     #[test]
-    fn security_filter_all_returns_everything() {
+    fn security_filter_returns_only_security_bugs() {
         let bugs = sample_bugs();
-        let filtered = filter_by_security(&bugs, SecurityFilter::All);
-        assert_eq!(filtered.len(), 3);
-    }
-
-    #[test]
-    fn security_filter_true_returns_only_security_bugs() {
-        let bugs = sample_bugs();
-        let filtered = filter_by_security(&bugs, SecurityFilter::True);
+        let filtered = filter_security_only(&bugs);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].title, "SQL injection");
     }
 
     #[test]
-    fn security_filter_false_excludes_security_bugs() {
-        let bugs = sample_bugs();
-        let filtered = filter_by_security(&bugs, SecurityFilter::False);
-        assert_eq!(filtered.len(), 2);
-        assert_eq!(filtered[0].title, "Off-by-one");
-        assert_eq!(filtered[1].title, "Missing null check");
+    fn security_filter_on_empty_list() {
+        assert!(filter_security_only(&[]).is_empty());
     }
 
     #[test]
-    fn security_filter_true_on_empty_list() {
-        let filtered = filter_by_security(&[], SecurityFilter::True);
-        assert!(filtered.is_empty());
-    }
-
-    #[test]
-    fn security_filter_false_treats_none_as_non_security() {
-        // Bug with isSecurityVulnerability: None should pass the False filter
-        let bugs = vec![serde_json::from_value(serde_json::json!({
-            "id": "bug_x", "title": "Unknown", "summary": "...",
-            "createdAt": 1_000_000, "repoId": "repo_1"
-        }))
-        .unwrap()];
-        let filtered = filter_by_security(&bugs, SecurityFilter::False);
-        assert_eq!(filtered.len(), 1);
+    fn security_filter_excludes_none_and_false() {
+        // Bugs with isSecurityVulnerability: None or false are excluded
+        let bugs: Vec<Bug> = vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_a", "title": "A", "summary": "...",
+                "createdAt": 1, "repoId": "repo_1",
+                "isSecurityVulnerability": false
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_b", "title": "B", "summary": "...",
+                "createdAt": 2, "repoId": "repo_1"
+            }))
+            .unwrap(),
+        ];
+        assert!(filter_security_only(&bugs).is_empty());
     }
 }
