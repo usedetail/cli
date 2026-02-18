@@ -105,6 +105,11 @@ pub trait Formattable {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>);
 }
 
+/// Compute the total number of pages for a given item count and page size.
+fn total_pages(total: usize, limit: u32) -> u32 {
+    (total as u32).div_ceil(limit).max(1)
+}
+
 /// Generic helper to output a list of items in the requested format
 pub fn output_list<T: Formattable + Serialize>(
     items: &[T],
@@ -113,7 +118,7 @@ pub fn output_list<T: Formattable + Serialize>(
     limit: u32,
     format: &crate::OutputFormat,
 ) -> Result<()> {
-    let total_pages = (total as u32).div_ceil(limit).max(1);
+    let total_pages = total_pages(total, limit);
 
     match format {
         crate::OutputFormat::Json => {
@@ -144,4 +149,67 @@ pub fn output_list<T: Formattable + Serialize>(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── total_pages ──────────────────────────────────────────────────
+
+    #[test]
+    fn total_pages_exact_division() {
+        assert_eq!(total_pages(100, 50), 2);
+    }
+
+    #[test]
+    fn total_pages_with_remainder() {
+        assert_eq!(total_pages(101, 50), 3);
+    }
+
+    #[test]
+    fn total_pages_single_page() {
+        assert_eq!(total_pages(10, 50), 1);
+    }
+
+    #[test]
+    fn total_pages_empty_list_returns_one() {
+        assert_eq!(total_pages(0, 50), 1);
+    }
+
+    #[test]
+    fn total_pages_limit_one() {
+        assert_eq!(total_pages(5, 1), 5);
+    }
+
+    // ── SectionRenderer builder ──────────────────────────────────────
+
+    #[test]
+    fn section_renderer_default_creates_empty() {
+        let renderer = SectionRenderer::default();
+        assert!(renderer.sections.is_empty());
+    }
+
+    #[test]
+    fn section_renderer_key_value_adds_section() {
+        let renderer = SectionRenderer::new().key_value("Info", &[("key", "val".to_string())]);
+        assert_eq!(renderer.sections.len(), 1);
+        assert_eq!(renderer.sections[0].0, "Info");
+    }
+
+    #[test]
+    fn section_renderer_markdown_adds_section() {
+        let renderer = SectionRenderer::new().markdown("Body", "hello");
+        assert_eq!(renderer.sections.len(), 1);
+        assert_eq!(renderer.sections[0].0, "Body");
+    }
+
+    #[test]
+    fn section_renderer_chaining() {
+        let renderer = SectionRenderer::new()
+            .key_value("A", &[])
+            .markdown("B", "text")
+            .key_value("C", &[("x", "y".to_string())]);
+        assert_eq!(renderer.sections.len(), 3);
+    }
 }
