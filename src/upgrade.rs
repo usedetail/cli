@@ -20,7 +20,7 @@ pub async fn auto_update() -> Result<()> {
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
     if let Some(last_check) = config.last_update_check {
-        if now - last_check < UPDATE_CHECK_INTERVAL {
+        if now.saturating_sub(last_check) < UPDATE_CHECK_INTERVAL {
             return Ok(()); // Checked recently
         }
     }
