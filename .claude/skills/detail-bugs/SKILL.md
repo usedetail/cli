@@ -1,14 +1,14 @@
 ---
 name: detail-bugs
 description: Fetch Detail bugs for a repository. List pending bugs, show details for each, fix the bugs, and mark them as resolved or dismissed.
-argument-hint: [owner/repo]
+argument-hint: <owner/repo>
 allowed-tools: Bash
 ---
 
 # Fetch Detail Bugs
 
-Get bugs from Detail for the repository `$ARGUMENTS` (or the current repository
-if not provided) and help the user triage them.
+Get bugs from Detail for the repository `$ARGUMENTS` and help the user triage
+them. The repository argument is required (e.g., `owner/repo`).
 
 ## Prerequisites
 
