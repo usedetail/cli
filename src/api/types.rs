@@ -70,13 +70,14 @@ impl clap::ValueEnum for BugDismissalReason {
 
 impl Formattable for Bug {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
-        (
-            self.title.clone(),
-            vec![
-                ("Bug ID", self.id.to_string()),
-                ("Created", format_date(self.created_at)),
-            ],
-        )
+        let mut pairs = vec![
+            ("Bug ID", self.id.to_string()),
+            ("Created", format_date(self.created_at)),
+        ];
+        if self.is_security_vulnerability == Some(true) {
+            pairs.push(("Security", "Yes".to_string()));
+        }
+        (self.title.clone(), pairs)
     }
 }
 
@@ -201,6 +202,39 @@ mod tests {
         assert_eq!(keys, vec!["Bug ID", "Created"]);
         assert!(pairs[0].1.contains("bug_abc123"));
         assert_eq!(pairs[1].1, "2025-01-15");
+    }
+
+    #[test]
+    fn bug_card_shows_security_when_true() {
+        let bug: Bug = serde_json::from_value(serde_json::json!({
+            "id": "bug_sec1",
+            "title": "XSS vulnerability",
+            "summary": "...",
+            "createdAt": 1_736_899_200_000_i64,
+            "repoId": "repo_xyz",
+            "isSecurityVulnerability": true
+        }))
+        .expect("valid Bug JSON");
+        let (_, pairs) = bug.to_card();
+        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
+        assert_eq!(keys, vec!["Bug ID", "Created", "Security"]);
+        assert_eq!(pairs[2].1, "Yes");
+    }
+
+    #[test]
+    fn bug_card_hides_security_when_false() {
+        let bug: Bug = serde_json::from_value(serde_json::json!({
+            "id": "bug_nosec",
+            "title": "Typo in docs",
+            "summary": "...",
+            "createdAt": 1_736_899_200_000_i64,
+            "repoId": "repo_xyz",
+            "isSecurityVulnerability": false
+        }))
+        .expect("valid Bug JSON");
+        let (_, pairs) = bug.to_card();
+        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
+        assert_eq!(keys, vec!["Bug ID", "Created"]);
     }
 
     #[test]
