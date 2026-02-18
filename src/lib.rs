@@ -42,12 +42,37 @@ impl Cli {
         api::client::ApiClient::new(self.api_url.clone(), Some(token))
     }
 
+    /// Returns true when machine-readable output is requested (e.g. `--format json`),
+    /// meaning non-essential messages (update notices, progress) should be suppressed
+    /// to avoid corrupting structured output.
+    fn is_silent(&self) -> bool {
+        match &self.command {
+            Commands::Bugs { command } => matches!(
+                command,
+                commands::bugs::BugCommands::List {
+                    format: OutputFormat::Json,
+                    ..
+                }
+            ),
+            Commands::Repos { command } => matches!(
+                command,
+                commands::repos::RepoCommands::List {
+                    format: OutputFormat::Json,
+                    ..
+                }
+            ),
+            _ => false,
+        }
+    }
+
     /// Run the CLI command
     pub async fn run(self) -> Result<()> {
-        // Auto-update in background (async, non-blocking)
-        if let Err(e) = upgrade::auto_update().await {
-            let _ = console::Term::stderr()
-                .write_line(&format!("Warning: Failed to check for updates: {}", e));
+        // Skip auto-update when outputting JSON to avoid corrupting structured output
+        if !self.is_silent() {
+            if let Err(e) = upgrade::auto_update().await {
+                let _ = console::Term::stderr()
+                    .write_line(&format!("Warning: Failed to check for updates: {}", e));
+            }
         }
 
         match &self.command {
@@ -94,4 +119,74 @@ enum Commands {
 
     /// Show version information
     Version,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn silent_when_bugs_list_json() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--format", "json"])
+            .unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_when_bugs_list_table() {
+        let cli =
+            Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--format", "table"])
+                .unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_when_bugs_list_default_format() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn silent_when_repos_list_json() {
+        let cli = Cli::try_parse_from(["detail", "repos", "list", "--format", "json"]).unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_when_repos_list_table() {
+        let cli = Cli::try_parse_from(["detail", "repos", "list", "--format", "table"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_bugs_show() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "show", "bug_123"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_bugs_close() {
+        let cli =
+            Cli::try_parse_from(["detail", "bugs", "close", "bug_123", "--state", "resolved"])
+                .unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_auth_status() {
+        let cli = Cli::try_parse_from(["detail", "auth", "status"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_version() {
+        let cli = Cli::try_parse_from(["detail", "version"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_skill() {
+        let cli = Cli::try_parse_from(["detail", "skill"]).unwrap();
+        assert!(!cli.is_silent());
+    }
 }
