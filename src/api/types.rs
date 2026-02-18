@@ -88,3 +88,134 @@ impl Formattable for Repo {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use clap::ValueEnum;
+
+    use super::*;
+
+    // ── Display helpers ──────────────────────────────────────────────
+
+    #[test]
+    fn review_state_labels() {
+        assert_eq!(review_state_label(&BugReviewState::Pending), "Pending");
+        assert_eq!(review_state_label(&BugReviewState::Resolved), "Resolved");
+        assert_eq!(review_state_label(&BugReviewState::Dismissed), "Dismissed");
+    }
+
+    #[test]
+    fn dismissal_reason_labels() {
+        assert_eq!(
+            dismissal_reason_label(&BugDismissalReason::NotABug),
+            "Not a Bug"
+        );
+        assert_eq!(
+            dismissal_reason_label(&BugDismissalReason::WontFix),
+            "Won't Fix"
+        );
+        assert_eq!(
+            dismissal_reason_label(&BugDismissalReason::Duplicate),
+            "Duplicate"
+        );
+        assert_eq!(
+            dismissal_reason_label(&BugDismissalReason::Other),
+            "Other"
+        );
+    }
+
+    // ── ValueEnum ────────────────────────────────────────────────────
+
+    #[test]
+    fn review_state_variant_count() {
+        assert_eq!(BugReviewState::value_variants().len(), 3);
+    }
+
+    #[test]
+    fn review_state_possible_values() {
+        let values: Vec<String> = BugReviewState::value_variants()
+            .iter()
+            .map(|v| {
+                v.to_possible_value()
+                    .expect("variant has a value")
+                    .get_name()
+                    .to_string()
+            })
+            .collect();
+        assert_eq!(values, vec!["pending", "resolved", "dismissed"]);
+    }
+
+    #[test]
+    fn dismissal_reason_variant_count() {
+        assert_eq!(BugDismissalReason::value_variants().len(), 4);
+    }
+
+    #[test]
+    fn dismissal_reason_possible_values() {
+        let values: Vec<String> = BugDismissalReason::value_variants()
+            .iter()
+            .map(|v| {
+                v.to_possible_value()
+                    .expect("variant has a value")
+                    .get_name()
+                    .to_string()
+            })
+            .collect();
+        assert_eq!(values, vec!["not-a-bug", "wont-fix", "duplicate", "other"]);
+    }
+
+    // ── Formattable ──────────────────────────────────────────────────
+
+    fn sample_bug() -> Bug {
+        serde_json::from_value(serde_json::json!({
+            "id": "bug_abc123",
+            "title": "Null pointer in handler",
+            "summary": "Crash when input is empty",
+            "createdAt": 1_736_899_200_000_i64,
+            "repoId": "repo_xyz"
+        }))
+        .expect("valid Bug JSON")
+    }
+
+    fn sample_repo() -> Repo {
+        serde_json::from_value(serde_json::json!({
+            "id": "repo_xyz",
+            "name": "cli",
+            "ownerName": "usedetail",
+            "fullName": "usedetail/cli",
+            "visibility": "public",
+            "primaryBranch": "main",
+            "orgId": "org_001",
+            "orgName": "Detail"
+        }))
+        .expect("valid Repo JSON")
+    }
+
+    #[test]
+    fn bug_card_header_is_title() {
+        let (header, _) = sample_bug().to_card();
+        assert_eq!(header, "Null pointer in handler");
+    }
+
+    #[test]
+    fn bug_card_contains_id_and_created() {
+        let (_, pairs) = sample_bug().to_card();
+        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
+        assert_eq!(keys, vec!["Bug ID", "Created"]);
+        assert!(pairs[0].1.contains("bug_abc123"));
+        assert_eq!(pairs[1].1, "2025-01-15");
+    }
+
+    #[test]
+    fn repo_card_header_is_full_name() {
+        let (header, _) = sample_repo().to_card();
+        assert_eq!(header, "usedetail/cli");
+    }
+
+    #[test]
+    fn repo_card_contains_org() {
+        let (_, pairs) = sample_repo().to_card();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0], ("Organization", "Detail".to_string()));
+    }
+}
