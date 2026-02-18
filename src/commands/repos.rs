@@ -12,11 +12,11 @@ pub enum RepoCommands {
     /// List all repositories you have access to
     List {
         /// Maximum number of results per page
-        #[arg(long, default_value = "50")]
+        #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..))]
         limit: u32,
 
         /// Page number (starts at 1)
-        #[arg(long, default_value = "1")]
+        #[arg(long, default_value = "1", value_parser = clap::value_parser!(u32).range(1..))]
         page: u32,
 
         /// Output format
@@ -47,7 +47,7 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                     let width = term.size().1 as usize;
                     let separator = "─".repeat(width);
 
-                    // Group repos by organization, preserving insertion order
+                    // Group repos by organization, sorted alphabetically
                     let mut by_org: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
                     for repo in &repos.repos {
                         by_org.entry(&repo.org_name).or_default().push(&repo.name);
