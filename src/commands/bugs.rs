@@ -108,6 +108,58 @@ fn prompt_notes() -> Result<Option<String>> {
     }
 }
 
+/// Validate and resolve the close-command flags that can be checked without
+/// interactive prompts.  Returns `Ok(CloseParams)` when all flags are
+/// present, or `Err` when a flag combination is invalid.  Returns `Ok(None)`
+/// for the state/dismissal_reason fields that still need interactive input.
+///
+/// Rules:
+/// - `--state pending` is always rejected.
+/// - When `is_interactive` is false, `--state` is required.
+/// - When state is `Dismissed` and `is_interactive` is false,
+///   `--dismissal-reason` is required.
+/// - When state is not `Dismissed`, any supplied `--dismissal-reason` is
+///   passed through (the API will ignore it).
+fn validate_close_flags(
+    state: Option<BugReviewState>,
+    dismissal_reason: Option<BugDismissalReason>,
+    notes: Option<String>,
+    is_interactive: bool,
+) -> Result<(
+    Option<BugReviewState>,
+    Option<BugDismissalReason>,
+    Option<String>,
+)> {
+    // Reject --state pending
+    if matches!(state, Some(BugReviewState::Pending)) {
+        bail!("'pending' is not a valid close state. Use 'resolved' or 'dismissed'.");
+    }
+
+    // Non-interactive: --state is required
+    let state = match state {
+        Some(s) => Some(s),
+        None if is_interactive => None, // will prompt
+        None => bail!(
+            "--state is required in non-interactive mode. Use --state resolved or --state dismissed."
+        ),
+    };
+
+    // Non-interactive + Dismissed: --dismissal-reason is required
+    let dismissal_reason = if matches!(state, Some(BugReviewState::Dismissed)) {
+        match dismissal_reason {
+            Some(r) => Some(r),
+            None if is_interactive => None, // will prompt
+            None => bail!(
+                "--dismissal-reason is required when state is 'dismissed' in non-interactive mode."
+            ),
+        }
+    } else {
+        dismissal_reason
+    };
+
+    Ok((state, dismissal_reason, notes))
+}
+
 /// Page size used when paginating through repos to resolve identifiers.
 const REPO_PAGE_SIZE: u32 = 100;
 
@@ -268,36 +320,26 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .context("Invalid bug ID format (expected bug_...)")?;
             let is_interactive = Term::stdout().is_term();
 
-            // Reject --state pending (only used as a list filter)
-            if matches!(state, Some(BugReviewState::Pending)) {
-                bail!("'pending' is not a valid close state. Use 'resolved' or 'dismissed'.");
-            }
+            let (state, dismissal_reason, notes) =
+                validate_close_flags(*state, *dismissal_reason, notes.clone(), is_interactive)?;
 
-            // Resolve state: flag → prompt → error
+            // Resolve fields that still need interactive prompts
             let state = match state {
-                Some(s) => *s,
-                None if is_interactive => prompt_close_state()?,
-                None => bail!(
-                    "--state is required in non-interactive mode. Use --state resolved or --state dismissed."
-                ),
+                Some(s) => s,
+                None => prompt_close_state()?,
             };
 
-            // Resolve dismissal_reason (only when dismissed)
             let dismissal_reason = if matches!(state, BugReviewState::Dismissed) {
                 match dismissal_reason {
-                    Some(r) => Some(*r),
-                    None if is_interactive => Some(prompt_dismissal_reason()?),
-                    None => bail!(
-                        "--dismissal-reason is required when state is 'dismissed' in non-interactive mode."
-                    ),
+                    Some(r) => Some(r),
+                    None => Some(prompt_dismissal_reason()?),
                 }
             } else {
-                *dismissal_reason
+                dismissal_reason
             };
 
-            // Resolve notes: flag → prompt → None
             let notes = match notes {
-                Some(n) => Some(n.clone()),
+                Some(n) => Some(n),
                 None if is_interactive => prompt_notes()?,
                 None => None,
             };
@@ -402,5 +444,95 @@ mod tests {
     fn match_empty_repo_list() {
         let err = match_repo_by_name("cli", &[]).unwrap_err();
         assert!(err.to_string().contains("not found"));
+    }
+
+    // ── validate_close_flags ─────────────────────────────────────────
+
+    #[test]
+    fn close_resolved_non_interactive() {
+        let (state, reason, notes) =
+            validate_close_flags(Some(BugReviewState::Resolved), None, None, false).unwrap();
+        assert!(matches!(state, Some(BugReviewState::Resolved)));
+        assert!(reason.is_none());
+        assert!(notes.is_none());
+    }
+
+    #[test]
+    fn close_dismissed_with_reason_non_interactive() {
+        let (state, reason, _) = validate_close_flags(
+            Some(BugReviewState::Dismissed),
+            Some(BugDismissalReason::WontFix),
+            None,
+            false,
+        )
+        .unwrap();
+        assert!(matches!(state, Some(BugReviewState::Dismissed)));
+        assert!(matches!(reason, Some(BugDismissalReason::WontFix)));
+    }
+
+    #[test]
+    fn close_rejects_pending() {
+        let err =
+            validate_close_flags(Some(BugReviewState::Pending), None, None, false).unwrap_err();
+        assert!(err.to_string().contains("not a valid close state"));
+    }
+
+    #[test]
+    fn close_rejects_pending_even_interactive() {
+        let err =
+            validate_close_flags(Some(BugReviewState::Pending), None, None, true).unwrap_err();
+        assert!(err.to_string().contains("not a valid close state"));
+    }
+
+    #[test]
+    fn close_no_state_non_interactive_errors() {
+        let err = validate_close_flags(None, None, None, false).unwrap_err();
+        assert!(err.to_string().contains("--state is required"));
+    }
+
+    #[test]
+    fn close_no_state_interactive_defers_to_prompt() {
+        let (state, _, _) = validate_close_flags(None, None, None, true).unwrap();
+        assert!(state.is_none()); // will be filled by interactive prompt
+    }
+
+    #[test]
+    fn close_dismissed_no_reason_non_interactive_errors() {
+        let err =
+            validate_close_flags(Some(BugReviewState::Dismissed), None, None, false).unwrap_err();
+        assert!(err.to_string().contains("--dismissal-reason is required"));
+    }
+
+    #[test]
+    fn close_dismissed_no_reason_interactive_defers() {
+        let (state, reason, _) =
+            validate_close_flags(Some(BugReviewState::Dismissed), None, None, true).unwrap();
+        assert!(matches!(state, Some(BugReviewState::Dismissed)));
+        assert!(reason.is_none()); // will be filled by interactive prompt
+    }
+
+    #[test]
+    fn close_passes_notes_through() {
+        let (_, _, notes) = validate_close_flags(
+            Some(BugReviewState::Resolved),
+            None,
+            Some("fixed it".into()),
+            false,
+        )
+        .unwrap();
+        assert_eq!(notes.as_deref(), Some("fixed it"));
+    }
+
+    #[test]
+    fn close_resolved_ignores_dismissal_reason() {
+        let (_, reason, _) = validate_close_flags(
+            Some(BugReviewState::Resolved),
+            Some(BugDismissalReason::Duplicate),
+            None,
+            false,
+        )
+        .unwrap();
+        // Passed through — the API will ignore it
+        assert!(matches!(reason, Some(BugDismissalReason::Duplicate)));
     }
 }
