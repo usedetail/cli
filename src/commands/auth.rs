@@ -124,7 +124,7 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
 }
 
 /// Check if the string matches the expected API token format: dtl_{env}_{32hex}.{64hex}
-fn is_complete_token(s: &str) -> bool {
+pub(crate) fn is_complete_token(s: &str) -> bool {
     if !s.starts_with("dtl_") {
         return false;
     }
@@ -133,4 +133,66 @@ fn is_complete_token(s: &str) -> bool {
     };
     let after_dot = &s[dot_pos + 1..];
     after_dot.len() == 64 && after_dot.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a syntactically valid token: dtl_live_{32 hex}.{64 hex}
+    fn valid_token() -> String {
+        format!("dtl_live_{}.{}", "a".repeat(32), "b".repeat(64))
+    }
+
+    #[test]
+    fn accepts_valid_token() {
+        assert!(is_complete_token(&valid_token()));
+    }
+
+    #[test]
+    fn accepts_test_env_token() {
+        let token = format!("dtl_test_{}.{}", "0".repeat(32), "f".repeat(64));
+        assert!(is_complete_token(&token));
+    }
+
+    #[test]
+    fn rejects_empty_string() {
+        assert!(!is_complete_token(""));
+    }
+
+    #[test]
+    fn rejects_missing_prefix() {
+        let token = format!("xyz_live_{}.{}", "a".repeat(32), "b".repeat(64));
+        assert!(!is_complete_token(&token));
+    }
+
+    #[test]
+    fn rejects_missing_dot() {
+        let token = format!("dtl_live_{}{}", "a".repeat(32), "b".repeat(64));
+        assert!(!is_complete_token(&token));
+    }
+
+    #[test]
+    fn rejects_short_suffix() {
+        let token = format!("dtl_live_{}.{}", "a".repeat(32), "b".repeat(63));
+        assert!(!is_complete_token(&token));
+    }
+
+    #[test]
+    fn rejects_long_suffix() {
+        let token = format!("dtl_live_{}.{}", "a".repeat(32), "b".repeat(65));
+        assert!(!is_complete_token(&token));
+    }
+
+    #[test]
+    fn rejects_non_hex_suffix() {
+        let token = format!("dtl_live_{}.{}z", "a".repeat(32), "b".repeat(63));
+        assert!(!is_complete_token(&token));
+    }
+
+    #[test]
+    fn incomplete_token_while_typing() {
+        // Simulates a partially typed token
+        assert!(!is_complete_token("dtl_live_abc"));
+    }
 }
