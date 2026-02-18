@@ -72,7 +72,6 @@ impl Formattable for Bug {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
         let mut pairs = vec![
             ("Bug ID", self.id.to_string()),
-            ("File", self.file_path.as_deref().unwrap_or("-").to_string()),
             ("Created", format_date(self.created_at)),
         ];
         if self.is_security_vulnerability == Some(true) {
@@ -197,13 +196,12 @@ mod tests {
     }
 
     #[test]
-    fn bug_card_contains_id_file_and_created() {
+    fn bug_card_contains_id_and_created() {
         let (_, pairs) = sample_bug().to_card();
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, vec!["Bug ID", "File", "Created"]);
+        assert_eq!(keys, vec!["Bug ID", "Created"]);
         assert!(pairs[0].1.contains("bug_abc123"));
-        assert_eq!(pairs[1].1, "-"); // no file_path in sample
-        assert_eq!(pairs[2].1, "2025-01-15");
+        assert_eq!(pairs[1].1, "2025-01-15");
     }
 
     #[test]
@@ -219,8 +217,8 @@ mod tests {
         .expect("valid Bug JSON");
         let (_, pairs) = bug.to_card();
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, vec!["Bug ID", "File", "Created", "Security"]);
-        assert_eq!(pairs[3].1, "Yes");
+        assert_eq!(keys, vec!["Bug ID", "Created", "Security"]);
+        assert_eq!(pairs[2].1, "Yes");
     }
 
     #[test]
@@ -236,22 +234,7 @@ mod tests {
         .expect("valid Bug JSON");
         let (_, pairs) = bug.to_card();
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, vec!["Bug ID", "File", "Created"]);
-    }
-
-    #[test]
-    fn bug_card_shows_file_path_when_present() {
-        let bug: Bug = serde_json::from_value(serde_json::json!({
-            "id": "bug_fp",
-            "title": "Bug with path",
-            "summary": "...",
-            "createdAt": 1_736_899_200_000_i64,
-            "repoId": "repo_xyz",
-            "filePath": "src/main.rs"
-        }))
-        .expect("valid Bug JSON");
-        let (_, pairs) = bug.to_card();
-        assert_eq!(pairs[1], ("File", "src/main.rs".to_string()));
+        assert_eq!(keys, vec!["Bug ID", "Created"]);
     }
 
     #[test]
