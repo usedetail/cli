@@ -1,6 +1,7 @@
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
-    Bug, BugDismissalReason, BugReview, BugReviewState, CreatePublicBugReviewBody, Org, Repo,
+    Bug, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
+    CreatePublicBugReviewBody, Org, OrgId, Repo, RepoId,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
@@ -69,7 +70,7 @@ impl crate::output::Formattable for Bug {
 
     fn to_csv_row(&self) -> Vec<String> {
         vec![
-            self.id.clone(),
+            self.id.to_string(),
             self.title.clone(),
             self.file_path.as_deref().unwrap_or("-").to_string(),
             crate::utils::format_date(self.created_at),
@@ -80,7 +81,7 @@ impl crate::output::Formattable for Bug {
         (
             self.title.clone(),
             vec![
-                ("Bug ID", self.id.clone()),
+                ("Bug ID", self.id.to_string()),
                 ("Created", crate::utils::format_date(self.created_at)),
             ],
         )

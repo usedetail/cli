@@ -4,7 +4,7 @@ use console::{style, Term};
 use dialoguer::{Input, Select};
 
 use crate::api::types::{
-    dismissal_reason_label, review_state_label, BugDismissalReason, BugReviewState,
+    dismissal_reason_label, review_state_label, BugDismissalReason, BugId, BugReviewState, RepoId,
 };
 
 #[derive(Subcommand)]
@@ -136,7 +136,7 @@ async fn fetch_all_repos(
 async fn resolve_repo_id(
     client: &crate::api::client::ApiClient,
     repo_identifier: &str,
-) -> Result<String> {
+) -> Result<RepoId> {
     if repo_identifier.contains('/') {
         let parts: Vec<&str> = repo_identifier.split('/').collect();
         if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
@@ -207,13 +207,17 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
         }
 
         BugCommands::Show { bug_id } => {
+            let bug_id: BugId = bug_id
+                .as_str()
+                .try_into()
+                .context("Invalid bug ID format (expected bug_...)")?;
             let bug = client
-                .get_bug(bug_id)
+                .get_bug(&bug_id)
                 .await
                 .context("Failed to fetch bug details")?;
 
             let mut pairs: Vec<(&str, String)> = vec![
-                ("ID", bug.id.clone()),
+                ("ID", bug.id.to_string()),
                 ("Title", bug.title.clone()),
                 ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
                 ("Created", crate::utils::format_datetime(bug.created_at)),
@@ -250,6 +254,10 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             dismissal_reason,
             notes,
         } => {
+            let bug_id: BugId = bug_id
+                .as_str()
+                .try_into()
+                .context("Invalid bug ID format (expected bug_...)")?;
             let is_interactive = Term::stdout().is_term();
 
             // Reject --state pending (only used as a list filter)
@@ -287,7 +295,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             };
 
             client
-                .update_bug_close(bug_id, state, dismissal_reason, notes.as_deref())
+                .update_bug_close(&bug_id, state, dismissal_reason, notes.as_deref())
                 .await
                 .context("Failed to close bug")?;
 
