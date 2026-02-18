@@ -1,3 +1,8 @@
+use clap::builder::PossibleValue;
+
+use crate::output::Formattable;
+use crate::utils::format_date;
+
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
     Bug, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
@@ -37,11 +42,11 @@ impl clap::ValueEnum for BugReviewState {
         &[Self::Pending, Self::Resolved, Self::Dismissed]
     }
 
-    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+    fn to_possible_value(&self) -> Option<PossibleValue> {
         match self {
-            Self::Pending => Some(clap::builder::PossibleValue::new("pending")),
-            Self::Resolved => Some(clap::builder::PossibleValue::new("resolved")),
-            Self::Dismissed => Some(clap::builder::PossibleValue::new("dismissed")),
+            Self::Pending => Some(PossibleValue::new("pending")),
+            Self::Resolved => Some(PossibleValue::new("resolved")),
+            Self::Dismissed => Some(PossibleValue::new("dismissed")),
         }
     }
 }
@@ -51,19 +56,19 @@ impl clap::ValueEnum for BugDismissalReason {
         &[Self::NotABug, Self::WontFix, Self::Duplicate, Self::Other]
     }
 
-    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+    fn to_possible_value(&self) -> Option<PossibleValue> {
         match self {
-            Self::NotABug => Some(clap::builder::PossibleValue::new("not-a-bug")),
-            Self::WontFix => Some(clap::builder::PossibleValue::new("wont-fix")),
-            Self::Duplicate => Some(clap::builder::PossibleValue::new("duplicate")),
-            Self::Other => Some(clap::builder::PossibleValue::new("other")),
+            Self::NotABug => Some(PossibleValue::new("not-a-bug")),
+            Self::WontFix => Some(PossibleValue::new("wont-fix")),
+            Self::Duplicate => Some(PossibleValue::new("duplicate")),
+            Self::Other => Some(PossibleValue::new("other")),
         }
     }
 }
 
 // ── Formattable ──────────────────────────────────────────────────────
 
-impl crate::output::Formattable for Bug {
+impl Formattable for Bug {
     fn csv_headers() -> &'static [&'static str] {
         &["id", "title", "file", "created"]
     }
@@ -73,7 +78,7 @@ impl crate::output::Formattable for Bug {
             self.id.to_string(),
             self.title.clone(),
             self.file_path.as_deref().unwrap_or("-").to_string(),
-            crate::utils::format_date(self.created_at),
+            format_date(self.created_at),
         ]
     }
 
@@ -82,13 +87,13 @@ impl crate::output::Formattable for Bug {
             self.title.clone(),
             vec![
                 ("Bug ID", self.id.to_string()),
-                ("Created", crate::utils::format_date(self.created_at)),
+                ("Created", format_date(self.created_at)),
             ],
         )
     }
 }
 
-impl crate::output::Formattable for Repo {
+impl Formattable for Repo {
     fn csv_headers() -> &'static [&'static str] {
         &["repository", "organization"]
     }

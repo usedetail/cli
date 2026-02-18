@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result};
+use reqwest::header::{HeaderMap, AUTHORIZATION};
 
 use super::types::*;
 
@@ -12,12 +15,12 @@ impl ApiClient {
 
         let mut builder = reqwest::Client::builder()
             .user_agent(format!("detail-cli/{}", env!("CARGO_PKG_VERSION")))
-            .timeout(std::time::Duration::from_secs(30));
+            .timeout(Duration::from_secs(30));
 
         if let Some(token) = token {
-            let mut headers = reqwest::header::HeaderMap::new();
+            let mut headers = HeaderMap::new();
             headers.insert(
-                reqwest::header::AUTHORIZATION,
+                AUTHORIZATION,
                 format!("Bearer {}", token)
                     .parse()
                     .context("Invalid token format")?,

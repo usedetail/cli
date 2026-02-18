@@ -3,9 +3,13 @@ use clap::Subcommand;
 use console::{style, Term};
 use dialoguer::{Input, Select};
 
+use crate::api::client::ApiClient;
 use crate::api::types::{
-    dismissal_reason_label, review_state_label, BugDismissalReason, BugId, BugReviewState, RepoId,
+    dismissal_reason_label, review_state_label, BugDismissalReason, BugId, BugReviewState, Repo,
+    RepoId,
 };
+use crate::output::{output_list, SectionRenderer};
+use crate::utils::{format_datetime, page_to_offset};
 
 #[derive(Subcommand)]
 pub enum BugCommands {
@@ -108,9 +112,7 @@ fn prompt_notes() -> Result<Option<String>> {
 const REPO_PAGE_SIZE: u32 = 100;
 
 /// Fetch all repos by paginating through the API.
-async fn fetch_all_repos(
-    client: &crate::api::client::ApiClient,
-) -> Result<Vec<crate::api::types::Repo>> {
+async fn fetch_all_repos(client: &ApiClient) -> Result<Vec<Repo>> {
     let mut all_repos = Vec::new();
     let mut offset = 0;
 
@@ -133,10 +135,7 @@ async fn fetch_all_repos(
 }
 
 /// Resolve owner/repo or repo name to repo ID
-async fn resolve_repo_id(
-    client: &crate::api::client::ApiClient,
-    repo_identifier: &str,
-) -> Result<RepoId> {
+async fn resolve_repo_id(client: &ApiClient, repo_identifier: &str) -> Result<RepoId> {
     if repo_identifier.contains('/') {
         let parts: Vec<&str> = repo_identifier.split('/').collect();
         if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
@@ -196,14 +195,14 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to resolve repository identifier")?;
 
-            let offset = crate::utils::page_to_offset(*page, *limit);
+            let offset = page_to_offset(*page, *limit);
 
             let bugs = client
                 .list_bugs(&resolved_repo_id, *status, *limit, offset)
                 .await
                 .context("Failed to fetch bugs from repository")?;
 
-            crate::output::output_list(&bugs.bugs, bugs.total as usize, *page, *limit, format)
+            output_list(&bugs.bugs, bugs.total as usize, *page, *limit, format)
         }
 
         BugCommands::Show { bug_id } => {
@@ -220,7 +219,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 ("ID", bug.id.to_string()),
                 ("Title", bug.title.clone()),
                 ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
-                ("Created", crate::utils::format_datetime(bug.created_at)),
+                ("Created", format_datetime(bug.created_at)),
                 (
                     "Security",
                     bug.is_security_vulnerability
@@ -231,10 +230,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             ];
             if let Some(review) = &bug.review {
                 pairs.push(("Close", review_state_label(&review.state).to_string()));
-                pairs.push((
-                    "Close Date",
-                    crate::utils::format_datetime(review.created_at),
-                ));
+                pairs.push(("Close Date", format_datetime(review.created_at)));
                 if let Some(reason) = &review.dismissal_reason {
                     pairs.push(("Dismissal", dismissal_reason_label(reason).to_string()));
                 }
@@ -242,7 +238,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     pairs.push(("Notes", notes.clone()));
                 }
             }
-            crate::output::SectionRenderer::new()
+            SectionRenderer::new()
                 .key_value("", &pairs)
                 .markdown("", &bug.summary)
                 .print()

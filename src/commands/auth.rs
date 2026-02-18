@@ -2,6 +2,9 @@ use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use console::{style, Key, Term};
 
+use crate::api::client::ApiClient;
+use crate::config::storage;
+
 #[derive(Subcommand)]
 pub enum AuthCommands {
     /// Login with an API token
@@ -60,8 +63,7 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
             }
 
             // Test the token by making an API call
-            let client =
-                crate::api::client::ApiClient::new(cli.api_url.clone(), Some(token.clone()))?;
+            let client = ApiClient::new(cli.api_url.clone(), Some(token.clone()))?;
 
             let user_info = client
                 .get_current_user()
@@ -69,7 +71,7 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
                 .context("Failed to authenticate. Please check your token.")?;
 
             // Store token securely
-            crate::config::storage::store_token(&token)?;
+            storage::store_token(&token)?;
 
             let term = Term::stdout();
             term.write_line(&format!(
@@ -85,7 +87,7 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
         }
 
         AuthCommands::Logout => {
-            crate::config::storage::clear_credentials()?;
+            storage::clear_credentials()?;
             Term::stdout()
                 .write_line(&format!("{}", style("✓ Logged out successfully").green()))?;
             Ok(())
