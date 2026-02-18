@@ -45,6 +45,7 @@ axoupdater = "0.9.1"
 
 # Date/time formatting
 chrono = "0.4"
+regress = "0.10.5"
 
 [dev-dependencies]
 clap-markdown = "0.1"

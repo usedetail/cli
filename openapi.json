@@ -20,6 +20,22 @@
             }
         },
         "schemas": {
+            "BugId": {
+                "type": "string",
+                "pattern": "^bug_.*"
+            },
+            "BugReviewId": {
+                "type": "string",
+                "pattern": "^bfrv_.*"
+            },
+            "RepoId": {
+                "type": "string",
+                "pattern": "^repo_.*"
+            },
+            "OrgId": {
+                "type": "string",
+                "pattern": "^org_.*"
+            },
             "BugReviewState": {
                 "type": "string",
                 "enum": [
@@ -41,7 +57,7 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/BugReviewId"
                     },
                     "state": {
                         "$ref": "#/components/schemas/BugReviewState"
@@ -66,7 +82,7 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/BugId"
                     },
                     "title": {
                         "type": "string"
@@ -84,7 +100,7 @@
                         "$ref": "#/components/schemas/BugReview"
                     },
                     "repoId": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/RepoId"
                     },
                     "commitSha": {
                         "type": "string"
@@ -105,7 +121,7 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/OrgId"
                     },
                     "name": {
                         "type": "string"
@@ -120,7 +136,7 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/RepoId"
                     },
                     "name": {
                         "type": "string"
@@ -138,7 +154,7 @@
                         "type": "string"
                     },
                     "orgId": {
-                        "type": "string"
+                        "$ref": "#/components/schemas/OrgId"
                     },
                     "orgName": {
                         "type": "string"
@@ -165,7 +181,9 @@
                             "DETAIL_AUTHENTICATION_ERROR",
                             "AUTHORIZATION_ERROR",
                             "NOT_FOUND",
-                            "INTERNAL_ERROR"
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST_BODY",
+                            "INVALID_QUERY_PARAMS"
                         ]
                     },
                     "message": {
@@ -179,6 +197,9 @@
                     },
                     "resource": {
                         "type": "string"
+                    },
+                    "details": {
+                        "type": "object"
                     }
                 },
                 "required": [
@@ -206,7 +227,7 @@
                         "in": "query",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/RepoId"
                         }
                     },
                     {
@@ -304,7 +325,7 @@
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/BugId"
                         }
                     }
                 ],
@@ -358,7 +379,7 @@
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/BugId"
                         }
                     }
                 ],

@@ -41,7 +41,7 @@ impl ApiClient {
 
     pub async fn list_bugs(
         &self,
-        repo_id: &str,
+        repo_id: &RepoId,
         status: BugReviewState,
         limit: u32,
         offset: u32,
@@ -60,7 +60,7 @@ impl ApiClient {
             .map_err(|e| anyhow::anyhow!("API error: {}", e))
     }
 
-    pub async fn get_bug(&self, bug_id: &str) -> Result<Bug> {
+    pub async fn get_bug(&self, bug_id: &BugId) -> Result<Bug> {
         self.inner
             .get_public_bug(bug_id)
             .await
@@ -70,7 +70,7 @@ impl ApiClient {
 
     pub async fn update_bug_close(
         &self,
-        bug_id: &str,
+        bug_id: &BugId,
         state: BugReviewState,
         dismissal_reason: Option<BugDismissalReason>,
         notes: Option<&str>,
