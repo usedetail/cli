@@ -134,17 +134,50 @@ async fn fetch_all_repos(client: &ApiClient) -> Result<Vec<Repo>> {
     Ok(all_repos)
 }
 
+/// Validate that a slash-containing identifier has exactly one slash with
+/// non-empty owner and repo parts.
+fn validate_owner_repo_format(identifier: &str) -> Result<()> {
+    let parts: Vec<&str> = identifier.split('/').collect();
+    if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+        bail!(
+            "Invalid repository format. Please use owner/repo (e.g., 'usedetail/cli') or just the repo name. Run 'detail repos list' to see your repositories."
+        );
+    }
+    Ok(())
+}
+
+/// Given a bare repo name and the full list of accessible repos, return the
+/// matching repo ID — or a helpful error when zero or multiple repos match.
+fn match_repo_by_name(name: &str, repos: &[Repo]) -> Result<RepoId> {
+    let matching: Vec<_> = repos.iter().filter(|r| r.name == name).collect();
+
+    match matching.len() {
+        0 => bail!(
+            "Repository '{}' not found. Run 'detail repos list' to see your repositories.",
+            name
+        ),
+        1 => Ok(matching[0].id.clone()),
+        _ => {
+            let repo_list: Vec<String> = matching
+                .iter()
+                .map(|r| format!("  - {}", r.full_name))
+                .collect();
+            bail!(
+                "Multiple repositories with name '{}' found:\n{}\n\nPlease specify using owner/repo format (e.g., '{}').",
+                name,
+                repo_list.join("\n"),
+                matching[0].full_name
+            )
+        }
+    }
+}
+
 /// Resolve owner/repo or repo name to repo ID
 async fn resolve_repo_id(client: &ApiClient, repo_identifier: &str) -> Result<RepoId> {
-    if repo_identifier.contains('/') {
-        let parts: Vec<&str> = repo_identifier.split('/').collect();
-        if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
-            bail!(
-                "Invalid repository format. Please use owner/repo (e.g., 'usedetail/cli') or just the repo name. Run 'detail repos list' to see your repositories."
-            );
-        }
+    let repos = fetch_all_repos(client).await?;
 
-        let repos = fetch_all_repos(client).await?;
+    if repo_identifier.contains('/') {
+        validate_owner_repo_format(repo_identifier)?;
         repos
             .iter()
             .find(|r| r.full_name == repo_identifier)
@@ -154,28 +187,7 @@ async fn resolve_repo_id(client: &ApiClient, repo_identifier: &str) -> Result<Re
                 repo_identifier
             ))
     } else {
-        let repos = fetch_all_repos(client).await?;
-        let matching: Vec<_> = repos.iter().filter(|r| r.name == repo_identifier).collect();
-
-        match matching.len() {
-            0 => bail!(
-                "Repository '{}' not found. Run 'detail repos list' to see your repositories.",
-                repo_identifier
-            ),
-            1 => Ok(matching[0].id.clone()),
-            _ => {
-                let repo_list: Vec<String> = matching
-                    .iter()
-                    .map(|r| format!("  - {}", r.full_name))
-                    .collect();
-                bail!(
-                    "Multiple repositories with name '{}' found:\n{}\n\nPlease specify using owner/repo format (e.g., '{}').",
-                    repo_identifier,
-                    repo_list.join("\n"),
-                    matching[0].full_name
-                )
-            }
-        }
+        match_repo_by_name(repo_identifier, &repos)
     }
 }
 
@@ -303,5 +315,92 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .ok();
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── validate_owner_repo_format ───────────────────────────────────
+
+    #[test]
+    fn valid_owner_repo() {
+        assert!(validate_owner_repo_format("usedetail/cli").is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_owner() {
+        assert!(validate_owner_repo_format("/cli").is_err());
+    }
+
+    #[test]
+    fn rejects_empty_repo() {
+        assert!(validate_owner_repo_format("usedetail/").is_err());
+    }
+
+    #[test]
+    fn rejects_multiple_slashes() {
+        assert!(validate_owner_repo_format("a/b/c").is_err());
+    }
+
+    #[test]
+    fn rejects_slash_only() {
+        assert!(validate_owner_repo_format("/").is_err());
+    }
+
+    // ── match_repo_by_name ───────────────────────────────────────────
+
+    fn sample_repos() -> Vec<Repo> {
+        vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "repo_1", "name": "cli", "ownerName": "usedetail",
+                "fullName": "usedetail/cli", "visibility": "public",
+                "primaryBranch": "main", "orgId": "org_1", "orgName": "Detail"
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "repo_2", "name": "cli", "ownerName": "acme",
+                "fullName": "acme/cli", "visibility": "private",
+                "primaryBranch": "main", "orgId": "org_2", "orgName": "Acme"
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "repo_3", "name": "web", "ownerName": "usedetail",
+                "fullName": "usedetail/web", "visibility": "public",
+                "primaryBranch": "main", "orgId": "org_1", "orgName": "Detail"
+            }))
+            .unwrap(),
+        ]
+    }
+
+    #[test]
+    fn match_single_repo_by_name() {
+        let repos = sample_repos();
+        let id = match_repo_by_name("web", &repos).unwrap();
+        assert_eq!(id.to_string(), "repo_3");
+    }
+
+    #[test]
+    fn match_no_repo_returns_error() {
+        let repos = sample_repos();
+        let err = match_repo_by_name("nonexistent", &repos).unwrap_err();
+        assert!(err.to_string().contains("not found"));
+    }
+
+    #[test]
+    fn match_multiple_repos_returns_error_with_names() {
+        let repos = sample_repos();
+        let err = match_repo_by_name("cli", &repos).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("Multiple repositories"));
+        assert!(msg.contains("usedetail/cli"));
+        assert!(msg.contains("acme/cli"));
+    }
+
+    #[test]
+    fn match_empty_repo_list() {
+        let err = match_repo_by_name("cli", &[]).unwrap_err();
+        assert!(err.to_string().contains("not found"));
     }
 }
