@@ -5,11 +5,19 @@ use dialoguer::{Input, Select};
 
 use crate::api::client::ApiClient;
 use crate::api::types::{
-    dismissal_reason_label, review_state_label, BugDismissalReason, BugId, BugReviewState, Repo,
-    RepoId,
+    dismissal_reason_label, review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
+    Repo, RepoId,
 };
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::{format_datetime, page_to_offset};
+
+/// Return only bugs where `isSecurityVulnerability` is `true`.
+fn filter_security_only(bugs: &[Bug]) -> Vec<Bug> {
+    bugs.iter()
+        .filter(|b| b.is_security_vulnerability == Some(true))
+        .cloned()
+        .collect()
+}
 
 #[derive(Subcommand)]
 pub enum BugCommands {
@@ -21,6 +29,10 @@ pub enum BugCommands {
         /// Status filter
         #[arg(long, value_enum, default_value = "pending")]
         status: BugReviewState,
+
+        /// Only show security vulnerabilities
+        #[arg(long)]
+        security: bool,
 
         /// Maximum number of results per page
         #[arg(long, default_value = "50")]
@@ -250,6 +262,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
         BugCommands::List {
             repo,
             status,
+            security,
             limit,
             page,
             format,
@@ -266,7 +279,12 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bugs from repository")?;
 
-            output_list(&bugs.bugs, bugs.total as usize, *page, *limit, format)
+            let items = if *security {
+                filter_security_only(&bugs.bugs)
+            } else {
+                bugs.bugs
+            };
+            output_list(&items, items.len(), *page, *limit, format)
         }
 
         BugCommands::Show { bug_id } => {
@@ -534,5 +552,61 @@ mod tests {
         .unwrap();
         // Passed through — the API will ignore it
         assert!(matches!(reason, Some(BugDismissalReason::Duplicate)));
+    }
+
+    // ── filter_security_only ────────────────────────────────────────
+
+    fn sample_bugs() -> Vec<Bug> {
+        vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_1", "title": "SQL injection", "summary": "...",
+                "createdAt": 1_000_000, "repoId": "repo_1",
+                "isSecurityVulnerability": true
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_2", "title": "Off-by-one", "summary": "...",
+                "createdAt": 2_000_000, "repoId": "repo_1",
+                "isSecurityVulnerability": false
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_3", "title": "Missing null check", "summary": "...",
+                "createdAt": 3_000_000, "repoId": "repo_1"
+            }))
+            .unwrap(),
+        ]
+    }
+
+    #[test]
+    fn security_filter_returns_only_security_bugs() {
+        let bugs = sample_bugs();
+        let filtered = filter_security_only(&bugs);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].title, "SQL injection");
+    }
+
+    #[test]
+    fn security_filter_on_empty_list() {
+        assert!(filter_security_only(&[]).is_empty());
+    }
+
+    #[test]
+    fn security_filter_excludes_none_and_false() {
+        // Bugs with isSecurityVulnerability: None or false are excluded
+        let bugs: Vec<Bug> = vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_a", "title": "A", "summary": "...",
+                "createdAt": 1, "repoId": "repo_1",
+                "isSecurityVulnerability": false
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_b", "title": "B", "summary": "...",
+                "createdAt": 2, "repoId": "repo_1"
+            }))
+            .unwrap(),
+        ];
+        assert!(filter_security_only(&bugs).is_empty());
     }
 }

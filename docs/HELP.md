@@ -114,6 +114,7 @@ List bugs for a given repository
 
   Possible values: `pending`, `resolved`, `dismissed`
 
+* `--security` — Only show security vulnerabilities
 * `--limit <LIMIT>` — Maximum number of results per page
 
   Default value: `50`
