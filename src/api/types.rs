@@ -118,10 +118,7 @@ mod tests {
             dismissal_reason_label(&BugDismissalReason::Duplicate),
             "Duplicate"
         );
-        assert_eq!(
-            dismissal_reason_label(&BugDismissalReason::Other),
-            "Other"
-        );
+        assert_eq!(dismissal_reason_label(&BugDismissalReason::Other), "Other");
     }
 
     // ── ValueEnum ────────────────────────────────────────────────────
