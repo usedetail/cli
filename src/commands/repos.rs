@@ -4,6 +4,9 @@ use anyhow::{Context, Result};
 use clap::Subcommand;
 use console::{style, Term};
 
+use crate::output::output_list;
+use crate::utils::page_to_offset;
+
 #[derive(Subcommand)]
 pub enum RepoCommands {
     /// List all repositories you have access to
@@ -31,7 +34,7 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
             page,
             format,
         } => {
-            let offset = crate::utils::page_to_offset(*page, *limit);
+            let offset = page_to_offset(*page, *limit);
 
             let repos = client
                 .list_repos(*limit, offset)
@@ -63,13 +66,7 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                     term.write_line(&format!("Page: {} of {}", page, total_pages))?;
                     Ok(())
                 }
-                _ => crate::output::output_list(
-                    &repos.repos,
-                    repos.total as usize,
-                    *page,
-                    *limit,
-                    format,
-                ),
+                _ => output_list(&repos.repos, repos.total as usize, *page, *limit, format),
             }
         }
     }

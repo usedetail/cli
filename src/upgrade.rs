@@ -1,21 +1,23 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use anyhow::Result;
 use axoupdater::AxoUpdater;
 use console::{style, Term};
+
+use crate::config::storage;
 
 const UPDATE_CHECK_INTERVAL: u64 = 3600; // 1 hour in seconds
 
 /// Automatically check for and install updates in the background
 pub async fn auto_update() -> Result<()> {
     // Check if we should check for updates
-    let mut config = crate::config::storage::load_config()?;
+    let mut config = storage::load_config()?;
 
     if !config.check_for_updates {
         return Ok(());
     }
 
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_secs();
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
     if let Some(last_check) = config.last_update_check {
         if now - last_check < UPDATE_CHECK_INTERVAL {
@@ -25,7 +27,7 @@ pub async fn auto_update() -> Result<()> {
 
     // Update last check time
     config.last_update_check = Some(now);
-    crate::config::storage::save_config(&config)?;
+    storage::save_config(&config)?;
 
     // Automatically update using axoupdater
     // This uses the install receipt created by cargo-dist

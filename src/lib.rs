@@ -1,4 +1,4 @@
-#![deny(clippy::print_stdout, clippy::print_stderr)]
+#![deny(clippy::print_stdout, clippy::print_stderr, clippy::absolute_paths)]
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};

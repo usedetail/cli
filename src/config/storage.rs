@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+use std::{env, fs};
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Config {
@@ -14,12 +16,12 @@ pub struct Config {
 /// to ensure config.toml is stored alongside the install receipt.
 pub fn config_path() -> Result<PathBuf> {
     // Check XDG_CONFIG_HOME first (works on all platforms)
-    let config_dir = if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
+    let config_dir = if let Ok(xdg_config) = env::var("XDG_CONFIG_HOME") {
         PathBuf::from(xdg_config).join("detail-cli")
     } else if cfg!(windows) {
         // Windows: use LOCALAPPDATA
         let local_app_data =
-            std::env::var("LOCALAPPDATA").context("LOCALAPPDATA environment variable not set")?;
+            env::var("LOCALAPPDATA").context("LOCALAPPDATA environment variable not set")?;
         PathBuf::from(local_app_data).join("detail-cli")
     } else {
         // Others: use ~/.config
@@ -29,7 +31,7 @@ pub fn config_path() -> Result<PathBuf> {
         home.join(".config").join("detail-cli")
     };
 
-    std::fs::create_dir_all(&config_dir)?;
+    fs::create_dir_all(&config_dir)?;
     Ok(config_dir.join("config.toml"))
 }
 
@@ -42,14 +44,14 @@ pub fn load_config() -> Result<Config> {
         });
     }
 
-    let contents = std::fs::read_to_string(path)?;
+    let contents = fs::read_to_string(path)?;
     toml::from_str(&contents).context("Failed to parse config")
 }
 
 pub fn save_config(config: &Config) -> Result<()> {
     let path = config_path()?;
     let contents = toml::to_string_pretty(config)?;
-    std::fs::write(path, contents)?;
+    fs::write(path, contents)?;
     Ok(())
 }
 
