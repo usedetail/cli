@@ -70,13 +70,10 @@ impl clap::ValueEnum for BugDismissalReason {
 
 impl Formattable for Bug {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
-        let mut pairs = vec![
+        let pairs = vec![
             ("Bug ID", self.id.to_string()),
             ("Created", format_date(self.created_at)),
         ];
-        if self.is_security_vulnerability == Some(true) {
-            pairs.push(("Security", "Yes".to_string()));
-        }
         (self.title.clone(), pairs)
     }
 }
@@ -217,8 +214,7 @@ mod tests {
         .expect("valid Bug JSON");
         let (_, pairs) = bug.to_card();
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, vec!["Bug ID", "Created", "Security"]);
-        assert_eq!(pairs[2].1, "Yes");
+        assert_eq!(keys, vec!["Bug ID", "Created"]);
     }
 
     #[test]
