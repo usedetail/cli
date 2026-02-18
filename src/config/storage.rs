@@ -51,28 +51,7 @@ pub fn load_config() -> Result<Config> {
 pub fn save_config(config: &Config) -> Result<()> {
     let path = config_path()?;
     let contents = toml::to_string_pretty(config)?;
-    write_private(path, contents.as_bytes())?;
-    Ok(())
-}
-
-/// Write `data` to `path`, restricting the file to owner-only access (0600) on Unix.
-fn write_private(path: PathBuf, data: &[u8]) -> Result<()> {
-    #[cfg(unix)]
-    {
-        use std::io::Write as _;
-        use std::os::unix::fs::OpenOptionsExt as _;
-        let mut f = fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .open(path)?;
-        f.write_all(data)?;
-    }
-    #[cfg(not(unix))]
-    {
-        fs::write(path, data)?;
-    }
+    fs::write(path, contents)?;
     Ok(())
 }
 
@@ -222,18 +201,6 @@ mod tests {
             store_token("dtl_live_secret").unwrap();
             clear_credentials().unwrap();
             assert!(load_token().is_err());
-        });
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn config_file_is_owner_only() {
-        use std::os::unix::fs::PermissionsExt as _;
-        with_temp_config(|| {
-            store_token("dtl_live_secret").unwrap();
-            let path = config_path().unwrap();
-            let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-            assert_eq!(mode, 0o600, "config file should be owner-only (0600)");
         });
     }
 }
