@@ -240,6 +240,10 @@ fn match_repo_by_name(name: &str, repos: &[Repo]) -> Result<RepoId> {
 async fn resolve_repo_id(client: &ApiClient, repo_identifier: &str) -> Result<RepoId> {
     let repos = fetch_all_repos(client).await?;
 
+    resolve_repo_id_from_repos(&repos, repo_identifier)
+}
+
+fn resolve_repo_id_from_repos(repos: &[Repo], repo_identifier: &str) -> Result<RepoId> {
     if repo_identifier.contains('/') {
         validate_owner_repo_format(repo_identifier)?;
         repos
@@ -251,7 +255,7 @@ async fn resolve_repo_id(client: &ApiClient, repo_identifier: &str) -> Result<Re
                 repo_identifier
             ))
     } else {
-        match_repo_by_name(repo_identifier, &repos)
+        match_repo_by_name(repo_identifier, repos)
     }
 }
 
@@ -462,6 +466,45 @@ mod tests {
     fn match_empty_repo_list() {
         let err = match_repo_by_name("cli", &[]).unwrap_err();
         assert!(err.to_string().contains("not found"));
+    }
+
+    // ── resolve_repo_id_from_repos ──────────────────────────────────
+
+    #[test]
+    fn resolve_owner_repo_exact_match() {
+        let repos = sample_repos();
+        let id = resolve_repo_id_from_repos(&repos, "usedetail/cli").unwrap();
+        assert_eq!(id.to_string(), "repo_1");
+    }
+
+    #[test]
+    fn resolve_owner_repo_not_found_has_access_hint() {
+        let repos = sample_repos();
+        let err = resolve_repo_id_from_repos(&repos, "usedetail/missing").unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Make sure you have access to this repository"));
+    }
+
+    #[test]
+    fn resolve_owner_repo_invalid_format_rejected() {
+        let repos = sample_repos();
+        let err = resolve_repo_id_from_repos(&repos, "usedetail/cli/extra").unwrap_err();
+        assert!(err.to_string().contains("Invalid repository format"));
+    }
+
+    #[test]
+    fn resolve_bare_repo_name_unique_match() {
+        let repos = sample_repos();
+        let id = resolve_repo_id_from_repos(&repos, "web").unwrap();
+        assert_eq!(id.to_string(), "repo_3");
+    }
+
+    #[test]
+    fn resolve_bare_repo_name_ambiguous_returns_error() {
+        let repos = sample_repos();
+        let err = resolve_repo_id_from_repos(&repos, "cli").unwrap_err();
+        assert!(err.to_string().contains("Multiple repositories"));
     }
 
     // ── validate_close_flags ─────────────────────────────────────────
