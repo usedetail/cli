@@ -35,7 +35,7 @@ pub enum BugCommands {
         vulns: bool,
 
         /// Maximum number of results per page
-        #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..))]
+        #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..=100))]
         limit: u32,
 
         /// Page number (starts at 1)
