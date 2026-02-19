@@ -198,7 +198,7 @@ mod tests {
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
         assert_eq!(keys, vec!["Bug ID", "Created"]);
         assert!(pairs[0].1.contains("bug_abc123"));
-        assert_eq!(pairs[1].1, "2025-01-15");
+        assert_eq!(pairs[1].1, format_date(1_736_899_200_000));
     }
 
     #[test]
