@@ -1,6 +1,6 @@
 [package]
 name = "detail-cli"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Detail Team <eng@detail.dev>"]
 license = "MIT"
