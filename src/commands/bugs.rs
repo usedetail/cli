@@ -6,7 +6,7 @@ use dialoguer::{Input, Select};
 use crate::api::client::ApiClient;
 use crate::api::types::{
     dismissal_reason_label, review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
-    Repo, RepoId,
+    IntroducedIn, Repo, RepoId,
 };
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::{format_datetime, page_to_offset};
@@ -27,6 +27,16 @@ fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
         .take(limit as usize)
         .cloned()
         .collect()
+}
+
+/// Format blame/attribution info for display, e.g. "PR #42 (abc1234) on 2024-12-23 by alice".
+fn format_introduced_in(intro: &IntroducedIn) -> String {
+    let commit = intro.sha.get(..7).unwrap_or(&intro.sha);
+    let ref_label = match intro.pr_number {
+        Some(pr) => format!("PR #{} ({})", pr, commit),
+        None => commit.to_string(),
+    };
+    format!("{} on {} by {}", ref_label, intro.date, intro.author)
 }
 
 #[derive(Subcommand)]
@@ -354,54 +364,44 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bug details")?;
 
-            if matches!(format, crate::OutputFormat::Json) {
-                Term::stdout()
-                    .write_line(&serde_json::to_string_pretty(&bug)?)?;
-                return Ok(());
-            }
-
-            let mut pairs: Vec<(&str, String)> = vec![
-                ("ID", bug.id.to_string()),
-                ("Title", bug.title.clone()),
-                ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
-                ("Created", format_datetime(bug.created_at)),
-                (
-                    "Security",
-                    bug.is_security_vulnerability
-                        .map(|v| if v { "Yes" } else { "No" })
-                        .unwrap_or("-")
-                        .to_string(),
-                ),
-            ];
-            if let Some(intro) = &bug.introduced_in {
-                let commit = if intro.sha.len() >= 7 {
-                    &intro.sha[..7]
-                } else {
-                    &intro.sha
-                };
-                let ref_label = match intro.pr_number {
-                    Some(pr) => format!("PR #{} ({})", pr, commit),
-                    None => commit.to_string(),
-                };
-                pairs.push((
-                    "Introduced",
-                    format!("{} on {} by {}", ref_label, intro.date, intro.author),
-                ));
-            }
-            if let Some(review) = &bug.review {
-                pairs.push(("Close", review_state_label(&review.state).to_string()));
-                pairs.push(("Close Date", format_datetime(review.created_at)));
-                if let Some(reason) = &review.dismissal_reason {
-                    pairs.push(("Dismissal", dismissal_reason_label(reason).to_string()));
+            match format {
+                crate::OutputFormat::Json => {
+                    Term::stdout().write_line(&serde_json::to_string_pretty(&bug)?)?;
+                    Ok(())
                 }
-                if let Some(notes) = &review.notes {
-                    pairs.push(("Notes", notes.clone()));
+                crate::OutputFormat::Table => {
+                    let mut pairs: Vec<(&str, String)> = vec![
+                        ("ID", bug.id.to_string()),
+                        ("Title", bug.title.clone()),
+                        ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
+                        ("Created", format_datetime(bug.created_at)),
+                        (
+                            "Security",
+                            bug.is_security_vulnerability
+                                .map(|v| if v { "Yes" } else { "No" })
+                                .unwrap_or("-")
+                                .to_string(),
+                        ),
+                    ];
+                    if let Some(intro) = &bug.introduced_in {
+                        pairs.push(("Introduced", format_introduced_in(intro)));
+                    }
+                    if let Some(review) = &bug.review {
+                        pairs.push(("Close", review_state_label(&review.state).to_string()));
+                        pairs.push(("Close Date", format_datetime(review.created_at)));
+                        if let Some(reason) = &review.dismissal_reason {
+                            pairs.push(("Dismissal", dismissal_reason_label(reason).to_string()));
+                        }
+                        if let Some(notes) = &review.notes {
+                            pairs.push(("Notes", notes.clone()));
+                        }
+                    }
+                    SectionRenderer::new()
+                        .key_value("", &pairs)
+                        .markdown("", &bug.summary)
+                        .print()
                 }
             }
-            SectionRenderer::new()
-                .key_value("", &pairs)
-                .markdown("", &bug.summary)
-                .print()
         }
 
         BugCommands::Close {
@@ -748,5 +748,41 @@ mod tests {
         let items = vec![1, 2, 3];
         let page = paginate_items(&items, 3, 2);
         assert!(page.is_empty());
+    }
+
+    // ── format_introduced_in ────────────────────────────────────────
+
+    fn make_intro(sha: &str, pr: Option<i64>, author: &str, date: &str) -> IntroducedIn {
+        serde_json::from_value(serde_json::json!({
+            "sha": sha,
+            "prNumber": pr,
+            "author": author,
+            "date": date,
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn introduced_in_with_pr() {
+        let intro = make_intro("a759a69abc123", Some(2815), "Alice", "2024-12-23");
+        assert_eq!(
+            format_introduced_in(&intro),
+            "PR #2815 (a759a69) on 2024-12-23 by Alice"
+        );
+    }
+
+    #[test]
+    fn introduced_in_without_pr() {
+        let intro = make_intro("b8c3f01def456", None, "Bob", "2025-06-01");
+        assert_eq!(format_introduced_in(&intro), "b8c3f01 on 2025-06-01 by Bob");
+    }
+
+    #[test]
+    fn introduced_in_short_sha() {
+        let intro = make_intro("abc", Some(99), "Eve", "2025-01-01");
+        assert_eq!(
+            format_introduced_in(&intro),
+            "PR #99 (abc) on 2025-01-01 by Eve"
+        );
     }
 }
