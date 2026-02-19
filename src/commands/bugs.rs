@@ -19,6 +19,16 @@ fn filter_vulns_only(bugs: &[Bug]) -> Vec<Bug> {
         .collect()
 }
 
+fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
+    let offset = page_to_offset(page, limit) as usize;
+    items
+        .iter()
+        .skip(offset)
+        .take(limit as usize)
+        .cloned()
+        .collect()
+}
+
 #[derive(Subcommand)]
 pub enum BugCommands {
     /// List bugs for a given repository
@@ -174,6 +184,8 @@ fn validate_close_flags(
 
 /// Page size used when paginating through repos to resolve identifiers.
 const REPO_PAGE_SIZE: u32 = 100;
+/// Page size used when scanning all bugs for client-side vulnerability filtering.
+const BUG_PAGE_SIZE: u32 = 100;
 
 /// Fetch all repos by paginating through the API.
 async fn fetch_all_repos(client: &ApiClient) -> Result<Vec<Repo>> {
@@ -196,6 +208,34 @@ async fn fetch_all_repos(client: &ApiClient) -> Result<Vec<Repo>> {
     }
 
     Ok(all_repos)
+}
+
+/// Fetch all bugs for a repo/status and return only security vulnerabilities.
+async fn fetch_all_vuln_bugs(
+    client: &ApiClient,
+    repo_id: &RepoId,
+    status: BugReviewState,
+) -> Result<Vec<Bug>> {
+    let mut all_vulns = Vec::new();
+    let mut offset = 0;
+
+    loop {
+        let response = client
+            .list_bugs(repo_id, status, BUG_PAGE_SIZE, offset)
+            .await
+            .context("Failed to fetch bugs from repository")?;
+
+        let total = response.total.max(0) as usize;
+        let page_len = response.bugs.len();
+        all_vulns.extend(filter_vulns_only(&response.bugs));
+
+        if page_len == 0 || (offset as usize + page_len) >= total {
+            break;
+        }
+        offset += page_len as u32;
+    }
+
+    Ok(all_vulns)
 }
 
 /// Validate that a slash-containing identifier has exactly one slash with
@@ -276,19 +316,28 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to resolve repository identifier")?;
 
-            let offset = page_to_offset(*page, *limit);
-
-            let bugs = client
-                .list_bugs(&resolved_repo_id, *status, *limit, offset)
-                .await
-                .context("Failed to fetch bugs from repository")?;
-
-            let items = if *vulns {
-                filter_vulns_only(&bugs.bugs)
+            if *vulns {
+                // TODO(api): Add server-side `is_security_vulnerability` filtering so
+                // this command doesn't need to fetch and filter all bugs client-side.
+                let all_vulns = fetch_all_vuln_bugs(&client, &resolved_repo_id, *status).await?;
+                let total = all_vulns.len();
+                let page_items = paginate_items(&all_vulns, *page, *limit);
+                output_list(&page_items, total, *page, *limit, format)
             } else {
-                bugs.bugs
-            };
-            output_list(&items, items.len(), *page, *limit, format)
+                let offset = page_to_offset(*page, *limit);
+                let bugs = client
+                    .list_bugs(&resolved_repo_id, *status, *limit, offset)
+                    .await
+                    .context("Failed to fetch bugs from repository")?;
+
+                output_list(
+                    &bugs.bugs,
+                    bugs.total.max(0) as usize,
+                    *page,
+                    *limit,
+                    format,
+                )
+            }
         }
 
         BugCommands::Show { bug_id } => {
@@ -651,5 +700,28 @@ mod tests {
             .unwrap(),
         ];
         assert!(filter_vulns_only(&bugs).is_empty());
+    }
+
+    // ── paginate_items ───────────────────────────────────────────────
+
+    #[test]
+    fn paginate_items_first_page() {
+        let items = vec![1, 2, 3, 4, 5];
+        let page = paginate_items(&items, 1, 2);
+        assert_eq!(page, vec![1, 2]);
+    }
+
+    #[test]
+    fn paginate_items_second_page() {
+        let items = vec![1, 2, 3, 4, 5];
+        let page = paginate_items(&items, 2, 2);
+        assert_eq!(page, vec![3, 4]);
+    }
+
+    #[test]
+    fn paginate_items_out_of_range_page_is_empty() {
+        let items = vec![1, 2, 3];
+        let page = paginate_items(&items, 3, 2);
+        assert!(page.is_empty());
     }
 }
