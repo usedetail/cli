@@ -8,21 +8,26 @@ use crate::config::storage;
 
 const UPDATE_CHECK_INTERVAL: u64 = 3600; // 1 hour in seconds
 
+fn should_check_for_updates(config: &storage::Config, now: u64) -> bool {
+    if !config.check_for_updates {
+        return false;
+    }
+
+    match config.last_update_check {
+        Some(last_check) => now.saturating_sub(last_check) >= UPDATE_CHECK_INTERVAL,
+        None => true,
+    }
+}
+
 /// Automatically check for and install updates in the background
 pub async fn auto_update() -> Result<()> {
     // Check if we should check for updates
     let mut config = storage::load_config()?;
 
-    if !config.check_for_updates {
-        return Ok(());
-    }
-
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
-    if let Some(last_check) = config.last_update_check {
-        if now.saturating_sub(last_check) < UPDATE_CHECK_INTERVAL {
-            return Ok(()); // Checked recently
-        }
+    if !should_check_for_updates(&config, now) {
+        return Ok(());
     }
 
     // Update last check time
@@ -80,4 +85,60 @@ fn print_update_success(result: &axoupdater::UpdateResult) {
     ));
     let _ = term.write_line(&format!("{}", style("─".repeat(60)).dim()));
     let _ = term.write_line("");
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::storage::Config;
+
+    use super::*;
+
+    fn base_config() -> Config {
+        Config {
+            api_url: None,
+            check_for_updates: true,
+            last_update_check: None,
+            api_token: None,
+        }
+    }
+
+    #[test]
+    fn should_skip_when_updates_disabled() {
+        let mut config = base_config();
+        config.check_for_updates = false;
+        assert!(!should_check_for_updates(&config, 10_000));
+    }
+
+    #[test]
+    fn should_check_on_first_run_when_enabled() {
+        let config = base_config();
+        assert!(should_check_for_updates(&config, 10_000));
+    }
+
+    #[test]
+    fn should_skip_when_checked_recently() {
+        let mut config = base_config();
+        config.last_update_check = Some(10_000);
+        assert!(!should_check_for_updates(
+            &config,
+            10_000 + UPDATE_CHECK_INTERVAL - 1
+        ));
+    }
+
+    #[test]
+    fn should_check_when_interval_elapsed() {
+        let mut config = base_config();
+        config.last_update_check = Some(10_000);
+        assert!(should_check_for_updates(
+            &config,
+            10_000 + UPDATE_CHECK_INTERVAL
+        ));
+    }
+
+    #[test]
+    fn should_skip_when_clock_moves_backwards() {
+        let mut config = base_config();
+        config.last_update_check = Some(10_000);
+        assert!(!should_check_for_updates(&config, 9_000));
+    }
 }
