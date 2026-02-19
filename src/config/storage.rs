@@ -4,12 +4,24 @@ use std::{env, fs};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub api_url: Option<String>,
     pub check_for_updates: bool,
     pub last_update_check: Option<u64>,
     pub api_token: Option<String>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            api_url: None,
+            check_for_updates: true,
+            last_update_check: None,
+            api_token: None,
+        }
+    }
 }
 
 /// Get the config file path, mirroring axoupdater's directory logic
@@ -38,10 +50,7 @@ pub fn config_path() -> Result<PathBuf> {
 pub fn load_config() -> Result<Config> {
     let path = config_path()?;
     if !path.exists() {
-        return Ok(Config {
-            check_for_updates: true,
-            ..Default::default()
-        });
+        return Ok(Config::default());
     }
 
     let contents = fs::read_to_string(path)?;
@@ -112,7 +121,7 @@ mod tests {
     fn config_default_serializes_to_toml() {
         let config = Config::default();
         let toml_str = toml::to_string_pretty(&config).unwrap();
-        assert!(toml_str.contains("check_for_updates = false"));
+        assert!(toml_str.contains("check_for_updates = true"));
     }
 
     #[test]
@@ -138,6 +147,14 @@ mod tests {
         assert!(config.api_url.is_none());
         assert!(config.api_token.is_none());
         assert!(config.last_update_check.is_none());
+    }
+
+    #[test]
+    fn config_missing_check_for_updates_defaults_to_true() {
+        let toml_str = r#"api_url = "https://api.example.com""#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert!(config.check_for_updates);
+        assert_eq!(config.api_url.as_deref(), Some("https://api.example.com"));
     }
 
     // ── config_path ──────────────────────────────────────────────────
@@ -170,11 +187,36 @@ mod tests {
     }
 
     #[test]
+    fn load_config_partial_file_defaults_check_for_updates() {
+        with_temp_config(|| {
+            let path = config_path().unwrap();
+            fs::write(&path, r#"api_token = "tok""#).unwrap();
+
+            let loaded = load_config().unwrap();
+            assert!(loaded.check_for_updates);
+            assert_eq!(loaded.api_token.as_deref(), Some("tok"));
+            assert!(loaded.api_url.is_none());
+            assert!(loaded.last_update_check.is_none());
+        });
+    }
+
+    #[test]
     fn load_config_returns_defaults_when_no_file() {
         with_temp_config(|| {
             let config = load_config().unwrap();
             assert!(config.check_for_updates);
             assert!(config.api_token.is_none());
+        });
+    }
+
+    #[test]
+    fn load_config_invalid_toml_has_parse_context() {
+        with_temp_config(|| {
+            let path = config_path().unwrap();
+            fs::write(&path, "check_for_updates = maybe").unwrap();
+
+            let err = load_config().unwrap_err();
+            assert!(err.to_string().contains("Failed to parse config"));
         });
     }
 
