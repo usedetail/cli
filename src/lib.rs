@@ -189,4 +189,16 @@ mod tests {
         let cli = Cli::try_parse_from(["detail", "skill"]).unwrap();
         assert!(!cli.is_silent());
     }
+
+    #[test]
+    fn rejects_bugs_list_limit_above_api_max() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--limit", "101"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn rejects_repos_list_limit_above_api_max() {
+        let cli = Cli::try_parse_from(["detail", "repos", "list", "--limit", "101"]);
+        assert!(cli.is_err());
+    }
 }
