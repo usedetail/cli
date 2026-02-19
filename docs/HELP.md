@@ -134,11 +134,20 @@ List bugs for a given repository
 
 Show the report for a bug
 
-**Usage:** `detail bugs show <BUG_ID>`
+**Usage:** `detail bugs show [OPTIONS] <BUG_ID>`
 
 ###### **Arguments:**
 
 * `<BUG_ID>` — Bug ID
+
+###### **Options:**
+
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
 
 
 

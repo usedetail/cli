@@ -61,6 +61,10 @@ pub enum BugCommands {
     Show {
         /// Bug ID
         bug_id: String,
+
+        /// Output format
+        #[arg(long, value_enum, default_value = "table")]
+        format: crate::OutputFormat,
     },
 
     /// Close a bug as resolved or dismissed
@@ -340,7 +344,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             }
         }
 
-        BugCommands::Show { bug_id } => {
+        BugCommands::Show { bug_id, format } => {
             let bug_id: BugId = bug_id
                 .as_str()
                 .try_into()
@@ -349,6 +353,12 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .get_bug(&bug_id)
                 .await
                 .context("Failed to fetch bug details")?;
+
+            if matches!(format, crate::OutputFormat::Json) {
+                Term::stdout()
+                    .write_line(&serde_json::to_string_pretty(&bug)?)?;
+                return Ok(());
+            }
 
             let mut pairs: Vec<(&str, String)> = vec![
                 ("ID", bug.id.to_string()),
