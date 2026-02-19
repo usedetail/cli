@@ -201,4 +201,28 @@ mod tests {
         let cli = Cli::try_parse_from(["detail", "repos", "list", "--limit", "101"]);
         assert!(cli.is_err());
     }
+
+    #[test]
+    fn rejects_bugs_list_limit_zero() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--limit", "0"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn rejects_repos_list_limit_zero() {
+        let cli = Cli::try_parse_from(["detail", "repos", "list", "--limit", "0"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn rejects_bugs_list_page_zero() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--page", "0"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn rejects_repos_list_page_zero() {
+        let cli = Cli::try_parse_from(["detail", "repos", "list", "--page", "0"]);
+        assert!(cli.is_err());
+    }
 }
