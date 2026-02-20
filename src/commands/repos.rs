@@ -44,7 +44,7 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
             match format {
                 crate::OutputFormat::Table => {
                     let term = Term::stdout();
-                    let width = term.size().1 as usize;
+                    let width = term.size().1.into();
                     let separator = "─".repeat(width);
 
                     // Group repos by organization, sorted alphabetically
@@ -62,13 +62,16 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                         term.write_line("")?;
                     }
 
-                    let total_pages = (repos.total.max(0) as u32).div_ceil(*limit).max(1);
+                    let total_pages = u32::try_from(repos.total.max(0))
+                        .unwrap_or(u32::MAX)
+                        .div_ceil(*limit)
+                        .max(1);
                     term.write_line(&format!("Page: {} of {}", page, total_pages))?;
                     Ok(())
                 }
                 _ => output_list(
                     &repos.repos,
-                    repos.total.max(0) as usize,
+                    usize::try_from(repos.total.max(0)).unwrap_or(0),
                     *page,
                     *limit,
                     format,

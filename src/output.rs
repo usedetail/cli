@@ -66,7 +66,7 @@ impl SectionRenderer {
     }
 
     pub fn print(self) -> Result<()> {
-        let width = self.term.size().1 as usize;
+        let width = self.term.size().1.into();
         let separator = "─".repeat(width);
 
         for (i, (header, content)) in self.sections.iter().enumerate() {
@@ -107,7 +107,10 @@ pub trait Formattable {
 
 /// Compute the total number of pages for a given item count and page size.
 fn total_pages(total: usize, limit: u32) -> u32 {
-    (total as u32).div_ceil(limit).max(1)
+    u32::try_from(total)
+        .unwrap_or(u32::MAX)
+        .div_ceil(limit)
+        .max(1)
 }
 
 /// Generic helper to output a list of items in the requested format

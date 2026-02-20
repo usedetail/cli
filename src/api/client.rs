@@ -53,8 +53,8 @@ impl ApiClient {
 
         self.inner
             .list_public_bugs(
-                NonZeroU64::new(limit as u64),
-                Some(offset as u64),
+                NonZeroU64::new(limit.into()),
+                Some(offset.into()),
                 repo_id,
                 status,
             )
@@ -95,7 +95,7 @@ impl ApiClient {
         use std::num::NonZeroU64;
 
         self.inner
-            .list_public_repos(NonZeroU64::new(limit as u64), Some(offset as u64))
+            .list_public_repos(NonZeroU64::new(limit.into()), Some(offset.into()))
             .await
             .map(|r| r.into_inner())
             .map_err(|e| anyhow::anyhow!("API error: {}", e))
