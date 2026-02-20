@@ -41,7 +41,13 @@ After reviewing the bug report, implement a fix for the bug in the codebase.
 Many bugs will have a suggested fix as part of the report, which you may want
 to confirm with the user before implementing.
 
-## Step 4: Resolve or dismiss
+## Step 4: Review the changes
+
+Once you've implemented a fix, confirm with the user if any further changes are
+needed. This is an opportunity for the user review the change, make any tweaks
+and to create a PR.
+
+## Step 5: Resolve or dismiss
 
 After implementing the fix, mark the bug as resolved. If we are not going to
 fix the bug, mark it as dismissed.
