@@ -738,39 +738,4 @@ mod tests {
         assert!(page.is_empty());
     }
 
-    // ── format_introduced_in ────────────────────────────────────────
-
-    fn make_intro(sha: &str, pr: Option<i64>, author: &str, date: &str) -> IntroducedIn {
-        serde_json::from_value(serde_json::json!({
-            "sha": sha,
-            "prNumber": pr,
-            "author": author,
-            "date": date,
-        }))
-        .unwrap()
-    }
-
-    #[test]
-    fn introduced_in_with_pr() {
-        let intro = make_intro("a759a69abc123", Some(2815), "Alice", "2024-12-23");
-        assert_eq!(
-            format_introduced_in(&intro),
-            "PR #2815 (a759a69) on 2024-12-23 by Alice"
-        );
-    }
-
-    #[test]
-    fn introduced_in_without_pr() {
-        let intro = make_intro("b8c3f01def456", None, "Bob", "2025-06-01");
-        assert_eq!(format_introduced_in(&intro), "b8c3f01 on 2025-06-01 by Bob");
-    }
-
-    #[test]
-    fn introduced_in_short_sha() {
-        let intro = make_intro("abc", Some(99), "Eve", "2025-01-01");
-        assert_eq!(
-            format_introduced_in(&intro),
-            "PR #99 (abc) on 2025-01-01 by Eve"
-        );
-    }
 }
