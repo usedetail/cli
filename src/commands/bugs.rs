@@ -20,11 +20,11 @@ fn filter_vulns_only(bugs: &[Bug]) -> Vec<Bug> {
 }
 
 fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
-    let offset = page_to_offset(page, limit) as usize;
+    let offset = usize::try_from(page_to_offset(page, limit)).unwrap_or(0);
     items
         .iter()
         .skip(offset)
-        .take(limit as usize)
+        .take(usize::try_from(limit).unwrap_or(0))
         .cloned()
         .collect()
 }
@@ -211,7 +211,7 @@ async fn fetch_all_repos(client: &ApiClient) -> Result<Vec<Repo>> {
         let page_size = repos.repos.len();
         all_repos.extend(repos.repos);
 
-        if (page_size as u32) < REPO_PAGE_SIZE {
+        if page_size < usize::try_from(REPO_PAGE_SIZE).unwrap_or(0) {
             break;
         }
         offset += REPO_PAGE_SIZE;
@@ -235,14 +235,14 @@ async fn fetch_all_vuln_bugs(
             .await
             .context("Failed to fetch bugs from repository")?;
 
-        let total = response.total.max(0) as usize;
+        let total = usize::try_from(response.total.max(0)).unwrap_or(0);
         let page_len = response.bugs.len();
         all_vulns.extend(filter_vulns_only(&response.bugs));
 
-        if page_len == 0 || (offset as usize + page_len) >= total {
+        if page_len == 0 || (usize::try_from(offset).unwrap_or(0) + page_len) >= total {
             break;
         }
-        offset += page_len as u32;
+        offset += u32::try_from(page_len).unwrap_or(u32::MAX);
     }
 
     Ok(all_vulns)
@@ -342,7 +342,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
 
                 output_list(
                     &bugs.bugs,
-                    bugs.total.max(0) as usize,
+                    usize::try_from(bugs.total.max(0)).unwrap_or(0),
                     *page,
                     *limit,
                     format,
