@@ -202,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn bug_card_shows_security_when_true() {
+    fn bug_card_omits_security_when_true() {
         let bug: Bug = serde_json::from_value(serde_json::json!({
             "id": "bug_sec1",
             "title": "XSS vulnerability",
