@@ -737,5 +737,4 @@ mod tests {
         let page = paginate_items(&items, 3, 2);
         assert!(page.is_empty());
     }
-
 }
