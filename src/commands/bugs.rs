@@ -71,10 +71,6 @@ pub enum BugCommands {
     Show {
         /// Bug ID
         bug_id: String,
-
-        /// Output format
-        #[arg(long, value_enum, default_value = "table")]
-        format: crate::OutputFormat,
     },
 
     /// Close a bug as resolved or dismissed
@@ -354,7 +350,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             }
         }
 
-        BugCommands::Show { bug_id, format } => {
+        BugCommands::Show { bug_id } => {
             let bug_id: BugId = bug_id
                 .as_str()
                 .try_into()
@@ -364,44 +360,36 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bug details")?;
 
-            match format {
-                crate::OutputFormat::Json => {
-                    Term::stdout().write_line(&serde_json::to_string_pretty(&bug)?)?;
-                    Ok(())
+            let mut pairs: Vec<(&str, String)> = vec![
+                ("ID", bug.id.to_string()),
+                ("Title", bug.title.clone()),
+                ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
+                ("Created", format_datetime(bug.created_at)),
+                (
+                    "Security",
+                    bug.is_security_vulnerability
+                        .map(|v| if v { "Yes" } else { "No" })
+                        .unwrap_or("-")
+                        .to_string(),
+                ),
+            ];
+            if let Some(intro) = &bug.introduced_in {
+                pairs.push(("Introduced", format_introduced_in(intro)));
+            }
+            if let Some(review) = &bug.review {
+                pairs.push(("Close", review_state_label(&review.state).to_string()));
+                pairs.push(("Close Date", format_datetime(review.created_at)));
+                if let Some(reason) = &review.dismissal_reason {
+                    pairs.push(("Dismissal", dismissal_reason_label(reason).to_string()));
                 }
-                crate::OutputFormat::Table => {
-                    let mut pairs: Vec<(&str, String)> = vec![
-                        ("ID", bug.id.to_string()),
-                        ("Title", bug.title.clone()),
-                        ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
-                        ("Created", format_datetime(bug.created_at)),
-                        (
-                            "Security",
-                            bug.is_security_vulnerability
-                                .map(|v| if v { "Yes" } else { "No" })
-                                .unwrap_or("-")
-                                .to_string(),
-                        ),
-                    ];
-                    if let Some(intro) = &bug.introduced_in {
-                        pairs.push(("Introduced", format_introduced_in(intro)));
-                    }
-                    if let Some(review) = &bug.review {
-                        pairs.push(("Close", review_state_label(&review.state).to_string()));
-                        pairs.push(("Close Date", format_datetime(review.created_at)));
-                        if let Some(reason) = &review.dismissal_reason {
-                            pairs.push(("Dismissal", dismissal_reason_label(reason).to_string()));
-                        }
-                        if let Some(notes) = &review.notes {
-                            pairs.push(("Notes", notes.clone()));
-                        }
-                    }
-                    SectionRenderer::new()
-                        .key_value("", &pairs)
-                        .markdown("", &bug.summary)
-                        .print()
+                if let Some(notes) = &review.notes {
+                    pairs.push(("Notes", notes.clone()));
                 }
             }
+            SectionRenderer::new()
+                .key_value("", &pairs)
+                .markdown("", &bug.summary)
+                .print()
         }
 
         BugCommands::Close {
