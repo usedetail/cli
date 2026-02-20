@@ -2,7 +2,7 @@ use chrono::Local;
 
 /// Convert page number and limit to offset for pagination
 pub fn page_to_offset(page: u32, limit: u32) -> u32 {
-    (page - 1) * limit
+    (page - 1).saturating_mul(limit)
 }
 
 /// Conversion factor from milliseconds to seconds
