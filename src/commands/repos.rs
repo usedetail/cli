@@ -62,11 +62,11 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                         term.write_line("")?;
                     }
 
-                    let total_pages = (repos.total as u32).div_ceil(*limit).max(1);
+                    let total_pages = (repos.total.max(0) as u32).div_ceil(*limit).max(1);
                     term.write_line(&format!("Page: {} of {}", page, total_pages))?;
                     Ok(())
                 }
-                _ => output_list(&repos.repos, repos.total as usize, *page, *limit, format),
+                _ => output_list(&repos.repos, repos.total.max(0) as usize, *page, *limit, format),
             }
         }
     }
