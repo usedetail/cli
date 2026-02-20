@@ -78,6 +78,28 @@
                     "createdAt"
                 ]
             },
+            "IntroducedIn": {
+                "type": "object",
+                "properties": {
+                    "sha": {
+                        "type": "string"
+                    },
+                    "prNumber": {
+                        "type": "integer"
+                    },
+                    "author": {
+                        "type": "string"
+                    },
+                    "date": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "sha",
+                    "author",
+                    "date"
+                ]
+            },
             "Bug": {
                 "type": "object",
                 "properties": {
@@ -107,6 +129,9 @@
                     },
                     "isSecurityVulnerability": {
                         "type": "boolean"
+                    },
+                    "introducedIn": {
+                        "$ref": "#/components/schemas/IntroducedIn"
                     }
                 },
                 "required": [
