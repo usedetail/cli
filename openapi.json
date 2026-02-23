@@ -95,9 +95,7 @@
                     }
                 },
                 "required": [
-                    "sha",
-                    "author",
-                    "date"
+                    "sha"
                 ]
             },
             "Bug": {

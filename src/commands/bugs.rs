@@ -36,7 +36,17 @@ fn format_introduced_in(intro: &IntroducedIn) -> String {
         Some(pr) => format!("PR #{} ({})", pr, commit),
         None => commit.to_string(),
     };
-    format!("{} on {} by {}", ref_label, intro.date, intro.author)
+    let date_part = intro
+        .date
+        .as_deref()
+        .map(|d| format!(" on {}", d))
+        .unwrap_or_default();
+    let author_part = intro
+        .author
+        .as_deref()
+        .map(|a| format!(" by {}", a))
+        .unwrap_or_default();
+    format!("{}{}{}", ref_label, date_part, author_part)
 }
 
 #[derive(Subcommand)]
