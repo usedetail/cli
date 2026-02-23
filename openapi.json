@@ -113,7 +113,8 @@
                         "type": "string"
                     },
                     "filePath": {
-                        "type": "string"
+                        "type": "string",
+                        "nullable": true
                     },
                     "createdAt": {
                         "type": "integer"
@@ -125,10 +126,12 @@
                         "$ref": "#/components/schemas/RepoId"
                     },
                     "commitSha": {
-                        "type": "string"
+                        "type": "string",
+                        "nullable": true
                     },
                     "isSecurityVulnerability": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "nullable": true
                     },
                     "introducedIn": {
                         "$ref": "#/components/schemas/IntroducedIn"
