@@ -65,10 +65,17 @@ impl Cli {
         }
     }
 
+    fn should_run_auto_update(&self) -> bool {
+        if self.is_silent() {
+            return false;
+        }
+        !matches!(&self.command, Commands::Update)
+    }
+
     /// Run the CLI command
     pub async fn run(self) -> Result<()> {
         // Skip auto-update when outputting JSON to avoid corrupting structured output
-        if !self.is_silent() {
+        if self.should_run_auto_update() {
             if let Err(e) = upgrade::auto_update().await {
                 let _ = console::Term::stderr()
                     .write_line(&format!("Warning: Failed to check for updates: {}", e));
@@ -80,6 +87,7 @@ impl Cli {
             Commands::Bugs { command } => commands::bugs::handle(command, &self).await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
             Commands::Skill => commands::skill::handle(),
+            Commands::Update => commands::update::handle().await,
             Commands::Version => {
                 console::Term::stdout().write_line(&format!("detail-cli v{}", VERSION))?;
                 Ok(())
@@ -116,6 +124,9 @@ enum Commands {
 
     /// Install the detail-bugs skill
     Skill,
+
+    /// Update Immediately (auto-update also runs in the background)
+    Update,
 
     /// Show version information
     Version,
@@ -188,6 +199,18 @@ mod tests {
     fn not_silent_for_skill() {
         let cli = Cli::try_parse_from(["detail", "skill"]).unwrap();
         assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_update() {
+        let cli = Cli::try_parse_from(["detail", "update"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn auto_update_disabled_for_update_command() {
+        let cli = Cli::try_parse_from(["detail", "update"]).unwrap();
+        assert!(!cli.should_run_auto_update());
     }
 
     #[test]
