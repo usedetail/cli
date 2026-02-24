@@ -84,18 +84,19 @@
                     "sha": {
                         "type": "string"
                     },
-                    "prNumber": {
-                        "type": "integer"
+                    "date": {
+                        "type": "string"
                     },
                     "author": {
                         "type": "string"
                     },
-                    "date": {
-                        "type": "string"
+                    "prNumber": {
+                        "type": "integer"
                     }
                 },
                 "required": [
-                    "sha"
+                    "sha",
+                    "date"
                 ]
             },
             "Bug": {
