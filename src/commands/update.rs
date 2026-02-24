@@ -1,18 +1,18 @@
 use anyhow::Result;
 use console::{style, Term};
 
-use crate::upgrade::ManualUpdateOutcome;
+use crate::upgrade::{self, ManualUpdateOutcome};
 
 pub async fn handle() -> Result<()> {
     let term = Term::stdout();
     term.write_line("Checking for Detail CLI updates...")?;
 
-    match crate::upgrade::update_now().await? {
+    match upgrade::update_now().await? {
         ManualUpdateOutcome::Updated {
             old_version,
             new_version,
         } => {
-            crate::upgrade::print_update_success_message(&term, &old_version, &new_version);
+            upgrade::print_update_success_message(&term, &old_version, &new_version);
         }
         ManualUpdateOutcome::AlreadyUpToDate => {
             term.write_line(&format!(
