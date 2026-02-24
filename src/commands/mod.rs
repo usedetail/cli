@@ -2,3 +2,4 @@ pub mod auth;
 pub mod bugs;
 pub mod repos;
 pub mod skill;
+pub mod update;
