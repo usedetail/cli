@@ -19,6 +19,31 @@ fn filter_vulns_only(bugs: &[Bug]) -> Vec<Bug> {
         .collect()
 }
 
+/// Return only bugs whose `introducedIn.author` case-insensitively matches one of `authors`.
+fn filter_by_introduced_by(bugs: &[Bug], authors: &[String]) -> Vec<Bug> {
+    bugs.iter()
+        .filter(|b| {
+            b.introduced_in
+                .as_ref()
+                .and_then(|i| i.author.as_deref())
+                .map(|a| authors.iter().any(|name| a.eq_ignore_ascii_case(name)))
+                .unwrap_or(false)
+        })
+        .cloned()
+        .collect()
+}
+
+/// Collect the sorted, deduplicated set of authors present in `bugs`.
+fn collect_authors(bugs: &[Bug]) -> Vec<&str> {
+    let mut authors: Vec<&str> = bugs
+        .iter()
+        .filter_map(|b| b.introduced_in.as_ref()?.author.as_deref())
+        .collect();
+    authors.sort_unstable();
+    authors.dedup();
+    authors
+}
+
 fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
     let offset = usize::try_from(page_to_offset(page, limit)).unwrap_or(0);
     items
@@ -59,6 +84,10 @@ pub enum BugCommands {
         /// Only show security vulnerabilities
         #[arg(long)]
         vulns: bool,
+
+        /// Only show bugs introduced by these authors (comma-separated or repeat flag)
+        #[arg(long, value_delimiter = ',')]
+        introduced_by: Vec<String>,
 
         /// Maximum number of results per page
         #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..=100))]
@@ -226,13 +255,13 @@ async fn fetch_all_repos(client: &ApiClient) -> Result<Vec<Repo>> {
     Ok(all_repos)
 }
 
-/// Fetch all bugs for a repo/status and return only security vulnerabilities.
-async fn fetch_all_vuln_bugs(
+/// Fetch every bug for a repo/status by paginating through all pages.
+async fn fetch_all_bugs(
     client: &ApiClient,
     repo_id: &RepoId,
     status: BugReviewState,
 ) -> Result<Vec<Bug>> {
-    let mut all_vulns = Vec::new();
+    let mut all_bugs = Vec::new();
     let mut offset = 0;
 
     loop {
@@ -243,7 +272,7 @@ async fn fetch_all_vuln_bugs(
 
         let total = usize::try_from(response.total.max(0)).unwrap_or(0);
         let page_len = response.bugs.len();
-        all_vulns.extend(filter_vulns_only(&response.bugs));
+        all_bugs.extend(response.bugs);
 
         if page_len == 0 || (usize::try_from(offset).unwrap_or(0) + page_len) >= total {
             break;
@@ -251,7 +280,7 @@ async fn fetch_all_vuln_bugs(
         offset += u32::try_from(page_len).unwrap_or(u32::MAX);
     }
 
-    Ok(all_vulns)
+    Ok(all_bugs)
 }
 
 /// Validate that a slash-containing identifier has exactly one slash with
@@ -323,6 +352,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             repo,
             status,
             vulns,
+            introduced_by,
             limit,
             page,
             format,
@@ -332,12 +362,31 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to resolve repository identifier")?;
 
-            if *vulns {
-                // TODO(api): Add server-side `is_security_vulnerability` filtering so
-                // this command doesn't need to fetch and filter all bugs client-side.
-                let all_vulns = fetch_all_vuln_bugs(&client, &resolved_repo_id, *status).await?;
-                let total = all_vulns.len();
-                let page_items = paginate_items(&all_vulns, *page, *limit);
+            if *vulns || !introduced_by.is_empty() {
+                let all_bugs = fetch_all_bugs(&client, &resolved_repo_id, *status).await?;
+                let mut filtered = all_bugs;
+                if *vulns {
+                    filtered = filter_vulns_only(&filtered);
+                }
+                if !introduced_by.is_empty() {
+                    let pre_filter = filtered;
+                    filtered = filter_by_introduced_by(&pre_filter, introduced_by);
+                    if filtered.is_empty() {
+                        let known = collect_authors(&pre_filter);
+                        let hint = if known.is_empty() {
+                            "No bugs matched --introduced-by. None of the current bugs have author information.".to_string()
+                        } else {
+                            format!(
+                                "No bugs matched --introduced-by. Known authors: {}",
+                                known.join(", ")
+                            )
+                        };
+                        Term::stdout().write_line(&hint)?;
+                        return Ok(());
+                    }
+                }
+                let total = filtered.len();
+                let page_items = paginate_items(&filtered, *page, *limit);
                 output_list(&page_items, total, *page, *limit, format)
             } else {
                 let offset = page_to_offset(*page, *limit);
@@ -719,6 +768,121 @@ mod tests {
             .unwrap(),
         ];
         assert!(filter_vulns_only(&bugs).is_empty());
+    }
+
+    // ── filter_by_introduced_by ──────────────────────────────────────
+
+    fn sample_bugs_with_authors() -> Vec<Bug> {
+        vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_1", "title": "Bug by Alice", "summary": "...",
+                "createdAt": 1, "repoId": "repo_1",
+                "introducedIn": { "sha": "abc1234", "date": "2024-01-01", "author": "alice" }
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_2", "title": "Bug by Bob", "summary": "...",
+                "createdAt": 2, "repoId": "repo_1",
+                "introducedIn": { "sha": "def5678", "date": "2024-01-02", "author": "bob" }
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_3", "title": "Bug no author", "summary": "...",
+                "createdAt": 3, "repoId": "repo_1",
+                "introducedIn": { "sha": "ghi9012", "date": "2024-01-03" }
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_4", "title": "Bug no introduced_in", "summary": "...",
+                "createdAt": 4, "repoId": "repo_1"
+            }))
+            .unwrap(),
+        ]
+    }
+
+    #[test]
+    fn introduced_by_matches_single_author() {
+        let bugs = sample_bugs_with_authors();
+        let filtered = filter_by_introduced_by(&bugs, &["alice".to_string()]);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id.to_string(), "bug_1");
+    }
+
+    #[test]
+    fn introduced_by_matches_multiple_authors() {
+        let bugs = sample_bugs_with_authors();
+        let filtered = filter_by_introduced_by(&bugs, &["alice".to_string(), "bob".to_string()]);
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn introduced_by_is_case_insensitive() {
+        let bugs = sample_bugs_with_authors();
+        let filtered = filter_by_introduced_by(&bugs, &["ALICE".to_string()]);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id.to_string(), "bug_1");
+    }
+
+    #[test]
+    fn introduced_by_excludes_bugs_without_author() {
+        let bugs = sample_bugs_with_authors();
+        // bug_3 has introducedIn but no author; bug_4 has no introducedIn at all
+        let filtered = filter_by_introduced_by(&bugs, &["alice".to_string()]);
+        assert!(!filtered.iter().any(|b| b.id.to_string() == "bug_3"));
+        assert!(!filtered.iter().any(|b| b.id.to_string() == "bug_4"));
+    }
+
+    #[test]
+    fn introduced_by_empty_list_returns_nothing() {
+        let bugs = sample_bugs_with_authors();
+        let filtered = filter_by_introduced_by(&bugs, &["nobody".to_string()]);
+        assert!(filtered.is_empty());
+    }
+
+    // ── collect_authors ──────────────────────────────────────────────
+
+    #[test]
+    fn collect_authors_returns_sorted_deduped() {
+        let bugs = sample_bugs_with_authors();
+        let authors = collect_authors(&bugs);
+        assert_eq!(authors, vec!["alice", "bob"]);
+    }
+
+    #[test]
+    fn collect_authors_empty_when_no_authors() {
+        let bugs: Vec<Bug> = vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_1", "title": "No author", "summary": "...",
+                "createdAt": 1, "repoId": "repo_1",
+                "introducedIn": { "sha": "abc1234", "date": "2024-01-01" }
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_2", "title": "No introduced_in", "summary": "...",
+                "createdAt": 2, "repoId": "repo_1"
+            }))
+            .unwrap(),
+        ];
+        assert!(collect_authors(&bugs).is_empty());
+    }
+
+    #[test]
+    fn collect_authors_deduplicates() {
+        let bugs: Vec<Bug> = vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_1", "title": "A", "summary": "...",
+                "createdAt": 1, "repoId": "repo_1",
+                "introducedIn": { "sha": "aaa", "date": "2024-01-01", "author": "alice" }
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_2", "title": "B", "summary": "...",
+                "createdAt": 2, "repoId": "repo_1",
+                "introducedIn": { "sha": "bbb", "date": "2024-01-02", "author": "alice" }
+            }))
+            .unwrap(),
+        ];
+        assert_eq!(collect_authors(&bugs), vec!["alice"]);
     }
 
     // ── paginate_items ───────────────────────────────────────────────
