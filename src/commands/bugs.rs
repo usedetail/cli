@@ -36,11 +36,7 @@ fn format_introduced_in(intro: &IntroducedIn) -> String {
         Some(pr) => format!("PR #{} ({})", pr, commit),
         None => commit.to_string(),
     };
-    let date_part = intro
-        .date
-        .as_deref()
-        .map(|d| format!(" on {}", d))
-        .unwrap_or_default();
+    let date_part = format!(" on {}", intro.date);
     let author_part = intro
         .author
         .as_deref()
