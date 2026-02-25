@@ -9,7 +9,7 @@ use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
         cursor::{Hide, Show},
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen},
     },
     widgets::Clear,
     Terminal,
@@ -39,13 +39,11 @@ struct TerminalSession {
 }
 
 fn restore_unowned_terminal_state() {
-    let _ = disable_raw_mode();
     let mut stdout = io::stdout();
     let _ = ratatui::crossterm::execute!(stdout, Show, LeaveAlternateScreen);
 }
 
 fn restore_terminal_state(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) {
-    let _ = disable_raw_mode();
     let _ = ratatui::crossterm::execute!(terminal.backend_mut(), Show, LeaveAlternateScreen);
     let _ = terminal.show_cursor();
 }
@@ -53,7 +51,6 @@ fn restore_terminal_state(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>)
 impl TerminalSession {
     fn enter() -> Result<Self> {
         let mut stdout = io::stdout();
-        enable_raw_mode()?;
         if let Err(err) = ratatui::crossterm::execute!(stdout, EnterAlternateScreen, Hide) {
             restore_unowned_terminal_state();
             return Err(err.into());
