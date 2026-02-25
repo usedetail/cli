@@ -77,7 +77,11 @@ impl SortState {
         self.complete_scan_index = Some(index);
     }
 
-    pub(super) fn style_for_index(&self, index: usize) -> BandStyle {
+    pub(super) fn style_for_index_with_min_window(
+        &self,
+        index: usize,
+        min_window_size: usize,
+    ) -> BandStyle {
         if self.scan_complete {
             if self.complete_scan_index.is_some_and(|done| index <= done) {
                 return BandStyle::Complete;
@@ -86,7 +90,8 @@ impl SortState {
         }
 
         if let Some(scan_start) = self.current_scan_index {
-            if in_window(index, scan_start, self.current_window_size) {
+            let window_size = self.current_window_size.max(min_window_size.max(1));
+            if in_window(index, scan_start, window_size) {
                 return BandStyle::Active;
             }
         }
@@ -175,10 +180,22 @@ mod tests {
         state.current_scan_index = Some(10);
         state.current_window_size = 8;
 
-        assert_eq!(state.style_for_index(11), BandStyle::Active);
-        assert_eq!(state.style_for_index(12), BandStyle::Active);
-        assert_eq!(state.style_for_index(14), BandStyle::Active);
-        assert_eq!(state.style_for_index(15), BandStyle::Active);
+        assert_eq!(
+            state.style_for_index_with_min_window(11, 0),
+            BandStyle::Active
+        );
+        assert_eq!(
+            state.style_for_index_with_min_window(12, 0),
+            BandStyle::Active
+        );
+        assert_eq!(
+            state.style_for_index_with_min_window(14, 0),
+            BandStyle::Active
+        );
+        assert_eq!(
+            state.style_for_index_with_min_window(15, 0),
+            BandStyle::Active
+        );
     }
 
     #[test]
@@ -188,7 +205,10 @@ mod tests {
         state.scan_complete = true;
         state.complete_scan_index = Some(5);
 
-        assert_eq!(state.style_for_index(3), BandStyle::Complete);
-        assert_eq!(state.style_for_index(7), BandStyle::Idle);
+        assert_eq!(
+            state.style_for_index_with_min_window(3, 0),
+            BandStyle::Complete
+        );
+        assert_eq!(state.style_for_index_with_min_window(7, 0), BandStyle::Idle);
     }
 }

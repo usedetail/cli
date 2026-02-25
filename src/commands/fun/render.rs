@@ -154,6 +154,7 @@ struct PixelQueryCtx<'a> {
     viewport_width: usize,
     viewport_height: usize,
     x_den: f32,
+    active_min_window: usize,
 }
 
 fn rasterize_halfblocks(
@@ -169,12 +170,14 @@ fn rasterize_halfblocks(
     let viewport_right = viewport.left.saturating_add(viewport.width);
     let viewport_bottom = viewport.top.saturating_add(viewport.height_rows);
     let x_den = viewport.width.saturating_sub(1).max(1) as f32;
+    let active_min_window = min_active_window_for_columns(n, viewport.width, 2);
     let pixel_ctx = PixelQueryCtx {
         state,
         n,
         viewport_width: viewport.width,
         viewport_height: viewport.side,
         x_den,
+        active_min_window,
     };
 
     for y in viewport.top..viewport_bottom {
@@ -208,7 +211,10 @@ fn pixel_style_at(ctx: &PixelQueryCtx<'_>, local_x: usize, local_y: usize) -> Pi
         if source_region != region {
             return PixelStyle::Reset;
         }
-        return PixelStyle::from_band(ctx.state.style_for_index(nominal_index));
+        return PixelStyle::from_band(
+            ctx.state
+                .style_for_index_with_min_window(nominal_index, ctx.active_min_window),
+        );
     }
 
     PixelStyle::Static
@@ -227,6 +233,27 @@ fn visual_source_index_for_nominal(state: &SortState, nominal_index: usize, n: u
     }
 
     shuffled_index_for_nominal(state.source_array(), nominal_index, n)
+}
+
+fn min_active_window_for_columns(n: usize, viewport_width: usize, target_columns: usize) -> usize {
+    let n = n.max(1);
+    let target_columns = target_columns.max(1);
+    if viewport_width <= 1 {
+        return n.min(target_columns);
+    }
+
+    let x_den = viewport_width.saturating_sub(1).max(1) as f32;
+    let mut prev = triangle_nominal_index(0.0, n, LogoRegion::TopTriangle);
+    let mut max_step = 1usize;
+
+    for x in 1..viewport_width {
+        let nx = x as f32 / x_den;
+        let idx = triangle_nominal_index(nx, n, LogoRegion::TopTriangle);
+        max_step = max_step.max(idx.saturating_sub(prev)).max(1);
+        prev = idx;
+    }
+
+    max_step.saturating_mul(target_columns).clamp(1, n)
 }
 
 #[cfg(test)]
@@ -323,5 +350,35 @@ mod tests {
     fn halfblocks_aspect_is_in_valid_range() {
         let aspect = halfblocks_cell_aspect_x();
         assert!((0.5..=4.0).contains(&aspect));
+    }
+
+    #[test]
+    fn min_active_window_produces_two_visible_blue_columns() {
+        let n = 1000usize;
+        for width in [80usize, 120, 160, 220] {
+            let x_den = width.saturating_sub(1).max(1) as f32;
+            let nominal_by_col: Vec<usize> = (0..width)
+                .map(|x| triangle_nominal_index(x as f32 / x_den, n, LogoRegion::TopTriangle))
+                .collect();
+
+            let scan_start = nominal_by_col[width / 4].min(n - 1);
+            let min_window = min_active_window_for_columns(n, width, 2);
+
+            let mut rng = SmallRng::seed_from_u64(17);
+            let mut state = SortState::new(n, &mut rng);
+            state.apply_sort_step(scan_start);
+
+            let active_cols = nominal_by_col
+                .iter()
+                .filter(|&&idx| {
+                    state.style_for_index_with_min_window(idx, min_window) == BandStyle::Active
+                })
+                .count();
+
+            assert!(
+                active_cols >= 2,
+                "width={width} min_window={min_window} active_cols={active_cols}"
+            );
+        }
     }
 }
