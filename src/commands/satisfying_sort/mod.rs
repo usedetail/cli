@@ -9,7 +9,7 @@ use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
         cursor::{Hide, Show},
-        terminal::{EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     },
     widgets::Clear,
     Terminal,
@@ -38,13 +38,38 @@ struct TerminalSession {
     last_size: (usize, usize),
 }
 
+fn restore_unowned_terminal_state() {
+    let _ = disable_raw_mode();
+    let mut stdout = io::stdout();
+    let _ = ratatui::crossterm::execute!(stdout, Show, LeaveAlternateScreen);
+}
+
+fn restore_terminal_state(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) {
+    let _ = disable_raw_mode();
+    let _ = ratatui::crossterm::execute!(terminal.backend_mut(), Show, LeaveAlternateScreen);
+    let _ = terminal.show_cursor();
+}
+
 impl TerminalSession {
     fn enter() -> Result<Self> {
         let mut stdout = io::stdout();
-        ratatui::crossterm::execute!(stdout, EnterAlternateScreen, Hide)?;
+        enable_raw_mode()?;
+        if let Err(err) = ratatui::crossterm::execute!(stdout, EnterAlternateScreen, Hide) {
+            restore_unowned_terminal_state();
+            return Err(err.into());
+        }
         let backend = CrosstermBackend::new(stdout);
-        let mut terminal = Terminal::new(backend)?;
-        terminal.clear()?;
+        let mut terminal = match Terminal::new(backend) {
+            Ok(terminal) => terminal,
+            Err(err) => {
+                restore_unowned_terminal_state();
+                return Err(err.into());
+            }
+        };
+        if let Err(err) = terminal.clear() {
+            restore_terminal_state(&mut terminal);
+            return Err(err.into());
+        }
         let initial_size = terminal
             .size()
             .map(|rect| (usize::from(rect.height), usize::from(rect.width)))
@@ -94,9 +119,7 @@ impl TerminalSession {
 
 impl Drop for TerminalSession {
     fn drop(&mut self) {
-        let _ =
-            ratatui::crossterm::execute!(self.terminal.backend_mut(), Show, LeaveAlternateScreen);
-        let _ = self.terminal.show_cursor();
+        restore_terminal_state(&mut self.terminal);
     }
 }
 
@@ -169,12 +192,15 @@ async fn run_completion_pass(
     stop: &Arc<AtomicBool>,
 ) -> Result<()> {
     let n = state.len();
+    let Some(last_index) = n.checked_sub(1) else {
+        return Ok(());
+    };
     let speed_divisor = 110usize.saturating_sub(usize::from(GREEN_SPEED)).max(1);
     let bars_per_frame = (n / speed_divisor).max(1);
 
     let mut index = 0usize;
     while index < n && !stop.load(Ordering::SeqCst) {
-        let done = (index + bars_per_frame - 1).min(n - 1);
+        let done = (index + bars_per_frame - 1).min(last_index);
         state.set_completion_index(done);
         session.draw(state)?;
         sleep_interruptible(Duration::from_millis(FRAME_MS), stop).await;
@@ -182,7 +208,7 @@ async fn run_completion_pass(
     }
 
     if !stop.load(Ordering::SeqCst) {
-        state.set_completion_index(n - 1);
+        state.set_completion_index(last_index);
         session.draw(state)?;
     }
 
