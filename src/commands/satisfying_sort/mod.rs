@@ -1,7 +1,6 @@
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -10,8 +9,7 @@ use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
         cursor::{Hide, Show},
-        event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen},
     },
     widgets::Clear,
     Terminal,
@@ -41,46 +39,18 @@ struct TerminalSession {
 }
 
 fn restore_unowned_terminal_state() {
-    let _ = disable_raw_mode();
     let mut stdout = io::stdout();
     let _ = ratatui::crossterm::execute!(stdout, Show, LeaveAlternateScreen);
 }
 
 fn restore_terminal_state(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) {
-    let _ = disable_raw_mode();
     let _ = ratatui::crossterm::execute!(terminal.backend_mut(), Show, LeaveAlternateScreen);
     let _ = terminal.show_cursor();
-}
-
-fn is_ctrl_c_press(key: KeyEvent) -> bool {
-    key.kind == KeyEventKind::Press
-        && key.modifiers.contains(KeyModifiers::CONTROL)
-        && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('C'))
-}
-
-fn spawn_key_interrupt_listener(stop: Arc<AtomicBool>) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        while !stop.load(Ordering::SeqCst) {
-            match event::poll(Duration::from_millis(50)) {
-                Ok(true) => match event::read() {
-                    Ok(Event::Key(key)) if is_ctrl_c_press(key) => {
-                        stop.store(true, Ordering::SeqCst);
-                        break;
-                    }
-                    Ok(_) => {}
-                    Err(_) => break,
-                },
-                Ok(false) => {}
-                Err(_) => break,
-            }
-        }
-    })
 }
 
 impl TerminalSession {
     fn enter() -> Result<Self> {
         let mut stdout = io::stdout();
-        enable_raw_mode()?;
         if let Err(err) = ratatui::crossterm::execute!(stdout, EnterAlternateScreen, Hide) {
             restore_unowned_terminal_state();
             return Err(err.into());
@@ -153,44 +123,34 @@ impl Drop for TerminalSession {
 pub async fn handle() -> Result<()> {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_for_signal = Arc::clone(&stop);
-    let signal_listener = tokio::spawn(async move {
+    tokio::spawn(async move {
         let _ = signal::ctrl_c().await;
         stop_for_signal.store(true, Ordering::SeqCst);
     });
-    let key_listener = spawn_key_interrupt_listener(Arc::clone(&stop));
 
-    let run_result = async {
-        let mut session = TerminalSession::enter()?;
-        let mut rng = SmallRng::seed_from_u64(rand::random());
-        let mut state = SortState::new(ARRAY_SIZE, &mut rng);
+    let mut session = TerminalSession::enter()?;
+    let mut rng = SmallRng::seed_from_u64(rand::random());
+    let mut state = SortState::new(ARRAY_SIZE, &mut rng);
 
-        session.draw(&state)?;
+    session.draw(&state)?;
 
-        while !stop.load(Ordering::SeqCst) {
-            run_sort_pass(&mut state, &mut session, &stop).await?;
-            if stop.load(Ordering::SeqCst) {
-                break;
-            }
-
-            run_completion_pass(&mut state, &mut session, &stop).await?;
-            if stop.load(Ordering::SeqCst) {
-                break;
-            }
-
-            sleep_interruptible(Duration::from_millis(LOOP_DELAY_MS), &stop).await;
-            state.reset(&mut rng);
-            session.draw(&state)?;
+    while !stop.load(Ordering::SeqCst) {
+        run_sort_pass(&mut state, &mut session, &stop).await?;
+        if stop.load(Ordering::SeqCst) {
+            break;
         }
 
-        Ok(())
+        run_completion_pass(&mut state, &mut session, &stop).await?;
+        if stop.load(Ordering::SeqCst) {
+            break;
+        }
+
+        sleep_interruptible(Duration::from_millis(LOOP_DELAY_MS), &stop).await;
+        state.reset(&mut rng);
+        session.draw(&state)?;
     }
-    .await;
 
-    stop.store(true, Ordering::SeqCst);
-    let _ = key_listener.join();
-    signal_listener.abort();
-
-    run_result
+    Ok(())
 }
 
 async fn run_sort_pass(
@@ -260,24 +220,5 @@ async fn sleep_interruptible(duration: Duration, stop: &Arc<AtomicBool>) {
         let current = if remaining > chunk { chunk } else { remaining };
         sleep(current).await;
         remaining = remaining.checked_sub(current).unwrap_or(Duration::ZERO);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn detects_ctrl_c_keypress() {
-        let key = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
-        assert!(is_ctrl_c_press(key));
-    }
-
-    #[test]
-    fn ignores_non_ctrl_c_keypress() {
-        let plain_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE);
-        let ctrl_x = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL);
-        assert!(!is_ctrl_c_press(plain_c));
-        assert!(!is_ctrl_c_press(ctrl_x));
     }
 }
