@@ -1,6 +1,6 @@
 pub mod auth;
 pub mod bugs;
-pub mod fun;
 pub mod repos;
+pub mod satisfying_sort;
 pub mod skill;
 pub mod update;
