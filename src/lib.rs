@@ -85,6 +85,7 @@ impl Cli {
         match &self.command {
             Commands::Auth { command } => commands::auth::handle(command, &self).await,
             Commands::Bugs { command } => commands::bugs::handle(command, &self).await,
+            Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
             Commands::Skill => commands::skill::handle(),
             Commands::Update => commands::update::handle().await,
@@ -115,6 +116,10 @@ enum Commands {
         #[command(subcommand)]
         command: commands::bugs::BugCommands,
     },
+
+    /// Run a fun animation. Humans only.
+    #[command(name = "satisfying-sort")]
+    SatisfyingSort,
 
     /// Manage repos tracked with Detail
     Repos {
@@ -198,6 +203,12 @@ mod tests {
     #[test]
     fn not_silent_for_skill() {
         let cli = Cli::try_parse_from(["detail", "skill"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_satisfying_sort() {
+        let cli = Cli::try_parse_from(["detail", "satisfying-sort"]).unwrap();
         assert!(!cli.is_silent());
     }
 
