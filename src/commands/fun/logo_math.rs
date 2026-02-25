@@ -8,8 +8,8 @@ const CENTER_BAND_A_MAX: f32 = 0.914;
 const CENTER_BAND_B_MIN: f32 = 1.086;
 const CENTER_BAND_B_MAX: f32 = 1.266;
 const BOTTOM_TRIANGLE_DIAG_MIN: f32 = 1.434;
-pub(super) const TOP_TRIANGLE_X_SPAN: f32 = TOP_TRIANGLE_DIAG_MAX;
-pub(super) const BOTTOM_TRIANGLE_X_SPAN: f32 = TOP_TRIANGLE_DIAG_MAX;
+const TOP_TRIANGLE_X_SPAN: f32 = TOP_TRIANGLE_DIAG_MAX;
+const BOTTOM_TRIANGLE_X_SPAN: f32 = TOP_TRIANGLE_DIAG_MAX;
 
 static LOGO_MASK: OnceLock<LogoMask> = OnceLock::new();
 
@@ -22,10 +22,10 @@ pub(super) enum LogoRegion {
 }
 
 #[derive(Clone)]
-pub(super) struct LogoMask {
-    pub(super) width: usize,
-    pub(super) height: usize,
-    pub(super) regions: Vec<LogoRegion>,
+struct LogoMask {
+    width: usize,
+    height: usize,
+    regions: Vec<LogoRegion>,
 }
 
 impl LogoMask {
@@ -33,7 +33,7 @@ impl LogoMask {
         Self::generated(LOGO_MASK_SIZE)
     }
 
-    pub(super) fn generated(size: usize) -> Self {
+    fn generated(size: usize) -> Self {
         let side = size.max(64);
         let mut regions = vec![LogoRegion::Empty; side * side];
         let denom = (side.saturating_sub(1).max(1)) as f32;
@@ -61,10 +61,6 @@ impl LogoMask {
             regions,
         }
     }
-}
-
-pub(super) fn logo_mask() -> &'static LogoMask {
-    LOGO_MASK.get_or_init(LogoMask::from_embedded_or_fallback)
 }
 
 pub(super) fn triangle_nominal_index(nx: f32, n: usize, region: LogoRegion) -> usize {
@@ -117,7 +113,26 @@ pub(super) fn source_local_x_for_index(
     ((nx * max_col as f32).round() as usize).min(max_col)
 }
 
-pub(super) fn mask_region_at(
+pub(super) fn logo_region_at(
+    local_x: usize,
+    local_y: usize,
+    viewport_width: usize,
+    viewport_height: usize,
+) -> LogoRegion {
+    mask_region_at(
+        logo_mask(),
+        local_x,
+        local_y,
+        viewport_width,
+        viewport_height,
+    )
+}
+
+fn logo_mask() -> &'static LogoMask {
+    LOGO_MASK.get_or_init(LogoMask::from_embedded_or_fallback)
+}
+
+fn mask_region_at(
     logo: &LogoMask,
     local_x: usize,
     local_y: usize,
@@ -135,10 +150,7 @@ pub(super) fn mask_region_at(
 }
 
 #[cfg(test)]
-pub(super) fn region_bbox(
-    logo: &LogoMask,
-    region: LogoRegion,
-) -> Option<(usize, usize, usize, usize)> {
+fn region_bbox(logo: &LogoMask, region: LogoRegion) -> Option<(usize, usize, usize, usize)> {
     let mut min_x = usize::MAX;
     let mut min_y = usize::MAX;
     let mut max_x = 0usize;
@@ -162,5 +174,120 @@ pub(super) fn region_bbox(
         Some((min_x, max_x, min_y, max_y))
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generated_logo_has_symmetric_corner_triangles() {
+        let mask = LogoMask::generated(256);
+        let top = mask
+            .regions
+            .iter()
+            .filter(|region| **region == LogoRegion::TopTriangle)
+            .count();
+        let bottom = mask
+            .regions
+            .iter()
+            .filter(|region| **region == LogoRegion::BottomTriangle)
+            .count();
+        assert_eq!(top, bottom);
+
+        let center_x = mask.width / 2;
+        let center_y = mask.height / 2;
+        assert_eq!(
+            mask.regions[center_y * mask.width + center_x],
+            LogoRegion::Empty
+        );
+        assert_eq!(
+            mask.regions[(mask.height - 1) * mask.width + (mask.width - 1)],
+            LogoRegion::BottomTriangle
+        );
+        assert_eq!(mask.regions[0], LogoRegion::TopTriangle);
+    }
+
+    #[test]
+    fn top_and_bottom_triangle_boxes_have_matching_run_and_rise() {
+        let mask = LogoMask::generated(512);
+        let (top_min_x, top_max_x, top_min_y, top_max_y) =
+            region_bbox(&mask, LogoRegion::TopTriangle).expect("top triangle missing");
+        let (bottom_min_x, bottom_max_x, bottom_min_y, bottom_max_y) =
+            region_bbox(&mask, LogoRegion::BottomTriangle).expect("bottom triangle missing");
+
+        let top_w = top_max_x - top_min_x + 1;
+        let top_h = top_max_y - top_min_y + 1;
+        let bottom_w = bottom_max_x - bottom_min_x + 1;
+        let bottom_h = bottom_max_y - bottom_min_y + 1;
+
+        assert_eq!(top_w, top_h);
+        assert_eq!(bottom_w, bottom_h);
+        assert_eq!(top_w, bottom_w);
+    }
+
+    #[test]
+    fn triangle_index_mapping_is_directional() {
+        let n = 100usize;
+        assert_eq!(triangle_nominal_index(0.0, n, LogoRegion::TopTriangle), 0);
+        assert_eq!(
+            triangle_nominal_index(1.0, n, LogoRegion::TopTriangle),
+            n - 1
+        );
+        assert_eq!(
+            triangle_nominal_index(0.0, n, LogoRegion::BottomTriangle),
+            n - 1
+        );
+        assert_eq!(
+            triangle_nominal_index(1.0, n, LogoRegion::BottomTriangle),
+            0
+        );
+    }
+
+    #[test]
+    fn source_column_uses_shuffled_order() {
+        let array = vec![2, 1, 3, 4, 5, 6, 7, 8];
+        let n = array.len();
+        let viewport_width = 80;
+
+        let nominal_left = 0usize;
+        let nominal_next = 1usize;
+        let shuffled_left = shuffled_index_for_nominal(&array, nominal_left, n);
+        let shuffled_next = shuffled_index_for_nominal(&array, nominal_next, n);
+
+        let source_left =
+            source_local_x_for_index(shuffled_left, n, LogoRegion::TopTriangle, viewport_width);
+        let source_next =
+            source_local_x_for_index(shuffled_next, n, LogoRegion::TopTriangle, viewport_width);
+
+        assert!(source_left > source_next);
+    }
+
+    #[test]
+    fn mask_region_lookup_tracks_generated_mask() {
+        let logo = LogoMask::generated(128);
+        let viewport_width = 64usize;
+        let viewport_height = 64usize;
+
+        let top = mask_region_at(&logo, 0, 0, viewport_width, viewport_height);
+        let center = mask_region_at(
+            &logo,
+            viewport_width / 2,
+            viewport_height / 2,
+            viewport_width,
+            viewport_height,
+        );
+        let bottom = mask_region_at(
+            &logo,
+            viewport_width - 1,
+            viewport_height - 1,
+            viewport_width,
+            viewport_height,
+        );
+
+        assert_eq!(top, LogoRegion::TopTriangle);
+        assert_eq!(center, LogoRegion::Empty);
+        assert_eq!(bottom, LogoRegion::BottomTriangle);
     }
 }

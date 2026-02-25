@@ -10,13 +10,13 @@ pub(super) enum BandStyle {
 }
 
 pub(super) struct SortState {
-    pub(super) array: Vec<usize>,
-    pub(super) source_array: Vec<usize>,
-    pub(super) current_scan_index: Option<usize>,
-    pub(super) base_window_size: usize,
-    pub(super) scan_complete: bool,
-    pub(super) complete_scan_index: Option<usize>,
-    pub(super) current_window_size: usize,
+    array: Vec<usize>,
+    source_array: Vec<usize>,
+    current_scan_index: Option<usize>,
+    base_window_size: usize,
+    scan_complete: bool,
+    complete_scan_index: Option<usize>,
+    current_window_size: usize,
 }
 
 impl SortState {
@@ -42,11 +42,37 @@ impl SortState {
         self.reset_flags();
     }
 
-    pub(super) fn reset_flags(&mut self) {
+    pub(super) fn len(&self) -> usize {
+        self.array.len()
+    }
+
+    pub(super) fn source_array(&self) -> &[usize] {
+        &self.source_array
+    }
+
+    pub(super) fn current_scan_index(&self) -> Option<usize> {
+        self.current_scan_index
+    }
+
+    pub(super) fn scan_complete(&self) -> bool {
+        self.scan_complete
+    }
+
+    pub(super) fn apply_sort_step(&mut self, index: usize) {
+        self.current_window_size = self.base_window_size.max(1);
+        self.current_scan_index = Some(index);
+        place_target_value(&mut self.array, index);
+    }
+
+    pub(super) fn finalize_sort_pass(&mut self) {
+        self.scan_complete = true;
         self.current_scan_index = None;
-        self.scan_complete = false;
-        self.complete_scan_index = None;
         self.current_window_size = 0;
+        self.complete_scan_index = None;
+    }
+
+    pub(super) fn set_completion_index(&mut self, index: usize) {
+        self.complete_scan_index = Some(index);
     }
 
     pub(super) fn style_for_index(&self, index: usize) -> BandStyle {
@@ -65,6 +91,13 @@ impl SortState {
 
         BandStyle::Idle
     }
+
+    fn reset_flags(&mut self) {
+        self.current_scan_index = None;
+        self.scan_complete = false;
+        self.complete_scan_index = None;
+        self.current_window_size = 0;
+    }
 }
 
 fn in_window(index: usize, start: usize, len: usize) -> bool {
@@ -80,7 +113,7 @@ pub(super) fn sort_delay_ms() -> u64 {
     u64::from(100u8.saturating_sub(SPEED)) / 2
 }
 
-pub(super) fn generate_array(array_size: usize, rng: &mut impl Rng) -> Vec<usize> {
+fn generate_array(array_size: usize, rng: &mut impl Rng) -> Vec<usize> {
     let mut array: Vec<usize> = (1..=array_size).collect();
     if array_size <= 1 {
         return array;
@@ -99,7 +132,7 @@ pub(super) fn generate_array(array_size: usize, rng: &mut impl Rng) -> Vec<usize
     array
 }
 
-pub(super) fn place_target_value(array: &mut [usize], index: usize) {
+fn place_target_value(array: &mut [usize], index: usize) {
     let target = index + 1;
     if array[index] == target {
         return;
@@ -107,5 +140,53 @@ pub(super) fn place_target_value(array: &mut [usize], index: usize) {
 
     if let Some(found_offset) = array[index + 1..].iter().position(|v| *v == target) {
         array.swap(index, index + 1 + found_offset);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::{rngs::SmallRng, SeedableRng};
+
+    use super::*;
+
+    #[test]
+    fn generated_array_is_permutation() {
+        let mut rng = SmallRng::seed_from_u64(7);
+        let mut array = generate_array(128, &mut rng);
+        array.sort_unstable();
+        let expected: Vec<usize> = (1..=128).collect();
+        assert_eq!(array, expected);
+    }
+
+    #[test]
+    fn place_target_value_moves_target_into_place() {
+        let mut array = vec![3, 2, 1, 4];
+        place_target_value(&mut array, 0);
+        assert_eq!(array, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn style_for_index_respects_active_window() {
+        let mut rng = SmallRng::seed_from_u64(1);
+        let mut state = SortState::new(64, &mut rng);
+        state.scan_complete = false;
+        state.current_scan_index = Some(10);
+        state.current_window_size = 8;
+
+        assert_eq!(state.style_for_index(11), BandStyle::Active);
+        assert_eq!(state.style_for_index(12), BandStyle::Active);
+        assert_eq!(state.style_for_index(14), BandStyle::Active);
+        assert_eq!(state.style_for_index(15), BandStyle::Active);
+    }
+
+    #[test]
+    fn style_for_index_marks_completion() {
+        let mut rng = SmallRng::seed_from_u64(9);
+        let mut state = SortState::new(32, &mut rng);
+        state.scan_complete = true;
+        state.complete_scan_index = Some(5);
+
+        assert_eq!(state.style_for_index(3), BandStyle::Complete);
+        assert_eq!(state.style_for_index(7), BandStyle::Idle);
     }
 }
