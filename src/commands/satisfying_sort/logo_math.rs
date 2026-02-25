@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+use super::numeric::{floor_f32_to_usize, round_f32_to_usize, usize_to_f32};
 use super::LOGO_MASK_SIZE;
 
 const TOP_TRIANGLE_DIAG_MAX: f32 = 0.566;
@@ -28,38 +29,32 @@ struct LogoMask {
     regions: Vec<LogoRegion>,
 }
 
-impl LogoMask {
-    fn from_embedded_or_fallback() -> Self {
-        Self::generated(LOGO_MASK_SIZE)
+fn generate_logo_mask(size: usize) -> LogoMask {
+    let side = size.max(64);
+    let mut regions = vec![LogoRegion::Empty; side * side];
+    let denom = usize_to_f32(side.saturating_sub(1).max(1));
+
+    for y in 0..side {
+        for x in 0..side {
+            let d = (usize_to_f32(x) + usize_to_f32(y)) / denom;
+            regions[y * side + x] = if d <= TOP_TRIANGLE_DIAG_MAX {
+                LogoRegion::TopTriangle
+            } else if d >= BOTTOM_TRIANGLE_DIAG_MIN {
+                LogoRegion::BottomTriangle
+            } else if (CENTER_BAND_A_MIN..=CENTER_BAND_A_MAX).contains(&d)
+                || (CENTER_BAND_B_MIN..=CENTER_BAND_B_MAX).contains(&d)
+            {
+                LogoRegion::Static
+            } else {
+                LogoRegion::Empty
+            };
+        }
     }
 
-    fn generated(size: usize) -> Self {
-        let side = size.max(64);
-        let mut regions = vec![LogoRegion::Empty; side * side];
-        let denom = (side.saturating_sub(1).max(1)) as f32;
-
-        for y in 0..side {
-            for x in 0..side {
-                let d = (x as f32 + y as f32) / denom;
-                regions[y * side + x] = if d <= TOP_TRIANGLE_DIAG_MAX {
-                    LogoRegion::TopTriangle
-                } else if d >= BOTTOM_TRIANGLE_DIAG_MIN {
-                    LogoRegion::BottomTriangle
-                } else if (CENTER_BAND_A_MIN..=CENTER_BAND_A_MAX).contains(&d)
-                    || (CENTER_BAND_B_MIN..=CENTER_BAND_B_MAX).contains(&d)
-                {
-                    LogoRegion::Static
-                } else {
-                    LogoRegion::Empty
-                };
-            }
-        }
-
-        Self {
-            width: side,
-            height: side,
-            regions,
-        }
+    LogoMask {
+        width: side,
+        height: side,
+        regions,
     }
 }
 
@@ -76,7 +71,7 @@ pub(super) fn triangle_nominal_index(nx: f32, n: usize, region: LogoRegion) -> u
         _ => 0.0,
     };
     let t = (direction_x / span).clamp(0.0, 1.0);
-    ((t * n as f32).floor() as usize).min(n - 1)
+    floor_f32_to_usize(t * usize_to_f32(n)).min(n - 1)
 }
 
 pub(super) fn shuffled_index_for_nominal(array: &[usize], nominal_index: usize, n: usize) -> usize {
@@ -102,7 +97,7 @@ pub(super) fn source_local_x_for_index(
     let unit = if n <= 1 {
         0.0
     } else {
-        shuffled_index.min(n - 1) as f32 / (n - 1) as f32
+        usize_to_f32(shuffled_index.min(n - 1)) / usize_to_f32(n - 1)
     };
 
     let nx = match region {
@@ -110,7 +105,7 @@ pub(super) fn source_local_x_for_index(
         LogoRegion::BottomTriangle => (1.0 - unit * BOTTOM_TRIANGLE_X_SPAN).clamp(0.0, 1.0),
         LogoRegion::Static | LogoRegion::Empty => unit.clamp(0.0, 1.0),
     };
-    ((nx * max_col as f32).round() as usize).min(max_col)
+    round_f32_to_usize(nx * usize_to_f32(max_col)).min(max_col)
 }
 
 pub(super) fn logo_region_at(
@@ -129,7 +124,7 @@ pub(super) fn logo_region_at(
 }
 
 fn logo_mask() -> &'static LogoMask {
-    LOGO_MASK.get_or_init(LogoMask::from_embedded_or_fallback)
+    LOGO_MASK.get_or_init(|| generate_logo_mask(LOGO_MASK_SIZE))
 }
 
 fn mask_region_at(
@@ -143,9 +138,12 @@ fn mask_region_at(
         return LogoRegion::Empty;
     }
 
-    let x = (((local_x as f32 + 0.5) * logo.width as f32) / viewport_width as f32).floor() as usize;
-    let y =
-        (((local_y as f32 + 0.5) * logo.height as f32) / viewport_height as f32).floor() as usize;
+    let x = floor_f32_to_usize(
+        ((usize_to_f32(local_x) + 0.5) * usize_to_f32(logo.width)) / usize_to_f32(viewport_width),
+    );
+    let y = floor_f32_to_usize(
+        ((usize_to_f32(local_y) + 0.5) * usize_to_f32(logo.height)) / usize_to_f32(viewport_height),
+    );
     logo.regions[y.min(logo.height - 1) * logo.width + x.min(logo.width - 1)]
 }
 
@@ -183,7 +181,7 @@ mod tests {
 
     #[test]
     fn generated_logo_has_symmetric_corner_triangles() {
-        let mask = LogoMask::generated(256);
+        let mask = generate_logo_mask(256);
         let top = mask
             .regions
             .iter()
@@ -211,7 +209,7 @@ mod tests {
 
     #[test]
     fn top_and_bottom_triangle_boxes_have_matching_run_and_rise() {
-        let mask = LogoMask::generated(512);
+        let mask = generate_logo_mask(512);
         let (top_min_x, top_max_x, top_min_y, top_max_y) =
             region_bbox(&mask, LogoRegion::TopTriangle).expect("top triangle missing");
         let (bottom_min_x, bottom_max_x, bottom_min_y, bottom_max_y) =
@@ -266,7 +264,7 @@ mod tests {
 
     #[test]
     fn mask_region_lookup_tracks_generated_mask() {
-        let logo = LogoMask::generated(128);
+        let logo = generate_logo_mask(128);
         let viewport_width = 64usize;
         let viewport_height = 64usize;
 

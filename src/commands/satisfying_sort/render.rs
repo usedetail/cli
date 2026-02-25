@@ -4,6 +4,7 @@ use super::logo_math::{
     logo_region_at, shuffled_index_for_nominal, source_local_x_for_index, triangle_nominal_index,
     LogoRegion,
 };
+use super::numeric::{floor_f32_to_usize, round_f32_to_usize, usize_to_f32};
 use super::sort_state::{BandStyle, SortState};
 
 const VIEWPORT_TOP_PADDING: usize = 1;
@@ -11,15 +12,10 @@ const VIEWPORT_SIDE_PADDING: usize = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PixelStyle {
-    Reset,
-    Static,
-    Triangle(BandStyle),
-}
-
-impl PixelStyle {
-    fn from_band(style: BandStyle) -> Self {
-        Self::Triangle(style)
-    }
+    Off,
+    Base,
+    Active,
+    Complete,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,9 +47,9 @@ pub(super) fn compute_logo_viewport(
         return None;
     }
 
-    let side_from_width = ((available_width as f32) / aspect_x).floor() as usize;
-    let side = available_height.min(side_from_width.max(1)).max(1);
-    let viewport_width = ((side as f32) * aspect_x).round() as usize;
+    let side_from_width = floor_f32_to_usize(usize_to_f32(available_width) / aspect_x);
+    let side = available_height.min(side_from_width).max(1);
+    let viewport_width = round_f32_to_usize(usize_to_f32(side) * aspect_x);
     let viewport_width = viewport_width.max(1).min(available_width);
 
     Some(LogoViewport {
@@ -66,11 +62,7 @@ pub(super) fn compute_logo_viewport(
 }
 
 pub(super) fn halfblocks_cell_aspect_x() -> f32 {
-    if let Some(detected) = detect_halfblocks_cell_aspect_x() {
-        return detected;
-    }
-
-    1.0
+    detect_halfblocks_cell_aspect_x().unwrap_or(1.0)
 }
 
 #[cfg(unix)]
@@ -91,8 +83,8 @@ fn detect_halfblocks_cell_aspect_x() -> Option<f32> {
         return None;
     }
 
-    let char_w = winsize.ws_xpixel as f32 / winsize.ws_col as f32;
-    let char_h = winsize.ws_ypixel as f32 / winsize.ws_row as f32;
+    let char_w = f32::from(winsize.ws_xpixel) / f32::from(winsize.ws_col);
+    let char_h = f32::from(winsize.ws_ypixel) / f32::from(winsize.ws_row);
     if char_w <= 0.0 || char_h <= 0.0 {
         return None;
     }
@@ -107,11 +99,9 @@ fn detect_halfblocks_cell_aspect_x() -> Option<f32> {
 
 fn pixel_style_color(style: PixelStyle) -> Color {
     match style {
-        PixelStyle::Reset => Color::Reset,
-        PixelStyle::Static => Color::Reset,
-        PixelStyle::Triangle(BandStyle::Idle) => Color::Reset,
-        PixelStyle::Triangle(BandStyle::Active) => Color::Blue,
-        PixelStyle::Triangle(BandStyle::Complete) => Color::Green,
+        PixelStyle::Off | PixelStyle::Base => Color::Reset,
+        PixelStyle::Active => Color::Blue,
+        PixelStyle::Complete => Color::Green,
     }
 }
 
@@ -119,11 +109,14 @@ pub(super) fn render_halfblocks_logo(f: &mut Frame<'_>, state: &SortState, viewp
     let buf = f.buffer_mut();
 
     rasterize_halfblocks(state, viewport, |x, y, top_style, bottom_style| {
-        let top_on = top_style != PixelStyle::Reset;
-        let bottom_on = bottom_style != PixelStyle::Reset;
+        let top_on = top_style != PixelStyle::Off;
+        let bottom_on = bottom_style != PixelStyle::Off;
         let top_color = pixel_style_color(top_style);
         let bottom_color = pixel_style_color(bottom_style);
-        let Some(cell) = buf.cell_mut((x as u16, y as u16)) else {
+        let (Ok(x), Ok(y)) = (u16::try_from(x), u16::try_from(y)) else {
+            return;
+        };
+        let Some(cell) = buf.cell_mut((x, y)) else {
             return;
         };
 
@@ -169,7 +162,7 @@ fn rasterize_halfblocks(
     let n = state.len().max(1);
     let viewport_right = viewport.left.saturating_add(viewport.width);
     let viewport_bottom = viewport.top.saturating_add(viewport.height_rows);
-    let x_den = viewport.width.saturating_sub(1).max(1) as f32;
+    let x_den = usize_to_f32(viewport.width.saturating_sub(1).max(1));
     let active_min_window = min_active_window_for_columns(n, viewport.width, 2);
     let pixel_ctx = PixelQueryCtx {
         state,
@@ -188,7 +181,7 @@ fn rasterize_halfblocks(
             let bottom_style = if local_y + 1 < viewport.side {
                 pixel_style_at(&pixel_ctx, local_x, local_y + 1)
             } else {
-                PixelStyle::Reset
+                PixelStyle::Off
             };
             visit(x, y, top_style, bottom_style);
         }
@@ -198,26 +191,30 @@ fn rasterize_halfblocks(
 fn pixel_style_at(ctx: &PixelQueryCtx<'_>, local_x: usize, local_y: usize) -> PixelStyle {
     let region = logo_region_at(local_x, local_y, ctx.viewport_width, ctx.viewport_height);
     if region == LogoRegion::Empty {
-        return PixelStyle::Reset;
+        return PixelStyle::Off;
     }
 
     if matches!(region, LogoRegion::TopTriangle | LogoRegion::BottomTriangle) {
-        let nx = local_x as f32 / ctx.x_den;
+        let nx = usize_to_f32(local_x) / ctx.x_den;
         let nominal_index = triangle_nominal_index(nx, ctx.n, region);
         let shuffled_index = visual_source_index_for_nominal(ctx.state, nominal_index, ctx.n);
         let source_x = source_local_x_for_index(shuffled_index, ctx.n, region, ctx.viewport_width);
         let source_region =
             logo_region_at(source_x, local_y, ctx.viewport_width, ctx.viewport_height);
         if source_region != region {
-            return PixelStyle::Reset;
+            return PixelStyle::Off;
         }
-        return PixelStyle::from_band(
-            ctx.state
-                .style_for_index_with_min_window(nominal_index, ctx.active_min_window),
-        );
+        return match ctx
+            .state
+            .style_for_index_with_min_window(nominal_index, ctx.active_min_window)
+        {
+            BandStyle::Idle => PixelStyle::Base,
+            BandStyle::Active => PixelStyle::Active,
+            BandStyle::Complete => PixelStyle::Complete,
+        };
     }
 
-    PixelStyle::Static
+    PixelStyle::Base
 }
 
 fn visual_source_index_for_nominal(state: &SortState, nominal_index: usize, n: usize) -> usize {
@@ -242,14 +239,14 @@ fn min_active_window_for_columns(n: usize, viewport_width: usize, target_columns
         return n.min(target_columns);
     }
 
-    let x_den = viewport_width.saturating_sub(1).max(1) as f32;
+    let x_den = usize_to_f32(viewport_width.saturating_sub(1).max(1));
     let mut prev = triangle_nominal_index(0.0, n, LogoRegion::TopTriangle);
     let mut max_step = 1usize;
 
     for x in 1..viewport_width {
-        let nx = x as f32 / x_den;
+        let nx = usize_to_f32(x) / x_den;
         let idx = triangle_nominal_index(nx, n, LogoRegion::TopTriangle);
-        max_step = max_step.max(idx.saturating_sub(prev)).max(1);
+        max_step = max_step.max(idx.saturating_sub(prev));
         prev = idx;
     }
 
@@ -258,13 +255,13 @@ fn min_active_window_for_columns(n: usize, viewport_width: usize, target_columns
 
 #[cfg(test)]
 fn half_block_cell(top: PixelStyle, bottom: PixelStyle) -> (PixelStyle, char) {
-    if top == PixelStyle::Reset && bottom == PixelStyle::Reset {
-        return (PixelStyle::Reset, ' ');
+    if top == PixelStyle::Off && bottom == PixelStyle::Off {
+        return (PixelStyle::Off, ' ');
     }
 
     match (top, bottom) {
-        (PixelStyle::Reset, style) => (style, '▄'),
-        (style, PixelStyle::Reset) => (style, '▀'),
+        (PixelStyle::Off, style) => (style, '▄'),
+        (style, PixelStyle::Off) => (style, '▀'),
         (a, b) if a == b => (a, '█'),
         (top_style, _) => (top_style, '▀'),
     }
@@ -278,9 +275,9 @@ mod tests {
 
     #[test]
     fn half_block_cells_use_block_glyphs_without_color() {
-        let (_, up) = half_block_cell(PixelStyle::Static, PixelStyle::Reset);
-        let (_, down) = half_block_cell(PixelStyle::Reset, PixelStyle::Static);
-        let (_, full) = half_block_cell(PixelStyle::Static, PixelStyle::Static);
+        let (_, up) = half_block_cell(PixelStyle::Base, PixelStyle::Off);
+        let (_, down) = half_block_cell(PixelStyle::Off, PixelStyle::Base);
+        let (_, full) = half_block_cell(PixelStyle::Base, PixelStyle::Base);
         assert_eq!(up, '▀');
         assert_eq!(down, '▄');
         assert_eq!(full, '█');
@@ -331,19 +328,9 @@ mod tests {
 
     #[test]
     fn halfblock_palette_matches_requested_defaults() {
-        assert_eq!(pixel_style_color(PixelStyle::Static), Color::Reset);
-        assert_eq!(
-            pixel_style_color(PixelStyle::Triangle(BandStyle::Idle)),
-            Color::Reset
-        );
-        assert_eq!(
-            pixel_style_color(PixelStyle::Triangle(BandStyle::Active)),
-            Color::Blue
-        );
-        assert_eq!(
-            pixel_style_color(PixelStyle::Triangle(BandStyle::Complete)),
-            Color::Green
-        );
+        assert_eq!(pixel_style_color(PixelStyle::Base), Color::Reset);
+        assert_eq!(pixel_style_color(PixelStyle::Active), Color::Blue);
+        assert_eq!(pixel_style_color(PixelStyle::Complete), Color::Green);
     }
 
     #[test]
@@ -356,9 +343,11 @@ mod tests {
     fn min_active_window_produces_two_visible_blue_columns() {
         let n = 1000usize;
         for width in [80usize, 120, 160, 220] {
-            let x_den = width.saturating_sub(1).max(1) as f32;
+            let x_den = usize_to_f32(width.saturating_sub(1).max(1));
             let nominal_by_col: Vec<usize> = (0..width)
-                .map(|x| triangle_nominal_index(x as f32 / x_den, n, LogoRegion::TopTriangle))
+                .map(|x| {
+                    triangle_nominal_index(usize_to_f32(x) / x_den, n, LogoRegion::TopTriangle)
+                })
                 .collect();
 
             let scan_start = nominal_by_col[width / 4].min(n - 1);

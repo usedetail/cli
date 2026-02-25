@@ -1,5 +1,6 @@
 use rand::Rng;
 
+use super::numeric::{floor_f32_to_usize, usize_to_f32};
 use super::{NOISE, SPEED};
 
 const NOISE_SPREAD_FACTOR: f32 = 0.65;
@@ -11,41 +12,34 @@ pub(super) enum BandStyle {
     Complete,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Phase {
+    Idle,
+    Sorting { scan_start: usize },
+    Completion { done: Option<usize> },
+}
+
 pub(super) struct SortState {
-    array: Vec<usize>,
     source_array: Vec<usize>,
-    current_scan_index: Option<usize>,
-    base_window_size: usize,
-    scan_complete: bool,
-    complete_scan_index: Option<usize>,
-    current_window_size: usize,
+    phase: Phase,
 }
 
 impl SortState {
     pub(super) fn new(array_size: usize, rng: &mut impl Rng) -> Self {
-        let array = generate_array(array_size, rng);
-        let mut state = Self {
-            source_array: array.clone(),
-            array,
-            current_scan_index: None,
-            base_window_size: base_window_size(array_size),
-            scan_complete: false,
-            complete_scan_index: None,
-            current_window_size: 0,
-        };
-        state.reset_flags();
-        state
+        let source_array = generate_array(array_size, rng);
+        Self {
+            source_array,
+            phase: Phase::Idle,
+        }
     }
 
     pub(super) fn reset(&mut self, rng: &mut impl Rng) {
-        self.array = generate_array(self.array.len(), rng);
-        self.source_array = self.array.clone();
-        self.base_window_size = base_window_size(self.array.len());
-        self.reset_flags();
+        self.source_array = generate_array(self.source_array.len(), rng);
+        self.phase = Phase::Idle;
     }
 
     pub(super) fn len(&self) -> usize {
-        self.array.len()
+        self.source_array.len()
     }
 
     pub(super) fn source_array(&self) -> &[usize] {
@@ -53,28 +47,26 @@ impl SortState {
     }
 
     pub(super) fn current_scan_index(&self) -> Option<usize> {
-        self.current_scan_index
+        match self.phase {
+            Phase::Sorting { scan_start } => Some(scan_start),
+            Phase::Idle | Phase::Completion { .. } => None,
+        }
     }
 
     pub(super) fn scan_complete(&self) -> bool {
-        self.scan_complete
+        matches!(self.phase, Phase::Completion { .. })
     }
 
     pub(super) fn apply_sort_step(&mut self, index: usize) {
-        self.current_window_size = self.base_window_size.max(1);
-        self.current_scan_index = Some(index);
-        place_target_value(&mut self.array, index);
+        self.phase = Phase::Sorting { scan_start: index };
     }
 
     pub(super) fn finalize_sort_pass(&mut self) {
-        self.scan_complete = true;
-        self.current_scan_index = None;
-        self.current_window_size = 0;
-        self.complete_scan_index = None;
+        self.phase = Phase::Completion { done: None };
     }
 
     pub(super) fn set_completion_index(&mut self, index: usize) {
-        self.complete_scan_index = Some(index);
+        self.phase = Phase::Completion { done: Some(index) };
     }
 
     pub(super) fn style_for_index_with_min_window(
@@ -82,28 +74,23 @@ impl SortState {
         index: usize,
         min_window_size: usize,
     ) -> BandStyle {
-        if self.scan_complete {
-            if self.complete_scan_index.is_some_and(|done| index <= done) {
-                return BandStyle::Complete;
+        match self.phase {
+            Phase::Completion { done } => {
+                if done.is_some_and(|done| index <= done) {
+                    return BandStyle::Complete;
+                }
             }
-            return BandStyle::Idle;
-        }
-
-        if let Some(scan_start) = self.current_scan_index {
-            let window_size = self.current_window_size.max(min_window_size.max(1));
-            if in_window(index, scan_start, window_size) {
-                return BandStyle::Active;
+            Phase::Sorting { scan_start } => {
+                let window_size =
+                    base_window_size(self.source_array.len()).max(min_window_size.max(1));
+                if in_window(index, scan_start, window_size) {
+                    return BandStyle::Active;
+                }
             }
+            Phase::Idle => {}
         }
 
         BandStyle::Idle
-    }
-
-    fn reset_flags(&mut self) {
-        self.current_scan_index = None;
-        self.scan_complete = false;
-        self.complete_scan_index = None;
-        self.current_window_size = 0;
     }
 }
 
@@ -127,8 +114,8 @@ fn generate_array(array_size: usize, rng: &mut impl Rng) -> Vec<usize> {
     }
 
     let noise_percent = (f32::from(NOISE) / 100.0) * NOISE_SPREAD_FACTOR;
-    let max_swap_dist = ((array_size as f32) * noise_percent).floor() as usize;
-    let max_swap_dist = max_swap_dist.clamp(1, array_size.saturating_sub(1).max(1));
+    let max_swap_dist = floor_f32_to_usize(usize_to_f32(array_size) * noise_percent);
+    let max_swap_dist = max_swap_dist.clamp(1, array_size.saturating_sub(1));
 
     for i in (1..array.len()).rev() {
         let min_j = i.saturating_sub(max_swap_dist);
@@ -137,17 +124,6 @@ fn generate_array(array_size: usize, rng: &mut impl Rng) -> Vec<usize> {
     }
 
     array
-}
-
-fn place_target_value(array: &mut [usize], index: usize) {
-    let target = index + 1;
-    if array[index] == target {
-        return;
-    }
-
-    if let Some(found_offset) = array[index + 1..].iter().position(|v| *v == target) {
-        array.swap(index, index + 1 + found_offset);
-    }
 }
 
 #[cfg(test)]
@@ -166,19 +142,22 @@ mod tests {
     }
 
     #[test]
-    fn place_target_value_moves_target_into_place() {
-        let mut array = vec![3, 2, 1, 4];
-        place_target_value(&mut array, 0);
-        assert_eq!(array, vec![1, 2, 3, 4]);
+    fn state_source_array_is_permutation_after_reset() {
+        let mut rng = SmallRng::seed_from_u64(13);
+        let mut state = SortState::new(128, &mut rng);
+        state.reset(&mut rng);
+
+        let mut array = state.source_array().to_vec();
+        array.sort_unstable();
+        let expected: Vec<usize> = (1..=128).collect();
+        assert_eq!(array, expected);
     }
 
     #[test]
     fn style_for_index_respects_active_window() {
         let mut rng = SmallRng::seed_from_u64(1);
         let mut state = SortState::new(64, &mut rng);
-        state.scan_complete = false;
-        state.current_scan_index = Some(10);
-        state.current_window_size = 8;
+        state.phase = Phase::Sorting { scan_start: 10 };
 
         assert_eq!(
             state.style_for_index_with_min_window(11, 0),
@@ -202,13 +181,32 @@ mod tests {
     fn style_for_index_marks_completion() {
         let mut rng = SmallRng::seed_from_u64(9);
         let mut state = SortState::new(32, &mut rng);
-        state.scan_complete = true;
-        state.complete_scan_index = Some(5);
+        state.phase = Phase::Completion { done: Some(5) };
 
         assert_eq!(
             state.style_for_index_with_min_window(3, 0),
             BandStyle::Complete
         );
         assert_eq!(state.style_for_index_with_min_window(7, 0), BandStyle::Idle);
+    }
+
+    #[test]
+    fn phase_helpers_match_state_transitions() {
+        let mut rng = SmallRng::seed_from_u64(21);
+        let mut state = SortState::new(32, &mut rng);
+        assert_eq!(state.current_scan_index(), None);
+        assert!(!state.scan_complete());
+
+        state.apply_sort_step(4);
+        assert_eq!(state.current_scan_index(), Some(4));
+        assert!(!state.scan_complete());
+
+        state.finalize_sort_pass();
+        assert_eq!(state.current_scan_index(), None);
+        assert!(state.scan_complete());
+
+        state.reset(&mut rng);
+        assert_eq!(state.current_scan_index(), None);
+        assert!(!state.scan_complete());
     }
 }

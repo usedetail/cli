@@ -41,6 +41,7 @@ termimad = "0.30"
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 libc = "0.2"
 rand = { version = "0.9", features = ["small_rng"] }
+num-traits = "0.2"
 
 # Update checking (uses cargo-dist receipts)
 axoupdater = "0.9.1"

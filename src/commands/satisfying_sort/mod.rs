@@ -12,11 +12,12 @@ use ratatui::{
         terminal::{EnterAlternateScreen, LeaveAlternateScreen},
     },
     widgets::Clear,
-    Terminal as RatatuiTerminal,
+    Terminal,
 };
 use tokio::{signal, time::sleep};
 
 mod logo_math;
+mod numeric;
 mod render;
 mod sort_state;
 
@@ -32,7 +33,9 @@ const FRAME_MS: u64 = 16;
 const LOGO_MASK_SIZE: usize = 512;
 
 struct TerminalSession {
-    terminal: RatatuiTerminal<CrosstermBackend<io::Stdout>>,
+    terminal: Terminal<CrosstermBackend<io::Stdout>>,
+    aspect_x: f32,
+    last_size: (usize, usize),
 }
 
 impl TerminalSession {
@@ -40,10 +43,23 @@ impl TerminalSession {
         let mut stdout = io::stdout();
         ratatui::crossterm::execute!(stdout, EnterAlternateScreen, Hide)?;
         let backend = CrosstermBackend::new(stdout);
-        let mut terminal = RatatuiTerminal::new(backend)?;
+        let mut terminal = Terminal::new(backend)?;
         terminal.clear()?;
+        let initial_size = terminal
+            .size()
+            .map(|rect| (usize::from(rect.height), usize::from(rect.width)))
+            .unwrap_or((0, 0));
+        let aspect_x = if initial_size.0 > 0 && initial_size.1 > 0 {
+            halfblocks_cell_aspect_x()
+        } else {
+            1.0
+        };
 
-        Ok(Self { terminal })
+        Ok(Self {
+            terminal,
+            aspect_x,
+            last_size: initial_size,
+        })
     }
 
     fn size(&self) -> (usize, usize) {
@@ -59,7 +75,13 @@ impl TerminalSession {
             return Ok(());
         }
 
-        let viewport = compute_logo_viewport(cols, rows, halfblocks_cell_aspect_x());
+        let size = (rows, cols);
+        if self.last_size != size {
+            self.aspect_x = halfblocks_cell_aspect_x();
+            self.last_size = size;
+        }
+
+        let viewport = compute_logo_viewport(cols, rows, self.aspect_x);
         self.terminal.draw(|f| {
             f.render_widget(Clear, f.area());
             if let Some(viewport) = viewport {
