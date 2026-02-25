@@ -2,6 +2,8 @@ use rand::Rng;
 
 use super::{NOISE, SPEED};
 
+const NOISE_SPREAD_FACTOR: f32 = 0.65;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum BandStyle {
     Idle,
@@ -119,9 +121,9 @@ fn generate_array(array_size: usize, rng: &mut impl Rng) -> Vec<usize> {
         return array;
     }
 
-    let noise_percent = (f32::from(NOISE) / 100.0) * 0.5;
+    let noise_percent = (f32::from(NOISE) / 100.0) * NOISE_SPREAD_FACTOR;
     let max_swap_dist = ((array_size as f32) * noise_percent).floor() as usize;
-    let max_swap_dist = max_swap_dist.max(1);
+    let max_swap_dist = max_swap_dist.clamp(1, array_size.saturating_sub(1).max(1));
 
     for i in (1..array.len()).rev() {
         let min_j = i.saturating_sub(max_swap_dist);
