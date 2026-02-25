@@ -85,6 +85,7 @@ impl Cli {
         match &self.command {
             Commands::Auth { command } => commands::auth::handle(command, &self).await,
             Commands::Bugs { command } => commands::bugs::handle(command, &self).await,
+            Commands::CubeSpin => commands::cube_spin::handle().await,
             Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
             Commands::Skill => commands::skill::handle(),
@@ -116,6 +117,10 @@ enum Commands {
         #[command(subcommand)]
         command: commands::bugs::BugCommands,
     },
+
+    /// Spin the Detail logo cube. Humans only.
+    #[command(name = "cube-spin")]
+    CubeSpin,
 
     /// Run a fun animation. Humans only.
     #[command(name = "satisfying-sort")]
