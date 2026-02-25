@@ -38,6 +38,9 @@ homedir = "0.3"
 console = "0.16"
 dialoguer = "0.11"
 termimad = "0.30"
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
+libc = "0.2"
+rand = { version = "0.9", features = ["small_rng"] }
 
 # Update checking (uses cargo-dist receipts)
 axoupdater = "0.9.1"

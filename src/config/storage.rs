@@ -88,6 +88,7 @@ pub fn clear_credentials() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::process;
     use std::sync::Mutex;
 
     use super::*;
@@ -99,7 +100,7 @@ mod tests {
     /// restoring the original value afterwards.
     fn with_temp_config<F: FnOnce() -> R, R>(f: F) -> R {
         let _guard = ENV_LOCK.lock().unwrap();
-        let dir = env::temp_dir().join(format!("detail-cli-test-{}", std::process::id()));
+        let dir = env::temp_dir().join(format!("detail-cli-test-{}", process::id()));
         let _ = fs::remove_dir_all(&dir); // clean slate
         let prev = env::var("XDG_CONFIG_HOME").ok();
         env::set_var("XDG_CONFIG_HOME", &dir);
