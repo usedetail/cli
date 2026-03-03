@@ -13,6 +13,10 @@ This document contains the help content for the `detail` command-line program.
 * [`detail bugs list`↴](#detail-bugs-list)
 * [`detail bugs show`↴](#detail-bugs-show)
 * [`detail bugs close`↴](#detail-bugs-close)
+* [`detail rules`↴](#detail-rules)
+* [`detail rules create`↴](#detail-rules-create)
+* [`detail rules list`↴](#detail-rules-list)
+* [`detail rules show`↴](#detail-rules-show)
 * [`detail satisfying-sort`↴](#detail-satisfying-sort)
 * [`detail repos`↴](#detail-repos)
 * [`detail repos list`↴](#detail-repos-list)
@@ -36,6 +40,7 @@ Common workflow:
 
 * `auth` — Manage login credentials
 * `bugs` — List, show, and close bugs
+* `rules` — Create and inspect rules
 * `satisfying-sort` — Run a fun animation. Humans only
 * `repos` — Manage repos tracked with Detail
 * `skill` — Install the detail-bugs skill
@@ -168,6 +173,71 @@ Close a bug as resolved or dismissed
   Possible values: `not-a-bug`, `wont-fix`, `duplicate`, `other`
 
 * `--notes <NOTES>` — Additional notes
+
+
+
+## `detail rules`
+
+Create and inspect rules
+
+**Usage:** `detail rules <COMMAND>`
+
+###### **Subcommands:**
+
+* `create` — Start an async rule creation job for a repository
+* `list` — List rule creation requests for a repository
+* `show` — Show the details or status of a rule creation request
+
+
+
+## `detail rules create`
+
+Start an async rule creation job for a repository
+
+**Usage:** `detail rules create [OPTIONS] <REPO>`
+
+###### **Arguments:**
+
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name
+
+###### **Options:**
+
+* `--description <DESCRIPTION>` — Description of the rule to create
+* `--bug-id <BUG_IDS>` — Bug ID to use as context (repeatable)
+* `--commit-sha <COMMIT_SHAS>` — Commit SHA to examine for patterns (repeatable)
+
+
+
+## `detail rules list`
+
+List rule creation requests for a repository
+
+**Usage:** `detail rules list [OPTIONS] <REPO>`
+
+###### **Arguments:**
+
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name
+
+###### **Options:**
+
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
+
+
+
+## `detail rules show`
+
+Show the details or status of a rule creation request
+
+**Usage:** `detail rules show <REQUEST_ID>`
+
+###### **Arguments:**
+
+* `<REQUEST_ID>` — Rule creation request ID (rcr_...)
 
 
 

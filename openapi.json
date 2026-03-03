@@ -234,6 +234,102 @@
                     "message",
                     "statusCode"
                 ]
+            },
+            "RuleCreationRequestId": {
+                "type": "string",
+                "pattern": "^rcr_.*"
+            },
+            "RuleStatus": {
+                "type": "string",
+                "enum": [
+                    "pending",
+                    "complete",
+                    "failed"
+                ]
+            },
+            "CreateRuleInput": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string"
+                    },
+                    "bugIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "commitShas": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "RuleListItem": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/RuleCreationRequestId"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/RuleStatus"
+                    },
+                    "input": {
+                        "$ref": "#/components/schemas/CreateRuleInput"
+                    },
+                    "ruleName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "createdAt": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "id",
+                    "status",
+                    "input",
+                    "createdAt"
+                ]
+            },
+            "Rule": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "$ref": "#/components/schemas/RuleCreationRequestId"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/RuleStatus"
+                    },
+                    "input": {
+                        "$ref": "#/components/schemas/CreateRuleInput"
+                    },
+                    "ruleName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ruleFiles": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "nullable": true
+                    },
+                    "createdAt": {
+                        "type": "integer"
+                    },
+                    "completedAt": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "id",
+                    "status",
+                    "input",
+                    "createdAt"
+                ]
             }
         }
     },
@@ -500,6 +596,197 @@
                                         "email",
                                         "orgs"
                                     ]
+                                }
+                            }
+                        }
+                    },
+                    "4XX": {
+                        "description": "Client error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "5XX": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/public/v1/rules": {
+            "post": {
+                "operationId": "createRule",
+                "summary": "Create a rule",
+                "description": "Starts an async rule creation job for a repository. Returns a rule creation request ID to poll for the result.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "repo_id": {
+                                        "$ref": "#/components/schemas/RepoId"
+                                    },
+                                    "input": {
+                                        "$ref": "#/components/schemas/CreateRuleInput"
+                                    }
+                                },
+                                "required": [
+                                    "repo_id",
+                                    "input"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ruleCreationRequestId": {
+                                            "$ref": "#/components/schemas/RuleCreationRequestId"
+                                        }
+                                    },
+                                    "required": [
+                                        "ruleCreationRequestId"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "4XX": {
+                        "description": "Client error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "5XX": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "operationId": "listRules",
+                "summary": "List rules",
+                "description": "Returns all rule creation requests for a repository, including pending and completed.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "repo_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/RepoId"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "rules": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/RuleListItem"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "rules"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "4XX": {
+                        "description": "Client error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    },
+                    "5XX": {
+                        "description": "Server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/public/v1/rules/{rule_creation_request_id}": {
+            "get": {
+                "operationId": "getRule",
+                "summary": "Get a rule",
+                "description": "Returns full details for a rule, including generated files when complete.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "rule_creation_request_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/RuleCreationRequestId"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Rule"
                                 }
                             }
                         }

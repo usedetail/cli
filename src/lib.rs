@@ -61,6 +61,13 @@ impl Cli {
                     ..
                 }
             ),
+            Commands::Rules { command } => matches!(
+                command,
+                commands::rules::RuleCommands::List {
+                    format: OutputFormat::Json,
+                    ..
+                }
+            ),
             _ => false,
         }
     }
@@ -85,6 +92,7 @@ impl Cli {
         match &self.command {
             Commands::Auth { command } => commands::auth::handle(command, &self).await,
             Commands::Bugs { command } => commands::bugs::handle(command, &self).await,
+            Commands::Rules { command } => commands::rules::handle(command, &self).await,
             Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
             Commands::Skill => commands::skill::handle(),
@@ -115,6 +123,12 @@ enum Commands {
     Bugs {
         #[command(subcommand)]
         command: commands::bugs::BugCommands,
+    },
+
+    /// Create and inspect rules
+    Rules {
+        #[command(subcommand)]
+        command: commands::rules::RuleCommands,
     },
 
     /// Run a fun animation. Humans only.
