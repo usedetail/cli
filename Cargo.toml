@@ -55,6 +55,9 @@ regress = "0.10.5"
 clap-markdown = "0.1"
 
 # The profile that 'dist' will build with
+[lints.clippy]
+as_conversions = "deny"
+
 [profile.dist]
 inherits = "release"
 lto = "thin"
