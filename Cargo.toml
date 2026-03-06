@@ -61,6 +61,7 @@ unwrap_used = "deny"
 expect_used = "warn"
 panic = "deny"
 cloned_instead_of_copied = "warn"
+implicit_clone = "warn"
 
 [profile.dist]
 inherits = "release"
