@@ -60,6 +60,7 @@ as_conversions = "deny"
 unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"
+cloned_instead_of_copied = "warn"
 
 [profile.dist]
 inherits = "release"
