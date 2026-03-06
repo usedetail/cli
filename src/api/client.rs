@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 
+use super::generated::types::CreateRuleBody;
 use super::types::*;
 
 pub struct ApiClient {
@@ -96,6 +97,38 @@ impl ApiClient {
 
         self.inner
             .list_public_repos(NonZeroU64::new(limit.into()), Some(offset.into()))
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))
+    }
+
+    pub async fn create_rule(
+        &self,
+        repo_id: &RepoId,
+        input: CreateRuleInput,
+    ) -> Result<CreateRuleResponse> {
+        let body = CreateRuleBody {
+            repo_id: repo_id.clone(),
+            input,
+        };
+        self.inner
+            .create_rule(&body)
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))
+    }
+
+    pub async fn list_rules(&self, repo_id: &RepoId) -> Result<ListRulesResponse> {
+        self.inner
+            .list_rules(repo_id)
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| anyhow::anyhow!("API error: {}", e))
+    }
+
+    pub async fn get_rule(&self, rule_id: &RuleCreationRequestId) -> Result<Rule> {
+        self.inner
+            .get_rule(rule_id)
             .await
             .map(|r| r.into_inner())
             .map_err(|e| anyhow::anyhow!("API error: {}", e))

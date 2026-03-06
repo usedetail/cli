@@ -6,13 +6,16 @@ use crate::utils::format_date;
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
     Bug, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
-    CreatePublicBugReviewBody, IntroducedIn, Org, OrgId, Repo, RepoId,
+    CreatePublicBugReviewBody, CreateRuleInput, IntroducedIn, Org, OrgId, Repo, RepoId, Rule,
+    RuleCreationRequestId, RuleListItem, RuleStatus,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
 pub type UserInfo = super::generated::types::GetPublicUserResponse;
 pub type BugsResponse = super::generated::types::ListPublicBugsResponse;
 pub type ReposResponse = super::generated::types::ListPublicReposResponse;
+pub type CreateRuleResponse = super::generated::types::CreateRuleResponse;
+pub type ListRulesResponse = super::generated::types::ListRulesResponse;
 
 // ── Display helpers ──────────────────────────────────────────────────
 // progenitor already implements Display for the generated enums, so we
@@ -32,6 +35,14 @@ pub fn dismissal_reason_label(r: &BugDismissalReason) -> &'static str {
         BugDismissalReason::WontFix => "Won't Fix",
         BugDismissalReason::Duplicate => "Duplicate",
         BugDismissalReason::Other => "Other",
+    }
+}
+
+pub fn rule_status_label(s: &RuleStatus) -> &'static str {
+    match s {
+        RuleStatus::Pending => "Pending",
+        RuleStatus::Complete => "Complete",
+        RuleStatus::Failed => "Failed",
     }
 }
 

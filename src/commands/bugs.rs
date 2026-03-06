@@ -322,7 +322,7 @@ fn match_repo_by_name(name: &str, repos: &[Repo]) -> Result<RepoId> {
 }
 
 /// Resolve owner/repo or repo name to repo ID
-async fn resolve_repo_id(client: &ApiClient, repo_identifier: &str) -> Result<RepoId> {
+pub(crate) async fn resolve_repo_id(client: &ApiClient, repo_identifier: &str) -> Result<RepoId> {
     let repos = fetch_all_repos(client).await?;
 
     resolve_repo_id_from_repos(&repos, repo_identifier)
