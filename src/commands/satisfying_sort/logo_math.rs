@@ -139,10 +139,10 @@ fn mask_region_at(
     }
 
     let x = floor_f32_to_usize(
-        ((usize_to_f32(local_x) + 0.5) * usize_to_f32(logo.width)) / usize_to_f32(viewport_width),
+        (usize_to_f32(local_x) * usize_to_f32(logo.width)) / usize_to_f32(viewport_width),
     );
     let y = floor_f32_to_usize(
-        ((usize_to_f32(local_y) + 0.5) * usize_to_f32(logo.height)) / usize_to_f32(viewport_height),
+        (usize_to_f32(local_y) * usize_to_f32(logo.height)) / usize_to_f32(viewport_height),
     );
     logo.regions[y.min(logo.height - 1) * logo.width + x.min(logo.width - 1)]
 }
