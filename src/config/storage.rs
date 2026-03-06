@@ -1,7 +1,10 @@
+use std::fs::File;
+use std::io::{Read as _, Write as _};
 use std::path::PathBuf;
 use std::{env, fs};
 
 use anyhow::{Context, Result};
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,16 +63,47 @@ pub fn load_config() -> Result<Config> {
 pub fn save_config(config: &Config) -> Result<()> {
     let path = config_path()?;
     let contents = toml::to_string_pretty(config)?;
-    fs::write(path, contents)?;
+    let file = File::create(&path)?;
+    file.lock_exclusive()?;
+    (&file).write_all(contents.as_bytes())?;
+    file.unlock()?;
+    Ok(())
+}
+
+/// Atomically read-modify-write the config file under an exclusive lock.
+pub fn update_config(f: impl FnOnce(&mut Config)) -> Result<()> {
+    let path = config_path()?;
+    let file = File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&path)?;
+    file.lock_exclusive()?;
+
+    let mut contents = String::new();
+    (&file).read_to_string(&mut contents)?;
+
+    let mut config: Config = if contents.is_empty() {
+        Config::default()
+    } else {
+        toml::from_str(&contents).context("Failed to parse config")?
+    };
+
+    f(&mut config);
+
+    let new_contents = toml::to_string_pretty(&config)?;
+    let file = File::create(&path)?;
+    (&file).write_all(new_contents.as_bytes())?;
+    file.unlock()?;
     Ok(())
 }
 
 // Token storage in config file
 pub fn store_token(token: &str) -> Result<()> {
-    let mut config = load_config()?;
-    config.api_token = Some(token.to_string());
-    save_config(&config)?;
-    Ok(())
+    update_config(|config| {
+        config.api_token = Some(token.to_string());
+    })
 }
 
 pub fn load_token() -> Result<String> {
@@ -80,10 +114,9 @@ pub fn load_token() -> Result<String> {
 }
 
 pub fn clear_credentials() -> Result<()> {
-    let mut config = load_config()?;
-    config.api_token = None;
-    save_config(&config)?;
-    Ok(())
+    update_config(|config| {
+        config.api_token = None;
+    })
 }
 
 #[cfg(test)]
