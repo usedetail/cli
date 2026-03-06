@@ -64,6 +64,7 @@ cloned_instead_of_copied = "warn"
 implicit_clone = "warn"
 needless_pass_by_value = "warn"
 redundant_closure_for_method_calls = "warn"
+semicolon_if_nothing_returned = "warn"
 
 [profile.dist]
 inherits = "release"
