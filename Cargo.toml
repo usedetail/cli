@@ -62,6 +62,7 @@ expect_used = "warn"
 panic = "deny"
 cloned_instead_of_copied = "warn"
 implicit_clone = "warn"
+needless_pass_by_value = "warn"
 
 [profile.dist]
 inherits = "release"
