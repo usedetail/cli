@@ -3,6 +3,8 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 
+use progenitor::progenitor_client::ResponseValue;
+
 use super::types::*;
 
 pub struct ApiClient {
@@ -38,7 +40,7 @@ impl ApiClient {
         self.inner
             .get_public_user()
             .await
-            .map(|r| r.into_inner())
+            .map(ResponseValue::into_inner)
             .map_err(|e| anyhow::anyhow!("API error: {}", e))
     }
 
@@ -59,7 +61,7 @@ impl ApiClient {
                 status,
             )
             .await
-            .map(|r| r.into_inner())
+            .map(ResponseValue::into_inner)
             .map_err(|e| anyhow::anyhow!("API error: {}", e))
     }
 
@@ -67,7 +69,7 @@ impl ApiClient {
         self.inner
             .get_public_bug(bug_id)
             .await
-            .map(|r| r.into_inner())
+            .map(ResponseValue::into_inner)
             .map_err(|e| anyhow::anyhow!("API error: {}", e))
     }
 
@@ -87,7 +89,7 @@ impl ApiClient {
         self.inner
             .create_public_bug_review(bug_id, &body)
             .await
-            .map(|r| r.into_inner())
+            .map(ResponseValue::into_inner)
             .map_err(|e| anyhow::anyhow!("API error: {}", e))
     }
 
@@ -97,7 +99,7 @@ impl ApiClient {
         self.inner
             .list_public_repos(NonZeroU64::new(limit.into()), Some(offset.into()))
             .await
-            .map(|r| r.into_inner())
+            .map(ResponseValue::into_inner)
             .map_err(|e| anyhow::anyhow!("API error: {}", e))
     }
 }
