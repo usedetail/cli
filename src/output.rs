@@ -143,7 +143,7 @@ pub fn output_list<T: Formattable + Serialize>(
                 .map(|(k, _)| k.len())
                 .max()
                 .unwrap_or(0);
-            let offset = page_to_offset(page, limit) as usize;
+            let offset: usize = page_to_offset(page, limit).try_into().unwrap_or(usize::MAX);
             for (i, item) in items.iter().enumerate() {
                 let (header, pairs) = item.to_card();
                 term.write_line(&format!("{}. {}", offset + i + 1, header))?;
