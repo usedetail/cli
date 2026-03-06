@@ -69,16 +69,16 @@ fn load_configured_updater() -> Option<AxoUpdater> {
 }
 
 fn record_update_check_now() -> Result<()> {
-    let mut config = storage::load_config()?;
-    config.last_update_check = Some(now_unix_seconds()?);
-    storage::save_config(&config)?;
-    Ok(())
+    let now = now_unix_seconds()?;
+    storage::update_config(|config| {
+        config.last_update_check = Some(now);
+    })
 }
 
 /// Automatically check for and install updates in the background
 pub async fn auto_update() -> Result<()> {
     // Check if we should check for updates
-    let mut config = storage::load_config()?;
+    let config = storage::load_config()?;
 
     let now = now_unix_seconds()?;
 
@@ -86,9 +86,8 @@ pub async fn auto_update() -> Result<()> {
         return Ok(());
     }
 
-    // Update last check time
-    config.last_update_check = Some(now);
-    storage::save_config(&config)?;
+    // Update last check time atomically
+    record_update_check_now()?;
 
     // Automatically update using axoupdater
     // This uses the install receipt created by cargo-dist
