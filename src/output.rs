@@ -9,6 +9,8 @@ use console::{style, Term};
 use serde::Serialize;
 use termimad::crossterm::style::Attribute;
 
+use crate::utils::page_to_offset;
+
 static MARKDOWN_SKIN: LazyLock<termimad::MadSkin> = LazyLock::new(|| {
     let mut skin = termimad::MadSkin::default();
     let dim = Attribute::Dim;
@@ -141,9 +143,10 @@ pub fn output_list<T: Formattable + Serialize>(
                 .map(|(k, _)| k.len())
                 .max()
                 .unwrap_or(0);
+            let offset: usize = page_to_offset(page, limit).try_into().unwrap_or(usize::MAX);
             for (i, item) in items.iter().enumerate() {
                 let (header, pairs) = item.to_card();
-                term.write_line(&format!("{}. {}", i + 1, header))?;
+                term.write_line(&format!("{}. {}", offset + i + 1, header))?;
                 for (k, v) in &pairs {
                     term.write_line(&format!("    {:<width$}  {}", k, v, width = max_key))?;
                 }
