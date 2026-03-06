@@ -59,6 +59,7 @@ clap-markdown = "0.1"
 as_conversions = "deny"
 unwrap_used = "warn"
 expect_used = "warn"
+panic = "warn"
 
 [profile.dist]
 inherits = "release"
