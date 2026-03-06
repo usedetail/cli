@@ -140,12 +140,8 @@ fn mask_region_at(
 
     let max_vx = usize_to_f32(viewport_width.saturating_sub(1).max(1));
     let max_vy = usize_to_f32(viewport_height.saturating_sub(1).max(1));
-    let x = round_f32_to_usize(
-        usize_to_f32(local_x) / max_vx * usize_to_f32(logo.width - 1),
-    );
-    let y = round_f32_to_usize(
-        usize_to_f32(local_y) / max_vy * usize_to_f32(logo.height - 1),
-    );
+    let x = round_f32_to_usize(usize_to_f32(local_x) / max_vx * usize_to_f32(logo.width - 1));
+    let y = round_f32_to_usize(usize_to_f32(local_y) / max_vy * usize_to_f32(logo.height - 1));
     logo.regions[y.min(logo.height - 1) * logo.width + x.min(logo.width - 1)]
 }
 
