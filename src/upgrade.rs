@@ -22,7 +22,7 @@ fn version_strings(result: &UpdateResult) -> (String, String) {
     let old_version = result
         .old_version
         .as_ref()
-        .map(|v| v.to_string())
+        .map(ToString::to_string)
         .unwrap_or_else(|| "unknown".to_string());
     let new_version = result.new_version.to_string();
     (old_version, new_version)

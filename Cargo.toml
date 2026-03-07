@@ -59,6 +59,13 @@ clap-markdown = "0.1"
 as_conversions = "deny"
 unwrap_used = "deny"
 expect_used = "warn"
+panic = "deny"
+cloned_instead_of_copied = "warn"
+implicit_clone = "warn"
+needless_pass_by_value = "warn"
+redundant_closure_for_method_calls = "warn"
+semicolon_if_nothing_returned = "warn"
+manual_let_else = "warn"
 
 [profile.dist]
 inherits = "release"
