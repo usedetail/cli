@@ -1,7 +1,5 @@
 # Detail CLI
 
-> ⚠️ **NOTE**: This CLI is currently in alpha. Features and commands may change.
-
 Command-line interface for [Detail](https://detail.dev).
 
 ## Installation
