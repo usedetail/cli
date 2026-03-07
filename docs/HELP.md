@@ -1,6 +1,3 @@
-   Compiling detail-cli v0.1.10 (/home/siyer/docs/other/cli)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.75s
-     Running `target/debug/examples/generate_help`
 # Command-Line Help for `detail`
 
 This document contains the help content for the `detail` command-line program.
