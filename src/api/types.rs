@@ -18,7 +18,7 @@ pub type ReposResponse = super::generated::types::ListPublicReposResponse;
 // progenitor already implements Display for the generated enums, so we
 // provide standalone helpers for user-friendly labels where needed.
 
-pub fn review_state_label(s: &BugReviewState) -> &'static str {
+pub const fn review_state_label(s: &BugReviewState) -> &'static str {
     match s {
         BugReviewState::Pending => "Pending",
         BugReviewState::Resolved => "Resolved",
@@ -26,7 +26,7 @@ pub fn review_state_label(s: &BugReviewState) -> &'static str {
     }
 }
 
-pub fn dismissal_reason_label(r: &BugDismissalReason) -> &'static str {
+pub const fn dismissal_reason_label(r: &BugDismissalReason) -> &'static str {
     match r {
         BugDismissalReason::NotABug => "Not a Bug",
         BugDismissalReason::WontFix => "Won't Fix",

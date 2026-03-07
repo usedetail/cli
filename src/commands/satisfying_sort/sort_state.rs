@@ -38,7 +38,7 @@ impl SortState {
         self.phase = Phase::Idle;
     }
 
-    pub(super) fn len(&self) -> usize {
+    pub(super) const fn len(&self) -> usize {
         self.source_array.len()
     }
 
@@ -46,26 +46,26 @@ impl SortState {
         &self.source_array
     }
 
-    pub(super) fn current_scan_index(&self) -> Option<usize> {
+    pub(super) const fn current_scan_index(&self) -> Option<usize> {
         match self.phase {
             Phase::Sorting { scan_start } => Some(scan_start),
             Phase::Idle | Phase::Completion { .. } => None,
         }
     }
 
-    pub(super) fn scan_complete(&self) -> bool {
+    pub(super) const fn scan_complete(&self) -> bool {
         matches!(self.phase, Phase::Completion { .. })
     }
 
-    pub(super) fn apply_sort_step(&mut self, index: usize) {
+    pub(super) const fn apply_sort_step(&mut self, index: usize) {
         self.phase = Phase::Sorting { scan_start: index };
     }
 
-    pub(super) fn finalize_sort_pass(&mut self) {
+    pub(super) const fn finalize_sort_pass(&mut self) {
         self.phase = Phase::Completion { done: None };
     }
 
-    pub(super) fn set_completion_index(&mut self, index: usize) {
+    pub(super) const fn set_completion_index(&mut self, index: usize) {
         self.phase = Phase::Completion { done: Some(index) };
     }
 
@@ -94,7 +94,7 @@ impl SortState {
     }
 }
 
-fn in_window(index: usize, start: usize, len: usize) -> bool {
+const fn in_window(index: usize, start: usize, len: usize) -> bool {
     index >= start && index < start.saturating_add(len)
 }
 
@@ -104,7 +104,7 @@ fn base_window_size(array_size: usize) -> usize {
 }
 
 pub(super) fn sort_delay_ms() -> u64 {
-    u64::from(100u8.saturating_sub(SPEED)) / 2
+    u64::from(100_u8.saturating_sub(SPEED)) / 2
 }
 
 fn generate_array(array_size: usize, rng: &mut impl Rng) -> Vec<usize> {

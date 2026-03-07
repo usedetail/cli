@@ -45,7 +45,7 @@ impl Cli {
     /// Returns true when machine-readable output is requested (e.g. `--format json`),
     /// meaning non-essential messages (update notices, progress) should be suppressed
     /// to avoid corrupting structured output.
-    fn is_silent(&self) -> bool {
+    const fn is_silent(&self) -> bool {
         match &self.command {
             Commands::Bugs { command } => matches!(
                 command,
@@ -69,7 +69,7 @@ impl Cli {
         }
     }
 
-    fn should_run_auto_update(&self) -> bool {
+    const fn should_run_auto_update(&self) -> bool {
         if self.is_silent() {
             return false;
         }

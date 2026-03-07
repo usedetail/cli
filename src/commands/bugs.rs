@@ -56,10 +56,9 @@ fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
 /// Format blame/attribution info for display, e.g. "PR #42 (abc1234) on 2024-12-23 by alice".
 fn format_introduced_in(intro: &IntroducedIn) -> String {
     let commit = intro.sha.get(..7).unwrap_or(&intro.sha);
-    let ref_label = match intro.pr_number {
-        Some(pr) => format!("PR #{pr} ({commit})"),
-        None => commit.to_string(),
-    };
+    let ref_label = intro
+        .pr_number
+        .map_or_else(|| commit.to_string(), |pr| format!("PR #{pr} ({commit})"));
     let date_part = format!(" on {}", intro.date);
     let author_part = intro
         .author
