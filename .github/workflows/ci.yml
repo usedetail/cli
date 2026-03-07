@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: make check
+      - run: cargo xtask check
 
   audit:
     name: Security Audit

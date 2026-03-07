@@ -6,6 +6,6 @@ fn help_doc_is_up_to_date() {
         current.trim(),
         expected.trim(),
         "docs/HELP.md is out of date. \
-         Run `cargo run --example generate_help > docs/HELP.md` to regenerate it."
+         Run `cargo xtask generate-help > docs/HELP.md` to regenerate it."
     );
 }
