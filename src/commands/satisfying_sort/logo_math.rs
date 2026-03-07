@@ -63,12 +63,12 @@ pub(super) fn triangle_nominal_index(nx: f32, n: usize, region: LogoRegion) -> u
     let span = match region {
         LogoRegion::TopTriangle => TOP_TRIANGLE_X_SPAN,
         LogoRegion::BottomTriangle => BOTTOM_TRIANGLE_X_SPAN,
-        _ => 1.0,
+        LogoRegion::Empty | LogoRegion::Static => 1.0,
     };
     let direction_x = match region {
         LogoRegion::TopTriangle => nx,
         LogoRegion::BottomTriangle => 1.0 - nx,
-        _ => 0.0,
+        LogoRegion::Empty | LogoRegion::Static => 0.0,
     };
     let t = (direction_x / span).clamp(0.0, 1.0);
     floor_f32_to_usize(t * usize_to_f32(n)).min(n - 1)

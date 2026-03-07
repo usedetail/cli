@@ -61,7 +61,11 @@ impl Cli {
                     ..
                 }
             ),
-            _ => false,
+            Commands::Auth { .. }
+            | Commands::SatisfyingSort
+            | Commands::Skill
+            | Commands::Update
+            | Commands::Version => false,
         }
     }
 

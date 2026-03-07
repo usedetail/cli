@@ -59,16 +59,22 @@ clap-markdown = "0.1"
 # Pedantic group (includes cloned_instead_of_copied, implicit_clone,
 # needless_pass_by_value, redundant_closure_for_method_calls,
 # semicolon_if_nothing_returned, manual_let_else, and many more)
-pedantic = { level = "warn", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
 
 # Deny: hard errors that should never appear
 as_conversions = "deny"
 unwrap_used = "deny"
 panic = "deny"
-
-# Warn: not in pedantic but still useful
-expect_used = "warn"
-large_futures = "warn"
+expect_used = "deny"
+large_futures = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+mem_forget = "deny"
+wildcard_enum_match_arm = "deny"
+allow_attributes_without_reason = "deny"
+verbose_file_reads = "deny"
+rest_pat_in_fully_bound_structs = "deny"
 
 # Allow: pedantic lints that are too noisy
 missing_errors_doc = "allow"
@@ -79,6 +85,10 @@ module_name_repetitions = "allow"
 too_many_lines = "allow"
 struct_excessive_bools = "allow"
 similar_names = "allow"
+
+[lints.rust]
+unsafe_code = "deny"
+unreachable_pub = "deny"
 
 [profile.dist]
 inherits = "release"

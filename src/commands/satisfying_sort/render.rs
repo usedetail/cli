@@ -73,6 +73,12 @@ fn detect_halfblocks_cell_aspect_x() -> Option<f32> {
         ws_xpixel: 0,
         ws_ypixel: 0,
     };
+    // SAFETY: winsize is a valid, zeroed struct and TIOCGWINSZ is the standard ioctl for
+    // querying terminal dimensions. The kernel writes into the provided pointer.
+    #[allow(
+        unsafe_code,
+        reason = "libc ioctl required for terminal pixel dimensions"
+    )]
     let rc = unsafe { libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut winsize) };
     if rc != 0
         || winsize.ws_col == 0
