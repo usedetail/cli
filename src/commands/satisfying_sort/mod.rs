@@ -192,10 +192,10 @@ async fn run_completion_pass(
     let Some(last_index) = n.checked_sub(1) else {
         return Ok(());
     };
-    let speed_divisor = 110usize.saturating_sub(usize::from(GREEN_SPEED)).max(1);
+    let speed_divisor = 110_usize.saturating_sub(usize::from(GREEN_SPEED)).max(1);
     let bars_per_frame = (n / speed_divisor).max(1);
 
-    let mut index = 0usize;
+    let mut index = 0_usize;
     while index < n && !stop.load(Ordering::SeqCst) {
         let done = (index + bars_per_frame - 1).min(last_index);
         state.set_completion_index(done);

@@ -128,7 +128,7 @@ pub(crate) fn is_complete_token(s: &str) -> bool {
     let Some(dot_pos) = s.rfind('.') else {
         return false;
     };
-    let after_dot = &s[dot_pos + 1..];
+    let after_dot = s.get(dot_pos + 1..).unwrap_or_default();
     after_dot.len() == 64 && after_dot.chars().all(|c| c.is_ascii_hexdigit())
 }
 

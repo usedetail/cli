@@ -73,12 +73,12 @@ fn detect_halfblocks_cell_aspect_x() -> Option<f32> {
         ws_xpixel: 0,
         ws_ypixel: 0,
     };
-    // SAFETY: winsize is a valid, zeroed struct and TIOCGWINSZ is the standard ioctl for
-    // querying terminal dimensions. The kernel writes into the provided pointer.
     #[allow(
         unsafe_code,
         reason = "libc ioctl required for terminal pixel dimensions"
     )]
+    // SAFETY: `winsize` is a valid, zeroed struct and `TIOCGWINSZ` is the standard ioctl for
+    // querying terminal dimensions. The kernel writes into the provided pointer.
     let rc = unsafe { libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut winsize) };
     if rc != 0
         || winsize.ws_col == 0
@@ -103,7 +103,7 @@ fn detect_halfblocks_cell_aspect_x() -> Option<f32> {
     None
 }
 
-fn pixel_style_color(style: PixelStyle) -> Color {
+const fn pixel_style_color(style: PixelStyle) -> Color {
     match style {
         PixelStyle::Off | PixelStyle::Base => Color::Reset,
         PixelStyle::Active => Color::Blue,
@@ -247,7 +247,7 @@ fn min_active_window_for_columns(n: usize, viewport_width: usize, target_columns
 
     let x_den = usize_to_f32(viewport_width.saturating_sub(1).max(1));
     let mut prev = triangle_nominal_index(0.0, n, LogoRegion::TopTriangle);
-    let mut max_step = 1usize;
+    let mut max_step = 1_usize;
 
     for x in 1..viewport_width {
         let nx = usize_to_f32(x) / x_den;

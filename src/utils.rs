@@ -1,7 +1,7 @@
 use chrono::Local;
 
 /// Convert page number and limit to offset for pagination
-pub fn page_to_offset(page: u32, limit: u32) -> u32 {
+pub const fn page_to_offset(page: u32, limit: u32) -> u32 {
     (page - 1).saturating_mul(limit)
 }
 
@@ -33,7 +33,7 @@ mod tests {
     fn expected_local(timestamp_ms: i64, fmt: &str) -> String {
         chrono::DateTime::from_timestamp(timestamp_ms / MS_TO_SECONDS, 0)
             .expect("valid timestamp")
-            .with_timezone(&chrono::Local)
+            .with_timezone(&Local)
             .format(fmt)
             .to_string()
     }

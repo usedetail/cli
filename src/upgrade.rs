@@ -45,7 +45,7 @@ pub(crate) fn print_update_success_message(term: &Term, old_version: &str, new_v
     let _ = term.write_line("");
 }
 
-fn should_check_for_updates(config: &storage::Config, now: u64) -> bool {
+const fn should_check_for_updates(config: &storage::Config, now: u64) -> bool {
     if !config.check_for_updates {
         return false;
     }
@@ -111,21 +111,17 @@ pub async fn update_now() -> Result<ManualUpdateOutcome> {
         return Ok(ManualUpdateOutcome::Unavailable);
     };
 
-    match updater
+    Ok(updater
         .run()
         .await
         .context("Failed to run updater for Detail CLI")?
-    {
-        Some(result) => {
+        .map_or(ManualUpdateOutcome::AlreadyUpToDate, |result| {
             let (old_version, new_version) = version_strings(&result);
-
-            Ok(ManualUpdateOutcome::Updated {
+            ManualUpdateOutcome::Updated {
                 old_version,
                 new_version,
-            })
-        }
-        None => Ok(ManualUpdateOutcome::AlreadyUpToDate),
-    }
+            }
+        }))
 }
 
 fn print_update_success(result: &UpdateResult) {

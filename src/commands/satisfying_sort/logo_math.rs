@@ -79,7 +79,7 @@ pub(super) fn shuffled_index_for_nominal(array: &[usize], nominal_index: usize, 
     array
         .get(nominal_index.min(n - 1))
         .copied()
-        .unwrap_or(nominal_index.saturating_add(1))
+        .unwrap_or_else(|| nominal_index.saturating_add(1))
         .saturating_sub(1)
         .min(n - 1)
 }
