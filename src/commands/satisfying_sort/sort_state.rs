@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 use super::numeric::{floor_f32_to_usize, usize_to_f32};
 use super::{NOISE, SPEED};
