@@ -9,7 +9,7 @@ use crate::config::storage;
 pub enum AuthCommands {
     /// Login with an API token
     Login {
-        /// API token (dtl_live_...)
+        /// API token (`dtl_live`_...)
         #[arg(long)]
         token: Option<String>,
     },
@@ -24,37 +24,36 @@ pub enum AuthCommands {
 pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
     match command {
         AuthCommands::Login { token } => {
-            let token = match token {
-                Some(t) => t.clone(),
-                None => {
-                    let term = Term::stdout();
-                    term.write_str("Paste your API token: ")?;
+            let token = if let Some(t) = token {
+                t.clone()
+            } else {
+                let term = Term::stdout();
+                term.write_str("Paste your API token: ")?;
 
-                    // Read character-by-character (hidden) and auto-submit
-                    // when a complete token is detected
-                    let mut token = String::new();
-                    loop {
-                        let key = term.read_key()?;
-                        match key {
-                            Key::Char(c) if !c.is_whitespace() => {
-                                token.push(c);
-                                if is_complete_token(&token) {
-                                    term.write_line("")?;
-                                    break;
-                                }
-                            }
-                            Key::Enter => {
+                // Read character-by-character (hidden) and auto-submit
+                // when a complete token is detected
+                let mut token = String::new();
+                loop {
+                    let key = term.read_key()?;
+                    match key {
+                        Key::Char(c) if !c.is_whitespace() => {
+                            token.push(c);
+                            if is_complete_token(&token) {
                                 term.write_line("")?;
                                 break;
                             }
-                            Key::Backspace => {
-                                token.pop();
-                            }
-                            _ => {}
                         }
+                        Key::Enter => {
+                            term.write_line("")?;
+                            break;
+                        }
+                        Key::Backspace => {
+                            token.pop();
+                        }
+                        _ => {}
                     }
-                    token
                 }
+                token
             };
 
             // Validate token format
@@ -94,29 +93,23 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
         }
 
         AuthCommands::Status => {
-            match cli.create_client() {
-                Ok(client) => {
-                    let term = Term::stdout();
-                    match client.get_current_user().await {
-                        Ok(user) => {
-                            term.write_line(&format!("{}", style("✓ Authenticated").green()))?;
-                            term.write_line(&format!("Email: {}", user.email))?;
-                        }
-                        Err(e) => {
-                            term.write_line(&format!(
-                                "{}",
-                                style("✗ Authentication invalid").red()
-                            ))?;
-                            term.write_line(&format!("Error: {}", e))?;
-                            term.write_line("\nRun `detail auth login` to re-authenticate")?;
-                        }
+            if let Ok(client) = cli.create_client() {
+                let term = Term::stdout();
+                match client.get_current_user().await {
+                    Ok(user) => {
+                        term.write_line(&format!("{}", style("✓ Authenticated").green()))?;
+                        term.write_line(&format!("Email: {}", user.email))?;
+                    }
+                    Err(e) => {
+                        term.write_line(&format!("{}", style("✗ Authentication invalid").red()))?;
+                        term.write_line(&format!("Error: {e}"))?;
+                        term.write_line("\nRun `detail auth login` to re-authenticate")?;
                     }
                 }
-                Err(_) => {
-                    let term = Term::stdout();
-                    term.write_line(&format!("{}", style("✗ Not authenticated").red()))?;
-                    term.write_line("\nRun `detail auth login` to authenticate")?;
-                }
+            } else {
+                let term = Term::stdout();
+                term.write_line(&format!("{}", style("✗ Not authenticated").red()))?;
+                term.write_line("\nRun `detail auth login` to authenticate")?;
             }
             Ok(())
         }

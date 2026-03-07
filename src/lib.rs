@@ -78,7 +78,7 @@ impl Cli {
         if self.should_run_auto_update() {
             if let Err(e) = upgrade::auto_update().await {
                 let _ = console::Term::stderr()
-                    .write_line(&format!("Warning: Failed to check for updates: {}", e));
+                    .write_line(&format!("Warning: Failed to check for updates: {e}"));
             }
         }
 
@@ -90,7 +90,7 @@ impl Cli {
             Commands::Skill => commands::skill::handle(),
             Commands::Update => commands::update::handle().await,
             Commands::Version => {
-                console::Term::stdout().write_line(&format!("detail-cli v{}", VERSION))?;
+                console::Term::stdout().write_line(&format!("detail-cli v{VERSION}"))?;
                 Ok(())
             }
         }

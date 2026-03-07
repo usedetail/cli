@@ -5,7 +5,10 @@ use reqwest::header::{HeaderMap, AUTHORIZATION};
 
 use progenitor::progenitor_client::ResponseValue;
 
-use super::types::*;
+use super::types::{
+    Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugsResponse,
+    CreatePublicBugReviewBody, RepoId, ReposResponse, UserInfo,
+};
 
 pub struct ApiClient {
     inner: super::generated::Client,
@@ -23,7 +26,7 @@ impl ApiClient {
             let mut headers = HeaderMap::new();
             headers.insert(
                 AUTHORIZATION,
-                format!("Bearer {}", token)
+                format!("Bearer {token}")
                     .parse()
                     .context("Invalid token format")?,
             );
@@ -41,7 +44,7 @@ impl ApiClient {
             .get_public_user()
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {}", e))
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
     }
 
     pub async fn list_bugs(
@@ -62,7 +65,7 @@ impl ApiClient {
             )
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {}", e))
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
     }
 
     pub async fn get_bug(&self, bug_id: &BugId) -> Result<Bug> {
@@ -70,7 +73,7 @@ impl ApiClient {
             .get_public_bug(bug_id)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {}", e))
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
     }
 
     pub async fn update_bug_close(
@@ -90,7 +93,7 @@ impl ApiClient {
             .create_public_bug_review(bug_id, &body)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {}", e))
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
     }
 
     pub async fn list_repos(&self, limit: u32, offset: u32) -> Result<ReposResponse> {
@@ -100,6 +103,6 @@ impl ApiClient {
             .list_public_repos(NonZeroU64::new(limit.into()), Some(offset.into()))
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {}", e))
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
     }
 }

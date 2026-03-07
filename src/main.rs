@@ -7,7 +7,7 @@ async fn main() -> ExitCode {
     match detail_cli::Cli::parse().run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            let _ = Term::stderr().write_line(&format!("Error: {}", err));
+            let _ = Term::stderr().write_line(&format!("Error: {err}"));
             ExitCode::FAILURE
         }
     }

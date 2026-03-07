@@ -57,7 +57,7 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                         term.write_line(&format!("{} {}", style("Organization").bold(), org_name))?;
                         term.write_line(&format!("{}", style(&separator).dim()))?;
                         for name in repo_names {
-                            term.write_line(&format!("- {}", name))?;
+                            term.write_line(&format!("- {name}"))?;
                         }
                         term.write_line("")?;
                     }
@@ -66,10 +66,10 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                         .unwrap_or(u32::MAX)
                         .div_ceil(*limit)
                         .max(1);
-                    term.write_line(&format!("Page: {} of {}", page, total_pages))?;
+                    term.write_line(&format!("Page: {page} of {total_pages}"))?;
                     Ok(())
                 }
-                _ => output_list(
+                crate::OutputFormat::Json => output_list(
                     &repos.repos,
                     usize::try_from(repos.total.max(0)).unwrap_or(0),
                     *page,
