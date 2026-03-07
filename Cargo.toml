@@ -57,7 +57,8 @@ clap-markdown = "0.1"
 # The profile that 'dist' will build with
 [lints.clippy]
 as_conversions = "deny"
-unwrap_used = "warn"
+unwrap_used = "deny"
+expect_used = "warn"
 
 [profile.dist]
 inherits = "release"
