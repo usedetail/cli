@@ -22,8 +22,7 @@ fn version_strings(result: &UpdateResult) -> (String, String) {
     let old_version = result
         .old_version
         .as_ref()
-        .map(ToString::to_string)
-        .unwrap_or_else(|| "unknown".to_string());
+        .map_or_else(|| "unknown".to_string(), ToString::to_string);
     let new_version = result.new_version.to_string();
     (old_version, new_version)
 }
@@ -34,8 +33,7 @@ pub(crate) fn print_update_success_message(term: &Term, old_version: &str, new_v
     let _ = term.write_line(&format!(
         "{}",
         style(format!(
-            "✓ Updated Detail CLI from v{} to v{}",
-            old_version, new_version
+            "✓ Updated Detail CLI from v{old_version} to v{new_version}"
         ))
         .green()
     ));
@@ -92,17 +90,11 @@ pub async fn auto_update() -> Result<()> {
     // Automatically update using axoupdater
     // This uses the install receipt created by cargo-dist
     if let Some(mut updater) = load_configured_updater() {
-        match updater.run().await {
-            Ok(update_result) => {
-                if let Some(result) = update_result {
-                    // Update was installed, binary on disk is now updated
-                    print_update_success(&result);
-                }
-                // If None, already on latest version (silent)
-            }
-            Err(_) => {
-                // Silently ignore errors (update check is not critical)
-            }
+        if let Ok(Some(result)) = updater.run().await {
+            // Update was installed, binary on disk is now updated
+            print_update_success(&result);
+        } else {
+            // Silently ignore errors (update check is not critical)
         }
     } else {
         // No receipt found, probably not installed via cargo-dist installer

@@ -10,9 +10,10 @@ const MS_TO_SECONDS: i64 = 1000;
 
 /// Format a UTC timestamp (in milliseconds) in the machine's local timezone.
 fn format_timestamp(timestamp_ms: i64, fmt: &str) -> String {
-    chrono::DateTime::from_timestamp(timestamp_ms / MS_TO_SECONDS, 0)
-        .map(|dt| dt.with_timezone(&Local).format(fmt).to_string())
-        .unwrap_or_else(|| "-".into())
+    chrono::DateTime::from_timestamp(timestamp_ms / MS_TO_SECONDS, 0).map_or_else(
+        || "-".into(),
+        |dt| dt.with_timezone(&Local).format(fmt).to_string(),
+    )
 }
 
 /// Format a timestamp (in milliseconds) as a local date string (YYYY-MM-DD)

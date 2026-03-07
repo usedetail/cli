@@ -26,8 +26,7 @@ fn filter_by_introduced_by(bugs: &[Bug], authors: &[String]) -> Vec<Bug> {
             b.introduced_in
                 .as_ref()
                 .and_then(|i| i.author.as_deref())
-                .map(|a| authors.iter().any(|name| a.eq_ignore_ascii_case(name)))
-                .unwrap_or(false)
+                .is_some_and(|a| authors.iter().any(|name| a.eq_ignore_ascii_case(name)))
         })
         .cloned()
         .collect()
@@ -58,16 +57,16 @@ fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
 fn format_introduced_in(intro: &IntroducedIn) -> String {
     let commit = intro.sha.get(..7).unwrap_or(&intro.sha);
     let ref_label = match intro.pr_number {
-        Some(pr) => format!("PR #{} ({})", pr, commit),
+        Some(pr) => format!("PR #{pr} ({commit})"),
         None => commit.to_string(),
     };
     let date_part = format!(" on {}", intro.date);
     let author_part = intro
         .author
         .as_deref()
-        .map(|a| format!(" by {}", a))
+        .map(|a| format!(" by {a}"))
         .unwrap_or_default();
-    format!("{}{}{}", ref_label, date_part, author_part)
+    format!("{ref_label}{date_part}{author_part}")
 }
 
 #[derive(Subcommand)]
@@ -178,7 +177,7 @@ fn prompt_notes() -> Result<Option<String>> {
 /// Validate and resolve the close-command flags that can be checked without
 /// interactive prompts.  Returns `Ok(CloseParams)` when all flags are
 /// present, or `Err` when a flag combination is invalid.  Returns `Ok(None)`
-/// for the state/dismissal_reason fields that still need interactive input.
+/// for the `state/dismissal_reason` fields that still need interactive input.
 ///
 /// Rules:
 /// - `--state pending` is always rejected.
@@ -302,8 +301,7 @@ fn match_repo_by_name(name: &str, repos: &[Repo]) -> Result<RepoId> {
 
     match matching.len() {
         0 => bail!(
-            "Repository '{}' not found. Run 'detail repos list' to see your repositories.",
-            name
+            "Repository '{name}' not found. Run 'detail repos list' to see your repositories."
         ),
         1 => Ok(matching[0].id.clone()),
         _ => {
@@ -336,8 +334,7 @@ fn resolve_repo_id_from_repos(repos: &[Repo], repo_identifier: &str) -> Result<R
             .find(|r| r.full_name == repo_identifier)
             .map(|r| r.id.clone())
             .context(format!(
-                "Repository '{}' not found. Make sure you have access to this repository.",
-                repo_identifier
+                "Repository '{repo_identifier}' not found. Make sure you have access to this repository."
             ))
     } else {
         match_repo_by_name(repo_identifier, repos)
@@ -423,8 +420,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 (
                     "Security",
                     bug.is_security_vulnerability
-                        .map(|v| if v { "Yes" } else { "No" })
-                        .unwrap_or("-")
+                        .map_or("-", |v| if v { "Yes" } else { "No" })
                         .to_string(),
                 ),
             ];

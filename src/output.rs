@@ -148,10 +148,10 @@ pub fn output_list<T: Formattable + Serialize>(
                 let (header, pairs) = item.to_card();
                 term.write_line(&format!("{}. {}", offset + i + 1, header))?;
                 for (k, v) in &pairs {
-                    term.write_line(&format!("    {:<width$}  {}", k, v, width = max_key))?;
+                    term.write_line(&format!("    {k:<max_key$}  {v}"))?;
                 }
             }
-            term.write_line(&format!("\nPage: {} of {}", page, total_pages))?;
+            term.write_line(&format!("\nPage: {page} of {total_pages}"))?;
         }
     }
     Ok(())

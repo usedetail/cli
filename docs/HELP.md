@@ -66,7 +66,7 @@ Login with an API token
 
 ###### **Options:**
 
-* `--token <TOKEN>` — API token (dtl_live_...)
+* `--token <TOKEN>` — API token (`dtl_live`_...)
 
 
 

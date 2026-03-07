@@ -56,16 +56,29 @@ clap-markdown = "0.1"
 
 # The profile that 'dist' will build with
 [lints.clippy]
+# Pedantic group (includes cloned_instead_of_copied, implicit_clone,
+# needless_pass_by_value, redundant_closure_for_method_calls,
+# semicolon_if_nothing_returned, manual_let_else, and many more)
+pedantic = { level = "warn", priority = -1 }
+
+# Deny: hard errors that should never appear
 as_conversions = "deny"
 unwrap_used = "deny"
-expect_used = "warn"
 panic = "deny"
-cloned_instead_of_copied = "warn"
-implicit_clone = "warn"
-needless_pass_by_value = "warn"
-redundant_closure_for_method_calls = "warn"
-semicolon_if_nothing_returned = "warn"
-manual_let_else = "warn"
+
+# Warn: not in pedantic but still useful
+expect_used = "warn"
+large_futures = "warn"
+
+# Allow: pedantic lints that are too noisy
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+return_self_not_must_use = "allow"
+module_name_repetitions = "allow"
+too_many_lines = "allow"
+struct_excessive_bools = "allow"
+similar_names = "allow"
 
 [profile.dist]
 inherits = "release"
