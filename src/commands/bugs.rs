@@ -132,7 +132,7 @@ fn prompt_close_state() -> Result<BugReviewState> {
     let items = ["Resolved", "Dismissed"];
     let selection = Select::new()
         .with_prompt("Close state")
-        .items(&items)
+        .items(items)
         .default(0)
         .interact()
         .context("Failed to read close state selection")?;
@@ -147,7 +147,7 @@ fn prompt_dismissal_reason() -> Result<BugDismissalReason> {
     let items = ["Not a Bug", "Won't Fix", "Duplicate", "Other"];
     let selection = Select::new()
         .with_prompt("Dismissal reason")
-        .items(&items)
+        .items(items)
         .default(0)
         .interact()
         .context("Failed to read dismissal reason selection")?;
