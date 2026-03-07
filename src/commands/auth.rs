@@ -35,6 +35,10 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
                 let mut token = String::new();
                 loop {
                     let key = term.read_key()?;
+                    #[allow(
+                        clippy::wildcard_enum_match_arm,
+                        reason = "external enum with many variants"
+                    )]
                     match key {
                         Key::Char(c) if !c.is_whitespace() => {
                             token.push(c);
