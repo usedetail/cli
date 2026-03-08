@@ -7,8 +7,17 @@ allowed-tools: Bash
 
 # Fetch Detail Bugs
 
-Get bugs from Detail for the repository `$ARGUMENTS` and help the user triage
-them. The repository argument is required (e.g., `owner/repo`).
+Get bugs from Detail for a repository and help the user triage them.
+
+## Determining the Repository
+
+If `$ARGUMENTS` is not empty, use it as the repository (`owner/repo`).
+
+Otherwise, auto-detect from the current git remote:
+```bash
+git remote get-url origin 2>/dev/null | sed -E 's|.*github\.com[:/]||;s|\.git$||'
+```
+Use the extracted `owner/repo` as the argument for all `detail bugs` commands.
 
 ## Prerequisites
 
