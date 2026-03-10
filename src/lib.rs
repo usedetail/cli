@@ -61,6 +61,13 @@ impl Cli {
                     ..
                 }
             ),
+            Commands::Scans { command } => matches!(
+                command,
+                commands::scans::ScanCommands::List {
+                    format: OutputFormat::Json,
+                    ..
+                }
+            ),
             Commands::Auth { .. }
             | Commands::SatisfyingSort
             | Commands::Skill
@@ -91,6 +98,7 @@ impl Cli {
             Commands::Bugs { command } => commands::bugs::handle(command, &self).await,
             Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
+            Commands::Scans { command } => commands::scans::handle(command, &self).await,
             Commands::Skill => commands::skill::handle(),
             Commands::Update => commands::update::handle().await,
             Commands::Version => {
@@ -129,6 +137,12 @@ enum Commands {
     Repos {
         #[command(subcommand)]
         command: commands::repos::RepoCommands,
+    },
+
+    /// List and inspect scans
+    Scans {
+        #[command(subcommand)]
+        command: commands::scans::ScanCommands,
     },
 
     /// Install the detail-bugs skill
@@ -261,6 +275,46 @@ mod tests {
     #[test]
     fn rejects_repos_list_page_zero() {
         let cli = Cli::try_parse_from(["detail", "repos", "list", "--page", "0"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn scans_list_parses() {
+        let cli = Cli::try_parse_from(["detail", "scans", "list", "owner/repo"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn silent_when_scans_list_json() {
+        let cli =
+            Cli::try_parse_from(["detail", "scans", "list", "owner/repo", "--format", "json"])
+                .unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_when_scans_list_table() {
+        let cli =
+            Cli::try_parse_from(["detail", "scans", "list", "owner/repo", "--format", "table"])
+                .unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn rejects_scans_list_limit_zero() {
+        let cli = Cli::try_parse_from(["detail", "scans", "list", "owner/repo", "--limit", "0"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn rejects_scans_list_limit_above_max() {
+        let cli = Cli::try_parse_from(["detail", "scans", "list", "owner/repo", "--limit", "101"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn rejects_scans_list_page_zero() {
+        let cli = Cli::try_parse_from(["detail", "scans", "list", "owner/repo", "--page", "0"]);
         assert!(cli.is_err());
     }
 }

@@ -16,6 +16,8 @@ This document contains the help content for the `detail` command-line program.
 * [`detail satisfying-sort`↴](#detail-satisfying-sort)
 * [`detail repos`↴](#detail-repos)
 * [`detail repos list`↴](#detail-repos-list)
+* [`detail scans`↴](#detail-scans)
+* [`detail scans list`↴](#detail-scans-list)
 * [`detail skill`↴](#detail-skill)
 * [`detail update`↴](#detail-update)
 * [`detail version`↴](#detail-version)
@@ -38,6 +40,7 @@ Common workflow:
 * `bugs` — List, show, and close bugs
 * `satisfying-sort` — Run a fun animation. Humans only
 * `repos` — Manage repos tracked with Detail
+* `scans` — List and inspect scans
 * `skill` — Install the detail-bugs skill
 * `update` — Update Immediately (auto-update also runs in the background)
 * `version` — Show version information
@@ -196,6 +199,45 @@ Manage repos tracked with Detail
 List all repositories you have access to
 
 **Usage:** `detail repos list [OPTIONS]`
+
+###### **Options:**
+
+* `--limit <LIMIT>` — Maximum number of results per page
+
+  Default value: `50`
+* `--page <PAGE>` — Page number (starts at 1)
+
+  Default value: `1`
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
+
+
+
+## `detail scans`
+
+List and inspect scans
+
+**Usage:** `detail scans <COMMAND>`
+
+###### **Subcommands:**
+
+* `list` — List recent scans for a repository
+
+
+
+## `detail scans list`
+
+List recent scans for a repository
+
+**Usage:** `detail scans list [OPTIONS] <REPO>`
+
+###### **Arguments:**
+
+* `<REPO>` — Repository in owner/repo format or just repo name
 
 ###### **Options:**
 
