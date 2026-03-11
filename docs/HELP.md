@@ -13,6 +13,7 @@ This document contains the help content for the `detail` command-line program.
 * [`detail bugs list`↴](#detail-bugs-list)
 * [`detail bugs show`↴](#detail-bugs-show)
 * [`detail bugs close`↴](#detail-bugs-close)
+* [`detail completions`↴](#detail-completions)
 * [`detail satisfying-sort`↴](#detail-satisfying-sort)
 * [`detail repos`↴](#detail-repos)
 * [`detail repos list`↴](#detail-repos-list)
@@ -39,6 +40,7 @@ Common workflow:
 
 * `auth` — Manage login credentials
 * `bugs` — List, show, and close bugs
+* `completions` — Install shell completions (auto-detects your shell)
 * `satisfying-sort` — Run a fun animation. Humans only
 * `repos` — Manage repos tracked with Detail
 * `scans` — List and inspect scans
@@ -172,6 +174,14 @@ Close a bug as resolved or dismissed
   Possible values: `not-a-bug`, `wont-fix`, `duplicate`, `other`
 
 * `--notes <NOTES>` — Additional notes
+
+
+
+## `detail completions`
+
+Install shell completions (auto-detects your shell)
+
+**Usage:** `detail completions`
 
 
 

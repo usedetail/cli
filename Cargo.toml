@@ -18,6 +18,7 @@ path = "src/main.rs"
 [dependencies]
 # CLI framework
 clap = { version = "4.5", features = ["derive", "cargo", "env"] }
+clap_complete = { version = "4.5", features = ["unstable-dynamic"] }
 
 # HTTP client
 reqwest = { version = "0.13", features = ["json"] }
