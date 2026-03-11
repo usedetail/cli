@@ -1,0 +1,58 @@
+use anyhow::{Context, Result};
+use clap::Subcommand;
+
+use crate::commands::repo_helpers::resolve_repo_id;
+use crate::output::output_list;
+use crate::utils::page_to_offset;
+
+#[derive(Subcommand)]
+pub enum ScanCommands {
+    /// List recent scans for a repository
+    List {
+        /// Repository in owner/repo format or just repo name
+        repo: String,
+
+        /// Maximum number of results per page
+        #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..=100))]
+        limit: u32,
+
+        /// Page number (starts at 1)
+        #[arg(long, default_value = "1", value_parser = clap::value_parser!(u32).range(1..))]
+        page: u32,
+
+        /// Output format
+        #[arg(long, value_enum, default_value = "table")]
+        format: crate::OutputFormat,
+    },
+}
+
+pub async fn handle(command: &ScanCommands, cli: &crate::Cli) -> Result<()> {
+    let client = cli.create_client()?;
+
+    match command {
+        ScanCommands::List {
+            repo,
+            limit,
+            page,
+            format,
+        } => {
+            let repo_id = resolve_repo_id(&client, repo)
+                .await
+                .context("Failed to resolve repository identifier")?;
+
+            let offset = page_to_offset(*page, *limit);
+            let scans = client
+                .list_scans(&repo_id, *limit, offset)
+                .await
+                .context("Failed to fetch scans")?;
+
+            output_list(
+                &scans.scans,
+                usize::try_from(scans.total.max(0)).unwrap_or(0),
+                *page,
+                *limit,
+                format,
+            )
+        }
+    }
+}

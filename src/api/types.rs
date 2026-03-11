@@ -1,18 +1,20 @@
 use clap::builder::PossibleValue;
 
 use crate::output::Formattable;
-use crate::utils::format_date;
+use crate::utils::{format_date, format_datetime};
 
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
-    Bug, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
-    CreatePublicBugReviewBody, IntroducedIn, Org, OrgId, Repo, RepoId,
+    Bug, BugCounts, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
+    CreatePublicBugReviewBody, IntroducedIn, Org, OrgId, Repo, RepoId, Scan, ScanInitiator,
+    ScanType, WorkflowStatus,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
 pub type UserInfo = super::generated::types::GetPublicUserResponse;
 pub type BugsResponse = super::generated::types::ListPublicBugsResponse;
 pub type ReposResponse = super::generated::types::ListPublicReposResponse;
+pub type ScansResponse = super::generated::types::ListPublicScansResponse;
 
 // ── Display helpers ──────────────────────────────────────────────────
 // progenitor already implements Display for the generated enums, so we
@@ -75,6 +77,35 @@ impl Formattable for Bug {
             ("Created", format_date(self.created_at)),
         ];
         (self.title.clone(), pairs)
+    }
+}
+
+impl Formattable for Scan {
+    fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
+        let header = format!("{}/{}", self.owner_name, self.repo_name);
+        let pairs = vec![
+            (
+                "Status",
+                self.workflow_status
+                    .as_ref()
+                    .map_or_else(|| "pending".to_string(), ToString::to_string),
+            ),
+            (
+                "Scan Type",
+                self.scan_type
+                    .as_ref()
+                    .map_or_else(|| "-".to_string(), ToString::to_string),
+            ),
+            ("Initiator", self.initiator.to_string()),
+            (
+                "Workflow ID",
+                self.workflow_request_id
+                    .clone()
+                    .unwrap_or_else(|| "-".to_string()),
+            ),
+            ("Created", format_datetime(self.created_at)),
+        ];
+        (header, pairs)
     }
 }
 
