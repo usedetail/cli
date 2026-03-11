@@ -13,6 +13,7 @@ pub use super::generated::types::{
 // Friendlier aliases for the generated response-wrapper names.
 pub type UserInfo = super::generated::types::GetPublicUserResponse;
 pub type BugsResponse = super::generated::types::ListPublicBugsResponse;
+pub type ScanBugsResponse = super::generated::types::ListPublicScanBugsResponse;
 pub type ReposResponse = super::generated::types::ListPublicReposResponse;
 pub type ScansResponse = super::generated::types::ListPublicScansResponse;
 
@@ -82,7 +83,13 @@ impl Formattable for Bug {
 
 impl Formattable for Scan {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
-        let header = format!("{}/{}", self.owner_name, self.repo_name);
+        let repo = format!("{}/{}", self.owner_name, self.repo_name);
+        let header = match &self.bug_counts {
+            Some(counts) => {
+                format!("{repo} {} Bugs Found ({} Open)", counts.total, counts.open)
+            }
+            None => repo,
+        };
         let pairs = vec![
             (
                 "Status",
