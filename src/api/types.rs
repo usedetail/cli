@@ -1,7 +1,7 @@
 use clap::builder::PossibleValue;
 
 use crate::output::Formattable;
-use crate::utils::{format_date, format_datetime};
+use crate::utils::datetime::{format_date, format_datetime};
 
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{

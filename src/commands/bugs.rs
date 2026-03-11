@@ -8,9 +8,10 @@ use crate::api::types::{
     dismissal_reason_label, review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
     IntroducedIn, RepoId,
 };
-use crate::commands::repo_helpers::resolve_repo_id;
 use crate::output::{output_list, SectionRenderer};
-use crate::utils::{format_datetime, page_to_offset};
+use crate::utils::datetime::format_datetime;
+use crate::utils::pagination::page_to_offset;
+use crate::utils::repos::resolve_repo_id;
 
 /// Return only bugs where `isSecurityVulnerability` is `true`.
 fn filter_vulns_only(bugs: &[Bug]) -> Vec<Bug> {
@@ -414,130 +415,6 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::types::Repo;
-    use crate::commands::repo_helpers::validate_owner_repo_format;
-    use crate::commands::repo_helpers::{match_repo_by_name, resolve_repo_id_from_repos};
-
-    // ── validate_owner_repo_format ───────────────────────────────────
-
-    #[test]
-    fn valid_owner_repo() {
-        assert!(validate_owner_repo_format("usedetail/cli").is_ok());
-    }
-
-    #[test]
-    fn rejects_empty_owner() {
-        assert!(validate_owner_repo_format("/cli").is_err());
-    }
-
-    #[test]
-    fn rejects_empty_repo() {
-        assert!(validate_owner_repo_format("usedetail/").is_err());
-    }
-
-    #[test]
-    fn rejects_multiple_slashes() {
-        assert!(validate_owner_repo_format("a/b/c").is_err());
-    }
-
-    #[test]
-    fn rejects_slash_only() {
-        assert!(validate_owner_repo_format("/").is_err());
-    }
-
-    // ── match_repo_by_name ───────────────────────────────────────────
-
-    fn sample_repos() -> Vec<Repo> {
-        vec![
-            serde_json::from_value(serde_json::json!({
-                "id": "repo_1", "name": "cli", "ownerName": "usedetail",
-                "fullName": "usedetail/cli", "visibility": "public",
-                "primaryBranch": "main", "orgId": "org_1", "orgName": "Detail"
-            }))
-            .unwrap(),
-            serde_json::from_value(serde_json::json!({
-                "id": "repo_2", "name": "cli", "ownerName": "acme",
-                "fullName": "acme/cli", "visibility": "private",
-                "primaryBranch": "main", "orgId": "org_2", "orgName": "Acme"
-            }))
-            .unwrap(),
-            serde_json::from_value(serde_json::json!({
-                "id": "repo_3", "name": "web", "ownerName": "usedetail",
-                "fullName": "usedetail/web", "visibility": "public",
-                "primaryBranch": "main", "orgId": "org_1", "orgName": "Detail"
-            }))
-            .unwrap(),
-        ]
-    }
-
-    #[test]
-    fn match_single_repo_by_name() {
-        let repos = sample_repos();
-        let id = match_repo_by_name("web", &repos).unwrap();
-        assert_eq!(id.to_string(), "repo_3");
-    }
-
-    #[test]
-    fn match_no_repo_returns_error() {
-        let repos = sample_repos();
-        let err = match_repo_by_name("nonexistent", &repos).unwrap_err();
-        assert!(err.to_string().contains("not found"));
-    }
-
-    #[test]
-    fn match_multiple_repos_returns_error_with_names() {
-        let repos = sample_repos();
-        let err = match_repo_by_name("cli", &repos).unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("Multiple repositories"));
-        assert!(msg.contains("usedetail/cli"));
-        assert!(msg.contains("acme/cli"));
-    }
-
-    #[test]
-    fn match_empty_repo_list() {
-        let err = match_repo_by_name("cli", &[]).unwrap_err();
-        assert!(err.to_string().contains("not found"));
-    }
-
-    // ── resolve_repo_id_from_repos ──────────────────────────────────
-
-    #[test]
-    fn resolve_owner_repo_exact_match() {
-        let repos = sample_repos();
-        let id = resolve_repo_id_from_repos(&repos, "usedetail/cli").unwrap();
-        assert_eq!(id.to_string(), "repo_1");
-    }
-
-    #[test]
-    fn resolve_owner_repo_not_found_has_access_hint() {
-        let repos = sample_repos();
-        let err = resolve_repo_id_from_repos(&repos, "usedetail/missing").unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("Make sure you have access to this repository"));
-    }
-
-    #[test]
-    fn resolve_owner_repo_invalid_format_rejected() {
-        let repos = sample_repos();
-        let err = resolve_repo_id_from_repos(&repos, "usedetail/cli/extra").unwrap_err();
-        assert!(err.to_string().contains("Invalid repository format"));
-    }
-
-    #[test]
-    fn resolve_bare_repo_name_unique_match() {
-        let repos = sample_repos();
-        let id = resolve_repo_id_from_repos(&repos, "web").unwrap();
-        assert_eq!(id.to_string(), "repo_3");
-    }
-
-    #[test]
-    fn resolve_bare_repo_name_ambiguous_returns_error() {
-        let repos = sample_repos();
-        let err = resolve_repo_id_from_repos(&repos, "cli").unwrap_err();
-        assert!(err.to_string().contains("Multiple repositories"));
-    }
 
     // ── validate_close_flags ─────────────────────────────────────────
 

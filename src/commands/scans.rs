@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use clap::Subcommand;
 
-use crate::commands::repo_helpers::resolve_repo_id;
 use crate::output::output_list;
-use crate::utils::page_to_offset;
+use crate::utils::pagination::page_to_offset;
+use crate::utils::repos::resolve_repo_id;
 
 #[derive(Subcommand)]
 pub enum ScanCommands {

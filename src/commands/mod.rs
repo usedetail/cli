@@ -1,6 +1,5 @@
 pub mod auth;
 pub mod bugs;
-pub mod repo_helpers;
 pub mod repos;
 pub mod satisfying_sort;
 pub mod scans;
