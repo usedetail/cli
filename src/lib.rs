@@ -66,6 +66,9 @@ impl Cli {
                 commands::scans::ScanCommands::List {
                     format: OutputFormat::Json,
                     ..
+                } | commands::scans::ScanCommands::Show {
+                    format: OutputFormat::Json,
+                    ..
                 }
             ),
             Commands::Auth { .. }
@@ -315,6 +318,46 @@ mod tests {
     #[test]
     fn rejects_scans_list_page_zero() {
         let cli = Cli::try_parse_from(["detail", "scans", "list", "owner/repo", "--page", "0"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn scans_show_parses() {
+        let cli = Cli::try_parse_from(["detail", "scans", "show", "wfr_abc123"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn silent_when_scans_show_json() {
+        let cli =
+            Cli::try_parse_from(["detail", "scans", "show", "wfr_abc123", "--format", "json"])
+                .unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_when_scans_show_table() {
+        let cli =
+            Cli::try_parse_from(["detail", "scans", "show", "wfr_abc123", "--format", "table"])
+                .unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn rejects_scans_show_limit_zero() {
+        let cli = Cli::try_parse_from(["detail", "scans", "show", "wfr_abc123", "--limit", "0"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn rejects_scans_show_limit_above_max() {
+        let cli = Cli::try_parse_from(["detail", "scans", "show", "wfr_abc123", "--limit", "101"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn rejects_scans_show_page_zero() {
+        let cli = Cli::try_parse_from(["detail", "scans", "show", "wfr_abc123", "--page", "0"]);
         assert!(cli.is_err());
     }
 }

@@ -7,7 +7,7 @@ use progenitor::progenitor_client::ResponseValue;
 
 use super::types::{
     Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugsResponse,
-    CreatePublicBugReviewBody, RepoId, ReposResponse, ScansResponse, UserInfo,
+    CreatePublicBugReviewBody, RepoId, ReposResponse, ScanBugsResponse, ScansResponse, UserInfo,
 };
 
 pub struct ApiClient {
@@ -106,6 +106,25 @@ impl ApiClient {
 
         self.inner
             .list_public_scans(NonZeroU64::new(limit.into()), Some(offset.into()), repo_id)
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+    }
+
+    pub async fn list_scan_bugs(
+        &self,
+        workflow_request_id: &str,
+        limit: u32,
+        offset: u32,
+    ) -> Result<ScanBugsResponse> {
+        use std::num::NonZeroU64;
+
+        self.inner
+            .list_public_scan_bugs(
+                workflow_request_id,
+                NonZeroU64::new(limit.into()),
+                Some(offset.into()),
+            )
             .await
             .map(ResponseValue::into_inner)
             .map_err(|e| anyhow::anyhow!("API error: {e}"))

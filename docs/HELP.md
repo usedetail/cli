@@ -18,6 +18,7 @@ This document contains the help content for the `detail` command-line program.
 * [`detail repos list`↴](#detail-repos-list)
 * [`detail scans`↴](#detail-scans)
 * [`detail scans list`↴](#detail-scans-list)
+* [`detail scans show`↴](#detail-scans-show)
 * [`detail skill`↴](#detail-skill)
 * [`detail update`↴](#detail-update)
 * [`detail version`↴](#detail-version)
@@ -226,6 +227,7 @@ List and inspect scans
 ###### **Subcommands:**
 
 * `list` — List recent scans for a repository
+* `show` — Show bugs found in a specific scan
 
 
 
@@ -238,6 +240,33 @@ List recent scans for a repository
 ###### **Arguments:**
 
 * `<REPO>` — Repository in owner/repo format or just repo name
+
+###### **Options:**
+
+* `--limit <LIMIT>` — Maximum number of results per page
+
+  Default value: `50`
+* `--page <PAGE>` — Page number (starts at 1)
+
+  Default value: `1`
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
+
+
+
+## `detail scans show`
+
+Show bugs found in a specific scan
+
+**Usage:** `detail scans show [OPTIONS] <WORKFLOW_REQUEST_ID>`
+
+###### **Arguments:**
+
+* `<WORKFLOW_REQUEST_ID>` — Workflow request ID of the scan (from `scans list` output)
 
 ###### **Options:**
 
