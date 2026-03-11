@@ -72,6 +72,7 @@ impl Cli {
                 }
             ),
             Commands::Auth { .. }
+            | Commands::Completions
             | Commands::SatisfyingSort
             | Commands::Skill
             | Commands::Update
@@ -99,6 +100,7 @@ impl Cli {
         match &self.command {
             Commands::Auth { command } => commands::auth::handle(command, &self).await,
             Commands::Bugs { command } => commands::bugs::handle(command, &self).await,
+            Commands::Completions => commands::completions::handle(),
             Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
             Commands::Scans { command } => commands::scans::handle(command, &self).await,
@@ -131,6 +133,9 @@ enum Commands {
         #[command(subcommand)]
         command: commands::bugs::BugCommands,
     },
+
+    /// Install shell completions (auto-detects your shell)
+    Completions,
 
     /// Run a fun animation. Humans only.
     #[command(name = "satisfying-sort")]
