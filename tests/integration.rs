@@ -69,7 +69,11 @@ impl Env {
     }
 
     fn run(&self, args: &[&str]) -> Output {
-        let output = self.cmd().args(args).output().expect("failed to execute detail binary");
+        let output = self
+            .cmd()
+            .args(args)
+            .output()
+            .expect("failed to execute detail binary");
         Output {
             success: output.status.success(),
             stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
@@ -157,18 +161,12 @@ fn repos_list() {
     let env = Env::authenticated(&key, "repos_list");
 
     let json = env.run_json(&["repos", "list", "--format", "json"]);
-    assert!(
-        json["items"].is_array(),
-        "expected items array in: {json}",
-    );
+    assert!(json["items"].is_array(), "expected items array in: {json}",);
     assert!(
         json["items"].as_array().unwrap().len() > 0,
         "expected at least one repo",
     );
-    assert!(
-        json["total"].is_number(),
-        "expected total in: {json}",
-    );
+    assert!(json["total"].is_number(), "expected total in: {json}",);
 }
 
 #[test]
@@ -177,10 +175,7 @@ fn bugs_list_default() {
     let env = Env::authenticated(&key, "bugs_list_default");
 
     let json = env.run_json(&["bugs", "list", REPO, "--format", "json"]);
-    assert!(
-        json["items"].is_array(),
-        "expected items array in: {json}",
-    );
+    assert!(json["items"].is_array(), "expected items array in: {json}",);
     assert!(json["total"].is_number(), "expected total in: {json}");
     assert!(json["page"].is_number(), "expected page in: {json}");
     assert!(
@@ -262,8 +257,7 @@ fn bugs_show() {
     assert!(
         out.success,
         "bugs show {bug_id} failed:\nstdout: {}\nstderr: {}",
-        out.stdout,
-        out.stderr,
+        out.stdout, out.stderr,
     );
     assert!(
         out.stdout.contains(&bug_id),
@@ -278,10 +272,7 @@ fn scans_list() {
     let env = Env::authenticated(&key, "scans_list");
 
     let json = env.run_json(&["scans", "list", REPO, "--format", "json"]);
-    assert!(
-        json["items"].is_array(),
-        "expected items array in: {json}",
-    );
+    assert!(json["items"].is_array(), "expected items array in: {json}",);
     assert!(json["total"].is_number(), "expected total in: {json}");
 }
 
