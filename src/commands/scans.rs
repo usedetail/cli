@@ -24,24 +24,6 @@ pub enum ScanCommands {
         #[arg(long, value_enum, default_value = "table")]
         format: crate::OutputFormat,
     },
-
-    /// Show bugs found in a specific scan
-    Show {
-        /// Workflow request ID of the scan (from `scans list` output)
-        workflow_request_id: String,
-
-        /// Maximum number of results per page
-        #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..=100))]
-        limit: u32,
-
-        /// Page number (starts at 1)
-        #[arg(long, default_value = "1", value_parser = clap::value_parser!(u32).range(1..))]
-        page: u32,
-
-        /// Output format
-        #[arg(long, value_enum, default_value = "table")]
-        format: crate::OutputFormat,
-    },
 }
 
 pub async fn handle(command: &ScanCommands, cli: &crate::Cli) -> Result<()> {
@@ -67,26 +49,6 @@ pub async fn handle(command: &ScanCommands, cli: &crate::Cli) -> Result<()> {
             output_list(
                 &scans.scans,
                 usize::try_from(scans.total.max(0)).unwrap_or(0),
-                *page,
-                *limit,
-                format,
-            )
-        }
-        ScanCommands::Show {
-            workflow_request_id,
-            limit,
-            page,
-            format,
-        } => {
-            let offset = page_to_offset(*page, *limit);
-            let response = client
-                .list_scan_bugs(workflow_request_id, *limit, offset)
-                .await
-                .context("Failed to fetch scan bugs")?;
-
-            output_list(
-                &response.bugs,
-                usize::try_from(response.total.max(0)).unwrap_or(0),
                 *page,
                 *limit,
                 format,
