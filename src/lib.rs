@@ -278,6 +278,27 @@ mod tests {
     }
 
     #[test]
+    fn bugs_list_scan_id_parses() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "bugs",
+            "list",
+            "owner/repo",
+            "--scan-id",
+            "wr_abc123",
+        ])
+        .unwrap();
+        if let Commands::Bugs {
+            command: commands::bugs::BugCommands::List { scan_id, .. },
+        } = &cli.command
+        {
+            assert_eq!(scan_id.as_deref(), Some("wr_abc123"));
+        } else {
+            panic!("expected bugs list command");
+        }
+    }
+
+    #[test]
     fn rejects_repos_list_page_zero() {
         let cli = Cli::try_parse_from(["detail", "repos", "list", "--page", "0"]);
         assert!(cli.is_err());

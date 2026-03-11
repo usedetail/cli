@@ -125,6 +125,7 @@ List bugs for a given repository
 
 * `--vulns` — Only show security vulnerabilities
 * `--introduced-by <INTRODUCED_BY>` — Only show bugs introduced by these authors (comma-separated or repeat flag)
+* `--scan-id <SCAN_ID>` — Filter bugs to a specific scan by workflow request ID
 * `--limit <LIMIT>` — Maximum number of results per page
 
   Default value: `50`

@@ -367,6 +367,15 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "workflow_request_id",
+            "required": false,
+            "schema": {
+              "pattern": "^wr_.*",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -726,96 +735,6 @@
           }
         ],
         "summary": "List scans"
-      }
-    },
-    "/public/v1/scans/{workflow_request_id}/bugs": {
-      "get": {
-        "description": "Returns all bugs found in a specific scan identified by its workflow request ID.",
-        "operationId": "listPublicScanBugs",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "workflow_request_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "bugs": {
-                      "items": {
-                        "$ref": "#/components/schemas/Bug"
-                      },
-                      "type": "array"
-                    },
-                    "total": {
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "bugs",
-                    "total"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "4XX": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Client error"
-          },
-          "5XX": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Server error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "List bugs for a scan"
       }
     },
     "/public/v1/user": {
