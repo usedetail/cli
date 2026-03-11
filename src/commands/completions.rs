@@ -73,10 +73,7 @@ pub fn handle() -> Result<()> {
         fs::create_dir_all(parent)?;
     }
 
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&rc)?;
+    let mut file = fs::OpenOptions::new().create(true).append(true).open(&rc)?;
     writeln!(file)?;
     writeln!(file, "# Detail CLI shell completions")?;
     writeln!(file, "{snippet}")?;
