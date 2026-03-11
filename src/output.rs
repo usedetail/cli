@@ -9,7 +9,7 @@ use console::{style, Term};
 use serde::Serialize;
 use termimad::crossterm::style::Attribute;
 
-use crate::utils::page_to_offset;
+use crate::utils::pagination::page_to_offset;
 
 static MARKDOWN_SKIN: LazyLock<termimad::MadSkin> = LazyLock::new(|| {
     let mut skin = termimad::MadSkin::default();

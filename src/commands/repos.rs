@@ -5,7 +5,7 @@ use clap::Subcommand;
 use console::{style, Term};
 
 use crate::output::output_list;
-use crate::utils::page_to_offset;
+use crate::utils::pagination::page_to_offset;
 
 #[derive(Subcommand)]
 pub enum RepoCommands {
