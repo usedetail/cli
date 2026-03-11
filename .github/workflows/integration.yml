@@ -1,0 +1,28 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    # Fork PRs never receive secrets — skip to avoid spurious failures.
+    # Same-repo PRs (from collaborators) and pushes to main run automatically.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # DETAIL_API_KEY is stored as an environment secret in "integration-tests".
+    environment: integration-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run integration tests
+        env:
+          DETAIL_API_KEY: ${{ secrets.DETAIL_API_KEY }}
+        run: cargo test --test integration -- --nocapture
