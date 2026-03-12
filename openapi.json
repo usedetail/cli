@@ -129,17 +129,23 @@
             "$ref": "#/components/schemas/BugDismissalReason"
           },
           "id": {
-            "$ref": "#/components/schemas/BugReviewId"
+            "$ref": "#/components/schemas/BugReviewId",
+            "nullable": true
+          },
+          "linearStateName": {
+            "type": "string"
           },
           "notes": {
             "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/BugSource"
           },
           "state": {
             "$ref": "#/components/schemas/BugReviewState"
           }
         },
         "required": [
-          "id",
           "state",
           "createdAt"
         ],
@@ -154,6 +160,13 @@
           "resolved",
           "dismissed",
           "pending"
+        ],
+        "type": "string"
+      },
+      "BugSource": {
+        "enum": [
+          "review",
+          "linear"
         ],
         "type": "string"
       },
@@ -283,8 +296,14 @@
           "repoId",
           "repoName",
           "ownerName",
+          "scanType",
+          "workflowStatus",
           "createdAt",
-          "initiator"
+          "completedAt",
+          "initiator",
+          "workflowRequestId",
+          "commitSha",
+          "bugCounts"
         ],
         "type": "object"
       },

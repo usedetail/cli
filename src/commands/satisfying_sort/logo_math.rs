@@ -149,8 +149,8 @@ fn mask_region_at(
 fn region_bbox(logo: &LogoMask, region: LogoRegion) -> Option<(usize, usize, usize, usize)> {
     let mut min_x = usize::MAX;
     let mut min_y = usize::MAX;
-    let mut max_x = 0usize;
-    let mut max_y = 0usize;
+    let mut max_x = 0_usize;
+    let mut max_y = 0_usize;
     let mut found = false;
 
     for y in 0..logo.height {
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn triangle_index_mapping_is_directional() {
-        let n = 100usize;
+        let n = 100_usize;
         assert_eq!(triangle_nominal_index(0.0, n, LogoRegion::TopTriangle), 0);
         assert_eq!(
             triangle_nominal_index(1.0, n, LogoRegion::TopTriangle),
@@ -247,8 +247,8 @@ mod tests {
         let n = array.len();
         let viewport_width = 80;
 
-        let nominal_left = 0usize;
-        let nominal_next = 1usize;
+        let nominal_left = 0_usize;
+        let nominal_next = 1_usize;
         let shuffled_left = shuffled_index_for_nominal(&array, nominal_left, n);
         let shuffled_next = shuffled_index_for_nominal(&array, nominal_next, n);
 
@@ -263,8 +263,8 @@ mod tests {
     #[test]
     fn mask_region_lookup_tracks_generated_mask() {
         let logo = generate_logo_mask(128);
-        let viewport_width = 64usize;
-        let viewport_height = 64usize;
+        let viewport_width = 64_usize;
+        let viewport_height = 64_usize;
 
         let top = mask_region_at(&logo, 0, 0, viewport_width, viewport_height);
         let center = mask_region_at(
