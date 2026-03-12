@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use console::{style, Term};
@@ -6,7 +8,7 @@ use dialoguer::{Input, Select};
 use crate::api::client::ApiClient;
 use crate::api::types::{
     dismissal_reason_label, review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
-    IntroducedIn, RepoId,
+    IntroducedIn, ListPublicBugsWorkflowRequestId, RepoId,
 };
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::datetime::format_datetime;
@@ -88,6 +90,10 @@ pub enum BugCommands {
         /// Only show bugs introduced by these authors (comma-separated or repeat flag)
         #[arg(long, value_delimiter = ',')]
         introduced_by: Vec<String>,
+
+        /// Filter bugs to a specific scan by workflow request ID
+        #[arg(long)]
+        scan_id: Option<String>,
 
         /// Maximum number of results per page
         #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..=100))]
@@ -235,13 +241,14 @@ async fn fetch_all_bugs(
     client: &ApiClient,
     repo_id: &RepoId,
     status: BugReviewState,
+    scan_id: Option<&ListPublicBugsWorkflowRequestId>,
 ) -> Result<Vec<Bug>> {
     let mut all_bugs = Vec::new();
     let mut offset = 0;
 
     loop {
         let response = client
-            .list_bugs(repo_id, status, BUG_PAGE_SIZE, offset)
+            .list_bugs(repo_id, status, BUG_PAGE_SIZE, offset, scan_id)
             .await
             .context("Failed to fetch bugs from repository")?;
 
@@ -267,6 +274,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             status,
             vulns,
             introduced_by,
+            scan_id,
             limit,
             page,
             format,
@@ -276,8 +284,15 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to resolve repository identifier")?;
 
+            let scan_id: Option<ListPublicBugsWorkflowRequestId> = scan_id
+                .as_deref()
+                .map(TryInto::try_into)
+                .transpose()
+                .context("Invalid scan ID format (expected wr_...)")?;
+
             if *vulns || !introduced_by.is_empty() {
-                let all_bugs = fetch_all_bugs(&client, &resolved_repo_id, *status).await?;
+                let all_bugs =
+                    fetch_all_bugs(&client, &resolved_repo_id, *status, scan_id.as_ref()).await?;
                 let mut filtered = all_bugs;
                 if *vulns {
                     filtered = filter_vulns_only(&filtered);
@@ -305,7 +320,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             } else {
                 let offset = page_to_offset(*page, *limit);
                 let bugs = client
-                    .list_bugs(&resolved_repo_id, *status, *limit, offset)
+                    .list_bugs(&resolved_repo_id, *status, *limit, offset, scan_id.as_ref())
                     .await
                     .context("Failed to fetch bugs from repository")?;
 

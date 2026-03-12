@@ -6,8 +6,8 @@ use crate::utils::datetime::{format_date, format_datetime};
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
     Bug, BugCounts, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
-    CreatePublicBugReviewBody, IntroducedIn, Org, OrgId, Repo, RepoId, Scan, ScanInitiator,
-    ScanType, WorkflowStatus,
+    CreatePublicBugReviewBody, IntroducedIn, ListPublicBugsWorkflowRequestId, Org, OrgId, Repo,
+    RepoId, Scan, ScanInitiator, ScanType, WorkflowStatus,
 };
 
 // Friendlier aliases for the generated response-wrapper names.

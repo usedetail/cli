@@ -7,7 +7,8 @@ use progenitor::progenitor_client::ResponseValue;
 
 use super::types::{
     Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugsResponse,
-    CreatePublicBugReviewBody, RepoId, ReposResponse, ScansResponse, UserInfo,
+    CreatePublicBugReviewBody, ListPublicBugsWorkflowRequestId, RepoId, ReposResponse,
+    ScansResponse, UserInfo,
 };
 
 pub struct ApiClient {
@@ -53,6 +54,7 @@ impl ApiClient {
         status: BugReviewState,
         limit: u32,
         offset: u32,
+        scan_id: Option<&ListPublicBugsWorkflowRequestId>,
     ) -> Result<BugsResponse> {
         use std::num::NonZeroU64;
 
@@ -62,6 +64,7 @@ impl ApiClient {
                 Some(offset.into()),
                 repo_id,
                 status,
+                scan_id,
             )
             .await
             .map(ResponseValue::into_inner)
