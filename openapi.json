@@ -26,7 +26,8 @@
               "NOT_FOUND",
               "INTERNAL_ERROR",
               "INVALID_REQUEST_BODY",
-              "INVALID_QUERY_PARAMS"
+              "INVALID_QUERY_PARAMS",
+              "UNKNOWN_WORKFLOW_REQUEST"
             ],
             "type": "string"
           }
