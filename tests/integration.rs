@@ -277,6 +277,45 @@ fn scans_list() {
 }
 
 #[test]
+fn bugs_list_scan_id() {
+    let key = require_api_key!();
+    let env = Env::authenticated(&key, "bugs_list_scan_id");
+
+    // Find a scan with open bugs and a workflow_request_id we can filter by.
+    let scans_json = env.run_json(&["scans", "list", REPO, "--format", "json"]);
+    let scan_id = scans_json["items"]
+        .as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .find(|s| {
+            s["bugCounts"]["open"].as_i64().unwrap_or(0) > 0 && s["workflowRequestId"].is_string()
+        })
+        .and_then(|s| s["workflowRequestId"].as_str())
+        .map(|s| s.to_string());
+
+    let Some(scan_id) = scan_id else {
+        eprintln!("no scans with open bugs found in {REPO} — skipping bugs_list_scan_id");
+        return;
+    };
+
+    let json = env.run_json(&[
+        "bugs",
+        "list",
+        REPO,
+        "--scan-id",
+        &scan_id,
+        "--format",
+        "json",
+    ]);
+    assert!(json["items"].is_array(), "expected items array in: {json}");
+    assert!(
+        json["items"].as_array().unwrap().len() > 0,
+        "expected at least one bug for scan {scan_id}",
+    );
+    assert!(json["total"].is_number(), "expected total in: {json}");
+}
+
+#[test]
 fn commands_fail_without_auth() {
     let env = Env::new("no_auth");
 
