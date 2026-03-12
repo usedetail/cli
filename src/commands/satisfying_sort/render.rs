@@ -321,7 +321,7 @@ mod tests {
             height_rows: 9,
             side: 18,
         };
-        let mut count = 0usize;
+        let mut count = 0_usize;
 
         rasterize_halfblocks(&state, viewport, |x, y, _, _| {
             assert!((5..22).contains(&x));
@@ -347,8 +347,8 @@ mod tests {
 
     #[test]
     fn min_active_window_produces_two_visible_blue_columns() {
-        let n = 1000usize;
-        for width in [80usize, 120, 160, 220] {
+        let n = 1000_usize;
+        for width in [80_usize, 120, 160, 220] {
             let x_den = usize_to_f32(width.saturating_sub(1).max(1));
             let nominal_by_col: Vec<usize> = (0..width)
                 .map(|x| {
