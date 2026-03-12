@@ -131,7 +131,13 @@
           "id": {
             "$ref": "#/components/schemas/BugReviewId"
           },
+          "linearStateName": {
+            "type": "string"
+          },
           "notes": {
+            "type": "string"
+          },
+          "source": {
             "type": "string"
           },
           "state": {
@@ -139,7 +145,6 @@
           }
         },
         "required": [
-          "id",
           "state",
           "createdAt"
         ],
