@@ -3,7 +3,7 @@ members = [".", "xtask"]
 
 [package]
 name = "detail-cli"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2021"
 authors = ["Detail Team <eng@detail.dev>"]
 license = "MIT"
