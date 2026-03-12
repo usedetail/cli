@@ -121,7 +121,7 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
 }
 
 /// Check if the string matches the expected API token format: dtl_{env}_{32hex}.{64hex}
-pub(crate) fn is_complete_token(s: &str) -> bool {
+fn is_complete_token(s: &str) -> bool {
     if !s.starts_with("dtl_") {
         return false;
     }
