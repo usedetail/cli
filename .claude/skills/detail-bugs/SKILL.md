@@ -32,6 +32,25 @@ run:
 detail auth login --token <TOKEN>
 ```
 
+## Listing bugs for a specific scan
+
+To scope bugs to a particular scan, first get the scan's workflow request ID:
+
+```bash
+detail scans list $ARGUMENTS
+```
+
+The output includes a `Workflow ID` column (values like `wr_...`). Then pass
+that ID to `bugs list`:
+
+```bash
+detail bugs list $ARGUMENTS --scan-id <workflow_request_id>
+```
+
+This returns only bugs found in that scan, still filtered by `--status`
+(default: `pending`). Use `--status resolved` or `--status dismissed` to see
+closed bugs for the scan.
+
 ## Step 1: List pending bugs
 
 Run `detail bugs list $ARGUMENTS` to fetch all pending bugs.
