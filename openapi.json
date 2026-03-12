@@ -1,4 +1,5 @@
 {
+  "$comment": "Generated file — do not edit directly. Source of truth: apps/backend/src/app/routes/public/v1/openapi-spec.ts in the detail repo. Run `cargo xtask generate-openapi` to regenerate.",
   "components": {
     "schemas": {
       "ApiError": {
@@ -256,7 +257,8 @@
       "Scan": {
         "properties": {
           "bugCounts": {
-            "$ref": "#/components/schemas/BugCounts"
+            "$ref": "#/components/schemas/BugCounts",
+            "nullable": true
           },
           "commitSha": {
             "nullable": true,
@@ -282,28 +284,27 @@
             "type": "string"
           },
           "scanType": {
-            "$ref": "#/components/schemas/ScanType"
+            "$ref": "#/components/schemas/ScanType",
+            "nullable": true
           },
           "workflowRequestId": {
             "nullable": true,
             "type": "string"
           },
           "workflowStatus": {
-            "$ref": "#/components/schemas/WorkflowStatus"
+            "$ref": "#/components/schemas/WorkflowStatus",
+            "nullable": true
           }
         },
         "required": [
           "repoId",
           "repoName",
           "ownerName",
-          "scanType",
-          "workflowStatus",
           "createdAt",
           "completedAt",
           "initiator",
           "workflowRequestId",
-          "commitSha",
-          "bugCounts"
+          "commitSha"
         ],
         "type": "object"
       },

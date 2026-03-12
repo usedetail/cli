@@ -74,9 +74,23 @@ async fn fetch_openapi() -> Result<serde_json::Value, String> {
         .map_err(|e| format!("Failed to parse upstream JSON: {e}"))
 }
 
+const OPENAPI_COMMENT: &str = "Generated file — do not edit directly. Source of truth: \
+    apps/backend/src/app/routes/public/v1/openapi-spec.ts in the detail repo. \
+    Run `cargo xtask generate-openapi` to regenerate.";
+
+fn with_comment(mut value: serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert(
+            "$comment".to_string(),
+            serde_json::Value::String(OPENAPI_COMMENT.to_string()),
+        );
+    }
+    value
+}
+
 fn generate_openapi() -> Result<(), String> {
     let upstream = fetch_openapi()?;
-    let pretty = serde_json::to_string_pretty(&upstream)
+    let pretty = serde_json::to_string_pretty(&with_comment(upstream))
         .map_err(|e| format!("Failed to format JSON: {e}"))?;
     std::fs::write(OPENAPI_PATH, format!("{pretty}\n"))
         .map_err(|e| format!("Failed to write {OPENAPI_PATH}: {e}"))?;
@@ -88,8 +102,11 @@ fn check_openapi() -> Result<(), String> {
     let upstream = fetch_openapi()?;
     let local_bytes = std::fs::read_to_string(OPENAPI_PATH)
         .map_err(|e| format!("Failed to read {OPENAPI_PATH}: {e}"))?;
-    let local: serde_json::Value = serde_json::from_str(&local_bytes)
+    let mut local: serde_json::Value = serde_json::from_str(&local_bytes)
         .map_err(|e| format!("Failed to parse local {OPENAPI_PATH}: {e}"))?;
+    if let Some(obj) = local.as_object_mut() {
+        obj.remove("$comment");
+    }
 
     if upstream == local {
         eprintln!("{OPENAPI_PATH} matches upstream.");

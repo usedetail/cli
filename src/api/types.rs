@@ -83,13 +83,23 @@ impl Formattable for Bug {
 impl Formattable for Scan {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
         let repo = format!("{}/{}", self.owner_name, self.repo_name);
-        let header = format!(
-            "{repo} {} Bugs Found ({} Open)",
-            self.bug_counts.total, self.bug_counts.open
-        );
+        let header = match &self.bug_counts {
+            Some(counts) => format!("{repo} {} Bugs Found ({} Open)", counts.total, counts.open),
+            None => repo,
+        };
         let pairs = vec![
-            ("Status", self.workflow_status.to_string()),
-            ("Scan Type", self.scan_type.to_string()),
+            (
+                "Status",
+                self.workflow_status
+                    .as_ref()
+                    .map_or_else(|| "-".to_string(), ToString::to_string),
+            ),
+            (
+                "Scan Type",
+                self.scan_type
+                    .as_ref()
+                    .map_or_else(|| "-".to_string(), ToString::to_string),
+            ),
             ("Initiator", self.initiator.to_string()),
             (
                 "Workflow ID",
