@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-const REPO: &str = "usedetail/cli";
+const REPO: &str = "usedetail/detail";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
