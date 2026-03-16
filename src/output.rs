@@ -109,6 +109,9 @@ pub trait Formattable {
 
 /// Compute the total number of pages for a given item count and page size.
 fn total_pages(total: usize, limit: u32) -> u32 {
+    if limit == 0 {
+        return 1;
+    }
     u32::try_from(total)
         .unwrap_or(u32::MAX)
         .div_ceil(limit)
@@ -186,6 +189,12 @@ mod tests {
     #[test]
     fn total_pages_limit_one() {
         assert_eq!(total_pages(5, 1), 5);
+    }
+
+    #[test]
+    fn total_pages_limit_zero_returns_one() {
+        // limit=0 is prevented by clap, but the function should not panic
+        assert_eq!(total_pages(10, 0), 1);
     }
 
     // ── SectionRenderer builder ──────────────────────────────────────
