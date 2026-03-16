@@ -280,4 +280,102 @@ mod tests {
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0], ("Organization", "Detail".to_string()));
     }
+
+    // ── Scan Formattable ─────────────────────────────────────────────
+
+    fn sample_scan() -> Scan {
+        serde_json::from_value(serde_json::json!({
+            "id": "scan_001",
+            "repoId": "repo_001",
+            "ownerName": "usedetail",
+            "repoName": "cli",
+            "initiator": "scheduler",
+            "createdAt": 1_736_899_200_000_i64,
+            "completedAt": 1_736_899_300_000_i64,
+            "commitSha": "abc123",
+            "workflowStatus": "complete",
+            "scanType": "default",
+            "workflowRequestId": "wr_abc123",
+            "bugCounts": { "total": 5, "open": 3, "dismissed": 1, "resolved": 1 }
+        }))
+        .expect("valid Scan JSON")
+    }
+
+    #[test]
+    fn scan_card_header_with_bug_counts() {
+        let (header, _) = sample_scan().to_card();
+        assert_eq!(header, "usedetail/cli 5 Bugs Found (3 Open)");
+    }
+
+    #[test]
+    fn scan_card_header_without_bug_counts() {
+        let scan: Scan = serde_json::from_value(serde_json::json!({
+            "id": "scan_002",
+            "repoId": "repo_001",
+            "ownerName": "usedetail",
+            "repoName": "cli",
+            "initiator": "scheduler",
+            "createdAt": 1_736_899_200_000_i64,
+            "completedAt": null,
+            "commitSha": "abc123",
+            "workflowRequestId": null
+        }))
+        .expect("valid Scan JSON");
+        let (header, _) = scan.to_card();
+        assert_eq!(header, "usedetail/cli");
+    }
+
+    #[test]
+    fn scan_card_contains_expected_keys() {
+        let (_, pairs) = sample_scan().to_card();
+        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
+        assert_eq!(
+            keys,
+            vec!["Status", "Scan Type", "Initiator", "Workflow ID", "Created"]
+        );
+    }
+
+    #[test]
+    fn scan_card_status_none_shows_dash() {
+        let scan: Scan = serde_json::from_value(serde_json::json!({
+            "id": "scan_003",
+            "repoId": "repo_001",
+            "ownerName": "usedetail",
+            "repoName": "cli",
+            "initiator": "scheduler",
+            "createdAt": 1_736_899_200_000_i64,
+            "completedAt": null,
+            "commitSha": "abc123",
+            "workflowRequestId": null
+        }))
+        .expect("valid Scan JSON");
+        let (_, pairs) = scan.to_card();
+        assert_eq!(pairs[0].1, "-"); // Status
+        assert_eq!(pairs[1].1, "-"); // Scan Type
+    }
+
+    #[test]
+    fn scan_card_workflow_id_none_shows_dash() {
+        let scan: Scan = serde_json::from_value(serde_json::json!({
+            "id": "scan_004",
+            "repoId": "repo_001",
+            "ownerName": "usedetail",
+            "repoName": "cli",
+            "initiator": "scheduler",
+            "createdAt": 1_736_899_200_000_i64,
+            "completedAt": null,
+            "commitSha": "abc123",
+            "workflowRequestId": null
+        }))
+        .expect("valid Scan JSON");
+        let (_, pairs) = scan.to_card();
+        // Workflow ID is the 4th pair (index 3)
+        assert_eq!(pairs[3].1, "-");
+    }
+
+    #[test]
+    fn scan_card_workflow_id_present() {
+        let (_, pairs) = sample_scan().to_card();
+        assert_eq!(pairs[3].1, "wr_abc123");
+    }
 }
