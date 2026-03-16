@@ -328,3 +328,28 @@ fn commands_fail_without_auth() {
     let out = env.run(&["scans", "list", REPO, "--format", "json"]);
     assert!(!out.success, "scans list should fail without auth");
 }
+
+#[test]
+fn auth_login_rejects_invalid_token_prefix() {
+    let env = Env::new("invalid_token_prefix");
+    let out = env.run(&["auth", "login", "--token", "bad_token_no_prefix"]);
+    assert!(
+        !out.success,
+        "auth login should reject invalid token prefix"
+    );
+    assert!(
+        out.stderr.contains("dtl_") || out.stdout.contains("dtl_"),
+        "expected error mentioning dtl_ prefix in:\nstdout: {}\nstderr: {}",
+        out.stdout,
+        out.stderr,
+    );
+}
+
+#[test]
+fn bugs_list_rejects_invalid_repo_format() {
+    let key = require_api_key!();
+    let env = Env::authenticated(&key, "invalid_repo_format");
+
+    let out = env.run(&["bugs", "list", "a/b/c", "--format", "json"]);
+    assert!(!out.success, "bugs list should reject a/b/c format");
+}
