@@ -329,7 +329,10 @@ mod tests {
     fn scan_card_contains_expected_keys() {
         let (_, pairs) = sample_scan().to_card();
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, vec!["Status", "Scan Type", "Initiator", "Workflow ID", "Created"]);
+        assert_eq!(
+            keys,
+            vec!["Status", "Scan Type", "Initiator", "Workflow ID", "Created"]
+        );
     }
 
     #[test]
