@@ -279,4 +279,37 @@ mod tests {
             assert!(load_token().is_err());
         });
     }
+
+    #[test]
+    fn concurrent_update_config_does_not_corrupt() {
+        use std::thread;
+
+        with_temp_config(|| {
+            // Initialize config
+            save_config(&Config::default()).unwrap();
+
+            let handles: Vec<_> = (0..10)
+                .map(|i| {
+                    thread::spawn(move || {
+                        // Each thread needs its own XDG_CONFIG_HOME since env vars are process-global.
+                        // Since with_temp_config already set it, spawned threads inherit it.
+                        update_config(|config| {
+                            config.last_update_check = Some(i as u64);
+                        })
+                    })
+                })
+                .collect();
+
+            for h in handles {
+                h.join().unwrap().unwrap();
+            }
+
+            // Config should be valid TOML and parseable
+            let config = load_config().unwrap();
+            // last_update_check should be one of the values written (we don't know which due to races)
+            assert!(config.last_update_check.is_some());
+            // Most importantly: the file is not corrupted
+            assert!(config.check_for_updates); // default value should survive
+        });
+    }
 }
