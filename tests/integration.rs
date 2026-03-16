@@ -316,6 +316,33 @@ fn bugs_list_scan_id() {
 }
 
 #[test]
+fn help_flag_succeeds() {
+    let env = Env::new("help_flag");
+    let out = env.run(&["--help"]);
+    assert!(out.success, "--help failed: {}", out.stderr);
+    assert!(
+        out.stdout.contains("Detail CLI"),
+        "expected 'Detail CLI' in help output: {}",
+        out.stdout,
+    );
+}
+
+#[test]
+fn subcommand_help_succeeds() {
+    let env = Env::new("subcommand_help");
+    for subcmd in &["auth", "bugs", "repos", "scans", "completions", "skill", "update", "version"] {
+        let out = env.run(&[subcmd, "--help"]);
+        // Some subcommands may not support --help directly if they require subcommands,
+        // but they should still exit 0 or 2 (clap help exit code)
+        assert!(
+            out.success || out.stdout.contains("Usage") || out.stderr.contains("Usage"),
+            "{subcmd} --help produced unexpected output:\nstdout: {}\nstderr: {}",
+            out.stdout, out.stderr,
+        );
+    }
+}
+
+#[test]
 fn commands_fail_without_auth() {
     let env = Env::new("no_auth");
 
