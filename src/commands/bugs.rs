@@ -714,4 +714,91 @@ mod tests {
         let page = paginate_items(&items, 3, 2);
         assert!(page.is_empty());
     }
+
+    // ── format_introduced_in ─────────────────────────────────────────
+
+    #[test]
+    fn format_introduced_in_full_sha_with_pr_and_author() {
+        let intro = IntroducedIn {
+            sha: "abc1234def5678".to_string(),
+            date: "2024-12-23".to_string(),
+            pr_number: Some(42),
+            author: Some("alice".to_string()),
+        };
+        assert_eq!(
+            format_introduced_in(&intro),
+            "PR #42 (abc1234) on 2024-12-23 by alice"
+        );
+    }
+
+    #[test]
+    fn format_introduced_in_no_pr_number() {
+        let intro = IntroducedIn {
+            sha: "abc1234def5678".to_string(),
+            date: "2024-12-23".to_string(),
+            pr_number: None,
+            author: Some("bob".to_string()),
+        };
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-12-23 by bob");
+    }
+
+    #[test]
+    fn format_introduced_in_no_author() {
+        let intro = IntroducedIn {
+            sha: "abc1234def5678".to_string(),
+            date: "2024-12-23".to_string(),
+            pr_number: Some(99),
+            author: None,
+        };
+        assert_eq!(
+            format_introduced_in(&intro),
+            "PR #99 (abc1234) on 2024-12-23"
+        );
+    }
+
+    #[test]
+    fn format_introduced_in_no_pr_no_author() {
+        let intro = IntroducedIn {
+            sha: "abc1234def5678".to_string(),
+            date: "2024-12-23".to_string(),
+            pr_number: None,
+            author: None,
+        };
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-12-23");
+    }
+
+    #[test]
+    fn format_introduced_in_short_sha() {
+        // SHA shorter than 7 chars should use the full SHA
+        let intro = IntroducedIn {
+            sha: "abc".to_string(),
+            date: "2024-01-01".to_string(),
+            pr_number: None,
+            author: None,
+        };
+        assert_eq!(format_introduced_in(&intro), "abc on 2024-01-01");
+    }
+
+    #[test]
+    fn format_introduced_in_exactly_7_char_sha() {
+        let intro = IntroducedIn {
+            sha: "abc1234".to_string(),
+            date: "2024-01-01".to_string(),
+            pr_number: None,
+            author: None,
+        };
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-01-01");
+    }
+
+    #[test]
+    fn format_introduced_in_empty_sha() {
+        let intro = IntroducedIn {
+            sha: "".to_string(),
+            date: "2024-01-01".to_string(),
+            pr_number: None,
+            author: None,
+        };
+        // Empty SHA hits unwrap_or, returns empty string
+        assert_eq!(format_introduced_in(&intro), " on 2024-01-01");
+    }
 }
