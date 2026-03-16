@@ -124,3 +124,35 @@ impl ApiClient {
             .map_err(|e| anyhow::anyhow!("API error: {e}"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_without_base_url_succeeds() {
+        let client = ApiClient::new(None, None);
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn new_with_custom_base_url_succeeds() {
+        let client = ApiClient::new(Some("https://custom.api.dev".into()), None);
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn new_with_token_succeeds() {
+        let client = ApiClient::new(None, Some("dtl_live_test_token".into()));
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn new_with_base_url_and_token_succeeds() {
+        let client = ApiClient::new(
+            Some("https://custom.api.dev".into()),
+            Some("dtl_live_test_token".into()),
+        );
+        assert!(client.is_ok());
+    }
+}
