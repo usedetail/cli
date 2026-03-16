@@ -192,4 +192,14 @@ mod tests {
         // Simulates a partially typed token
         assert!(!is_complete_token("dtl_live_abc"));
     }
+
+    #[test]
+    fn rejects_suffix_with_non_ascii_char() {
+        // A non-ASCII char takes multiple bytes, so len() != 64 even with 64 chars.
+        // This tests that the function doesn't accidentally accept such input.
+        let mut suffix: String = "a".repeat(63);
+        suffix.push('\u{00e9}'); // 'é' — 2 bytes in UTF-8
+        let token = format!("dtl_live_{}.{}", "a".repeat(32), suffix);
+        assert!(!is_complete_token(&token));
+    }
 }
