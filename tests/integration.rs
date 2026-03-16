@@ -330,14 +330,24 @@ fn help_flag_succeeds() {
 #[test]
 fn subcommand_help_succeeds() {
     let env = Env::new("subcommand_help");
-    for subcmd in &["auth", "bugs", "repos", "scans", "completions", "skill", "update", "version"] {
+    for subcmd in &[
+        "auth",
+        "bugs",
+        "repos",
+        "scans",
+        "completions",
+        "skill",
+        "update",
+        "version",
+    ] {
         let out = env.run(&[subcmd, "--help"]);
         // Some subcommands may not support --help directly if they require subcommands,
         // but they should still exit 0 or 2 (clap help exit code)
         assert!(
             out.success || out.stdout.contains("Usage") || out.stderr.contains("Usage"),
             "{subcmd} --help produced unexpected output:\nstdout: {}\nstderr: {}",
-            out.stdout, out.stderr,
+            out.stdout,
+            out.stderr,
         );
     }
 }
