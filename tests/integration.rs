@@ -333,11 +333,15 @@ fn commands_fail_without_auth() {
 fn auth_login_rejects_invalid_token_prefix() {
     let env = Env::new("invalid_token_prefix");
     let out = env.run(&["auth", "login", "--token", "bad_token_no_prefix"]);
-    assert!(!out.success, "auth login should reject invalid token prefix");
+    assert!(
+        !out.success,
+        "auth login should reject invalid token prefix"
+    );
     assert!(
         out.stderr.contains("dtl_") || out.stdout.contains("dtl_"),
         "expected error mentioning dtl_ prefix in:\nstdout: {}\nstderr: {}",
-        out.stdout, out.stderr,
+        out.stdout,
+        out.stderr,
     );
 }
 
