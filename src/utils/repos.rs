@@ -33,7 +33,7 @@ pub async fn fetch_all_repos(client: &ApiClient) -> Result<Vec<Repo>> {
 /// non-empty owner and repo parts.
 pub fn validate_owner_repo_format(identifier: &str) -> Result<()> {
     let parts: Vec<&str> = identifier.split('/').collect();
-    if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+    if parts.len() != 2 || parts[0].trim().is_empty() || parts[1].trim().is_empty() {
         bail!(
             "Invalid repository format. Please use owner/repo (e.g., 'usedetail/cli') or just the repo name. Run 'detail repos list' to see your repositories."
         );
@@ -140,6 +140,28 @@ mod tests {
     #[test]
     fn rejects_slash_only() {
         assert!(validate_owner_repo_format("/").is_err());
+    }
+
+    #[test]
+    fn rejects_whitespace_only_owner() {
+        assert!(validate_owner_repo_format(" /cli").is_err());
+    }
+
+    #[test]
+    fn rejects_whitespace_only_repo() {
+        assert!(validate_owner_repo_format("owner/ ").is_err());
+    }
+
+    #[test]
+    fn accepts_unicode_owner_repo() {
+        // Unicode characters are valid — GitHub doesn't allow them, but
+        // validation is the API's job; we just check the format.
+        assert!(validate_owner_repo_format("ünïcödé/repo").is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_string() {
+        assert!(validate_owner_repo_format("").is_err());
     }
 
     // ── match_repo_by_name ───────────────────────────────────────────
