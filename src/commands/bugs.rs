@@ -739,10 +739,7 @@ mod tests {
             pr_number: None,
             author: Some("bob".to_string()),
         };
-        assert_eq!(
-            format_introduced_in(&intro),
-            "abc1234 on 2024-12-23 by bob"
-        );
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-12-23 by bob");
     }
 
     #[test]
@@ -767,10 +764,7 @@ mod tests {
             pr_number: None,
             author: None,
         };
-        assert_eq!(
-            format_introduced_in(&intro),
-            "abc1234 on 2024-12-23"
-        );
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-12-23");
     }
 
     #[test]
@@ -782,10 +776,7 @@ mod tests {
             pr_number: None,
             author: None,
         };
-        assert_eq!(
-            format_introduced_in(&intro),
-            "abc on 2024-01-01"
-        );
+        assert_eq!(format_introduced_in(&intro), "abc on 2024-01-01");
     }
 
     #[test]
@@ -796,10 +787,7 @@ mod tests {
             pr_number: None,
             author: None,
         };
-        assert_eq!(
-            format_introduced_in(&intro),
-            "abc1234 on 2024-01-01"
-        );
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-01-01");
     }
 
     #[test]
@@ -811,9 +799,6 @@ mod tests {
             author: None,
         };
         // Empty SHA hits unwrap_or, returns empty string
-        assert_eq!(
-            format_introduced_in(&intro),
-            " on 2024-01-01"
-        );
+        assert_eq!(format_introduced_in(&intro), " on 2024-01-01");
     }
 }
