@@ -14,7 +14,7 @@ fn detect_shell() -> Result<String> {
 
 fn snippet(shell: &str) -> Result<&'static str> {
     match shell {
-        "bash" => Ok("source <(COMPLETE=bash detail)"),
+        "bash" => Ok("eval \"$(COMPLETE=bash detail 2>/dev/null)\""),
         "zsh" => Ok("source <(COMPLETE=zsh detail)"),
         "fish" => Ok("COMPLETE=fish detail | source"),
         "elvish" => Ok("eval (E:COMPLETE=elvish detail | slurp)"),
