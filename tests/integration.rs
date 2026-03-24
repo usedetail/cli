@@ -285,7 +285,7 @@ fn bugs_list_scan_id() {
     let scans_json = env.run_json(&["scans", "list", REPO, "--format", "json"]);
     let scan_id = scans_json["items"]
         .as_array()
-        .unwrap_or(&[])
+        .unwrap_or(&vec![])
         .iter()
         .find(|s| {
             s["bugCounts"]["open"].as_i64().unwrap_or(0) > 0 && s["workflowRequestId"].is_string()
