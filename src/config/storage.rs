@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Read as _, Write as _};
+use std::io::{ErrorKind, Read as _, Write as _};
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -117,6 +117,38 @@ pub fn clear_credentials() -> Result<()> {
     update_config(|config| {
         config.api_token = None;
     })
+}
+
+fn update_lock_path() -> Result<PathBuf> {
+    config_path().map(|p| p.with_file_name("update.lock"))
+}
+
+/// Try to acquire the update lock without blocking.
+/// Returns `Some(file)` if the lock was acquired, `None` if another process holds it.
+pub fn try_acquire_update_lock() -> Result<Option<File>> {
+    let lock_path = update_lock_path()?;
+    let file = File::options()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(lock_path)?;
+    match file.try_lock_exclusive() {
+        Ok(()) => Ok(Some(file)),
+        Err(e) if e.kind() == ErrorKind::WouldBlock => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Acquire the update lock, blocking until it is available.
+pub fn acquire_update_lock() -> Result<File> {
+    let lock_path = update_lock_path()?;
+    let file = File::options()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(lock_path)?;
+    file.lock_exclusive()?;
+    Ok(file)
 }
 
 #[cfg(test)]
@@ -279,6 +311,33 @@ mod tests {
             assert!(load_token().is_err());
         });
     }
+
+    // ── update lock ──────────────────────────────────────────────────
+
+    #[test]
+    fn try_lock_returns_none_when_already_held() {
+        with_temp_config(|| {
+            let first = try_acquire_update_lock().unwrap();
+            assert!(first.is_some());
+            let second = try_acquire_update_lock().unwrap();
+            assert!(second.is_none());
+        });
+    }
+
+    #[test]
+    fn lock_released_on_drop() {
+        with_temp_config(|| {
+            {
+                let lock = try_acquire_update_lock().unwrap();
+                assert!(lock.is_some());
+            }
+            // After drop, another acquire should succeed
+            let lock = try_acquire_update_lock().unwrap();
+            assert!(lock.is_some());
+        });
+    }
+
+    // ── concurrency ─────────────────────────────────────────────────
 
     #[test]
     fn concurrent_update_config_does_not_corrupt() {

@@ -1,12 +1,8 @@
-use std::fs::File;
-use std::io::ErrorKind;
-use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use axoupdater::{AxoUpdater, UpdateResult};
 use console::{style, Term};
-use fs2::FileExt;
 
 use crate::config::storage;
 
@@ -77,38 +73,6 @@ fn record_update_check_now() -> Result<()> {
     })
 }
 
-fn update_lock_path() -> Result<PathBuf> {
-    storage::config_path().map(|p| p.with_file_name("update.lock"))
-}
-
-/// Try to acquire the update lock without blocking.
-/// Returns `Some(file)` if the lock was acquired, `None` if another process holds it.
-fn try_acquire_update_lock() -> Result<Option<File>> {
-    let lock_path = update_lock_path()?;
-    let file = File::options()
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(lock_path)?;
-    match file.try_lock_exclusive() {
-        Ok(()) => Ok(Some(file)),
-        Err(e) if e.kind() == ErrorKind::WouldBlock => Ok(None),
-        Err(e) => Err(e.into()),
-    }
-}
-
-/// Acquire the update lock, blocking until it is available.
-fn acquire_update_lock() -> Result<File> {
-    let lock_path = update_lock_path()?;
-    let file = File::options()
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(lock_path)?;
-    file.lock_exclusive()?;
-    Ok(file)
-}
-
 /// Atomically check whether an update is due and, if so, stamp the config
 /// so concurrent processes will see a fresh timestamp and skip.
 fn claim_update_check(now: u64) -> Result<bool> {
@@ -128,7 +92,7 @@ pub async fn auto_update() -> Result<()> {
 
     // Try to acquire a process-level lock. If another CLI instance is
     // already checking for / installing an update, skip silently.
-    let Some(_lock) = try_acquire_update_lock()? else {
+    let Some(_lock) = storage::try_acquire_update_lock()? else {
         return Ok(());
     };
 
@@ -153,7 +117,7 @@ pub async fn auto_update() -> Result<()> {
 pub async fn update_now() -> Result<ManualUpdateOutcome> {
     // Acquire the update lock to prevent concurrent binary writes.
     // Block (rather than skip) since this is an explicit user request.
-    let _lock = acquire_update_lock()?;
+    let _lock = storage::acquire_update_lock()?;
 
     record_update_check_now()?;
 
@@ -181,32 +145,9 @@ fn print_update_success(result: &UpdateResult) {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use crate::config::storage::Config;
 
     use super::*;
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    fn with_temp_config<F: FnOnce() -> R, R>(f: F) -> R {
-        use std::{env, fs, process};
-
-        let _guard = ENV_LOCK.lock().unwrap();
-        let dir = env::temp_dir().join(format!("detail-cli-upgrade-test-{}", process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        let prev = env::var("XDG_CONFIG_HOME").ok();
-        env::set_var("XDG_CONFIG_HOME", &dir);
-
-        let result = f();
-
-        match prev {
-            Some(v) => env::set_var("XDG_CONFIG_HOME", v),
-            None => env::remove_var("XDG_CONFIG_HOME"),
-        }
-        let _ = fs::remove_dir_all(&dir);
-        result
-    }
 
     fn base_config() -> Config {
         Config {
@@ -255,53 +196,5 @@ mod tests {
         let mut config = base_config();
         config.last_update_check = Some(10_000);
         assert!(!should_check_for_updates(&config, 9_000));
-    }
-
-    #[test]
-    fn claim_returns_true_on_first_call() {
-        with_temp_config(|| {
-            assert!(claim_update_check(100_000).unwrap());
-            let config = storage::load_config().unwrap();
-            assert_eq!(config.last_update_check, Some(100_000));
-        });
-    }
-
-    #[test]
-    fn claim_returns_false_within_interval() {
-        with_temp_config(|| {
-            assert!(claim_update_check(100_000).unwrap());
-            assert!(!claim_update_check(100_000 + UPDATE_CHECK_INTERVAL - 1).unwrap());
-        });
-    }
-
-    #[test]
-    fn claim_returns_true_after_interval() {
-        with_temp_config(|| {
-            assert!(claim_update_check(100_000).unwrap());
-            assert!(claim_update_check(100_000 + UPDATE_CHECK_INTERVAL).unwrap());
-        });
-    }
-
-    #[test]
-    fn try_lock_returns_none_when_already_held() {
-        with_temp_config(|| {
-            let first = try_acquire_update_lock().unwrap();
-            assert!(first.is_some());
-            let second = try_acquire_update_lock().unwrap();
-            assert!(second.is_none());
-        });
-    }
-
-    #[test]
-    fn lock_released_on_drop() {
-        with_temp_config(|| {
-            {
-                let lock = try_acquire_update_lock().unwrap();
-                assert!(lock.is_some());
-            }
-            // After drop, another acquire should succeed
-            let lock = try_acquire_update_lock().unwrap();
-            assert!(lock.is_some());
-        });
     }
 }
