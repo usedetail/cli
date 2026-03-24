@@ -301,17 +301,19 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     let pre_filter = filtered;
                     filtered = filter_by_introduced_by(&pre_filter, introduced_by);
                     if filtered.is_empty() {
-                        let known = collect_authors(&pre_filter);
-                        let hint = if known.is_empty() {
-                            "No bugs matched --introduced-by. None of the current bugs have author information.".to_string()
-                        } else {
-                            format!(
-                                "No bugs matched --introduced-by. Known authors: {}",
-                                known.join(", ")
-                            )
-                        };
-                        Term::stdout().write_line(&hint)?;
-                        return Ok(());
+                        if matches!(format, crate::OutputFormat::Table) {
+                            let known = collect_authors(&pre_filter);
+                            let hint = if known.is_empty() {
+                                "No bugs matched --introduced-by. None of the current bugs have author information.".to_string()
+                            } else {
+                                format!(
+                                    "No bugs matched --introduced-by. Known authors: {}",
+                                    known.join(", ")
+                                )
+                            };
+                            Term::stdout().write_line(&hint)?;
+                        }
+                        return output_list(&filtered, 0, *page, *limit, format);
                     }
                 }
                 let total = filtered.len();
