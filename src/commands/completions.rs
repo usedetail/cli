@@ -43,8 +43,8 @@ fn rc_path(shell: &str) -> Result<PathBuf> {
         "zsh" => Ok(home.join(".zshrc")),
         "fish" => Ok(home.join(".config/fish/completions/detail.fish")),
         "elvish" => {
-            let config_dir = env::var("XDG_CONFIG_HOME")
-                .map_or_else(|_| home.join(".config"), PathBuf::from);
+            let config_dir =
+                env::var("XDG_CONFIG_HOME").map_or_else(|_| home.join(".config"), PathBuf::from);
             Ok(config_dir.join("elvish/rc.elv"))
         }
         "powershell" | "pwsh" => {
