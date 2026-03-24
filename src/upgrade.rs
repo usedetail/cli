@@ -181,10 +181,32 @@ fn print_update_success(result: &UpdateResult) {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::storage::test_support::with_temp_config;
+    use std::sync::Mutex;
+
     use crate::config::storage::Config;
 
     use super::*;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_temp_config<F: FnOnce() -> R, R>(f: F) -> R {
+        use std::{env, fs, process};
+
+        let _guard = ENV_LOCK.lock().unwrap();
+        let dir = env::temp_dir().join(format!("detail-cli-upgrade-test-{}", process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let prev = env::var("XDG_CONFIG_HOME").ok();
+        env::set_var("XDG_CONFIG_HOME", &dir);
+
+        let result = f();
+
+        match prev {
+            Some(v) => env::set_var("XDG_CONFIG_HOME", v),
+            None => env::remove_var("XDG_CONFIG_HOME"),
+        }
+        let _ = fs::remove_dir_all(&dir);
+        result
+    }
 
     fn base_config() -> Config {
         Config {
