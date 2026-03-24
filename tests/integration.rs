@@ -309,7 +309,7 @@ fn bugs_list_scan_id() {
     ]);
     assert!(json["items"].is_array(), "expected items array in: {json}");
     assert!(
-        json["items"].as_array().unwrap().len() > 0,
+        !json["items"].as_array().unwrap().is_empty(),
         "expected at least one bug for scan {scan_id}",
     );
     assert!(json["total"].is_number(), "expected total in: {json}");
