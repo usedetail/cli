@@ -120,27 +120,24 @@ pub fn clear_credentials() -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::process;
+pub(crate) mod test_support {
     use std::sync::Mutex;
-
-    use super::*;
+    use std::{env, fs, process};
 
     /// Mutex to serialize tests that modify the XDG_CONFIG_HOME env var.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    pub(crate) static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     /// Run a closure with XDG_CONFIG_HOME pointing to a fresh temp directory,
     /// restoring the original value afterwards.
-    fn with_temp_config<F: FnOnce() -> R, R>(f: F) -> R {
+    pub(crate) fn with_temp_config<F: FnOnce() -> R, R>(f: F) -> R {
         let _guard = ENV_LOCK.lock().unwrap();
         let dir = env::temp_dir().join(format!("detail-cli-test-{}", process::id()));
-        let _ = fs::remove_dir_all(&dir); // clean slate
+        let _ = fs::remove_dir_all(&dir);
         let prev = env::var("XDG_CONFIG_HOME").ok();
         env::set_var("XDG_CONFIG_HOME", &dir);
 
         let result = f();
 
-        // Restore
         match prev {
             Some(v) => env::set_var("XDG_CONFIG_HOME", v),
             None => env::remove_var("XDG_CONFIG_HOME"),
@@ -148,6 +145,12 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         result
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_support::with_temp_config;
+    use super::*;
 
     // ── Config TOML round-trip ───────────────────────────────────────
 
