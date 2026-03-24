@@ -17,13 +17,14 @@ pub async fn fetch_all_repos(client: &ApiClient) -> Result<Vec<Repo>> {
             .await
             .context("Failed to fetch repositories while resolving identifier")?;
 
+        let total = usize::try_from(repos.total.max(0)).unwrap_or(0);
         let page_size = repos.repos.len();
         all_repos.extend(repos.repos);
 
-        if page_size < usize::try_from(REPO_PAGE_SIZE).unwrap_or(0) {
+        if page_size == 0 || all_repos.len() >= total {
             break;
         }
-        offset += REPO_PAGE_SIZE;
+        offset += u32::try_from(page_size).unwrap_or(REPO_PAGE_SIZE);
     }
 
     Ok(all_repos)
