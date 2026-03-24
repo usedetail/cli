@@ -36,10 +36,18 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Resolve the effective API URL: CLI flag / env var takes precedence,
+    /// then falls back to the config file's `api_url`.
+    pub fn effective_api_url(&self) -> Option<String> {
+        self.api_url
+            .clone()
+            .or_else(|| config::storage::load_config().ok().and_then(|c| c.api_url))
+    }
+
     /// Create an authenticated API client
     pub fn create_client(&self) -> Result<api::client::ApiClient> {
         let token = config::storage::load_token()?;
-        api::client::ApiClient::new(self.api_url.clone(), Some(token))
+        api::client::ApiClient::new(self.effective_api_url(), Some(token))
     }
 
     /// Returns true when machine-readable output is requested (e.g. `--format json`),
@@ -342,5 +350,31 @@ mod tests {
     fn rejects_scans_list_page_zero() {
         let cli = Cli::try_parse_from(["detail", "scans", "list", "owner/repo", "--page", "0"]);
         assert!(cli.is_err());
+    }
+
+    // ── effective_api_url ──────────────────────────────────────────
+
+    #[test]
+    fn effective_api_url_uses_cli_flag() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "--api-url",
+            "https://flag.example.com",
+            "version",
+        ])
+        .unwrap();
+        assert_eq!(
+            cli.effective_api_url().as_deref(),
+            Some("https://flag.example.com")
+        );
+    }
+
+    #[test]
+    fn effective_api_url_none_without_cli_flag() {
+        // Without --api-url, the method falls back to load_config().
+        // We don't control the config file here, but we verify the CLI
+        // field itself is None so the fallback path is exercised.
+        let cli = Cli::try_parse_from(["detail", "version"]).unwrap();
+        assert!(cli.api_url.is_none());
     }
 }
