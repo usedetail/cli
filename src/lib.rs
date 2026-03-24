@@ -356,13 +356,9 @@ mod tests {
 
     #[test]
     fn effective_api_url_uses_cli_flag() {
-        let cli = Cli::try_parse_from([
-            "detail",
-            "--api-url",
-            "https://flag.example.com",
-            "version",
-        ])
-        .unwrap();
+        let cli =
+            Cli::try_parse_from(["detail", "--api-url", "https://flag.example.com", "version"])
+                .unwrap();
         assert_eq!(
             cli.effective_api_url().as_deref(),
             Some("https://flag.example.com")
