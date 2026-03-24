@@ -1,6 +1,6 @@
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::absolute_paths)]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 pub mod api;
@@ -29,25 +29,16 @@ Common workflow:
 pub struct Cli {
     #[command(subcommand)]
     command: Commands,
-
-    /// API endpoint override (for testing)
-    #[arg(long, env = "DETAIL_API_URL", global = true, hide = true)]
-    api_url: Option<String>,
 }
 
 impl Cli {
-    /// Resolve the effective API URL: CLI flag / env var takes precedence,
-    /// then falls back to the config file's `api_url`.
-    pub fn effective_api_url(&self) -> Option<String> {
-        self.api_url
-            .clone()
-            .or_else(|| config::storage::load_config().ok().and_then(|c| c.api_url))
-    }
-
     /// Create an authenticated API client
     pub fn create_client(&self) -> Result<api::client::ApiClient> {
-        let token = config::storage::load_token()?;
-        api::client::ApiClient::new(self.effective_api_url(), Some(token))
+        let config = config::storage::load_config()?;
+        let token = config
+            .api_token
+            .context("No token found. Run `detail auth login`")?;
+        api::client::ApiClient::new(config.api_url, Some(token))
     }
 
     /// Returns true when machine-readable output is requested (e.g. `--format json`),
@@ -352,25 +343,10 @@ mod tests {
         assert!(cli.is_err());
     }
 
-    // ── effective_api_url ──────────────────────────────────────────
-
     #[test]
-    fn effective_api_url_uses_cli_flag() {
-        let cli =
-            Cli::try_parse_from(["detail", "--api-url", "https://flag.example.com", "version"])
-                .unwrap();
-        assert_eq!(
-            cli.effective_api_url().as_deref(),
-            Some("https://flag.example.com")
-        );
-    }
-
-    #[test]
-    fn effective_api_url_none_without_cli_flag() {
-        // Without --api-url, the method falls back to load_config().
-        // We don't control the config file here, but we verify the CLI
-        // field itself is None so the fallback path is exercised.
-        let cli = Cli::try_parse_from(["detail", "version"]).unwrap();
-        assert!(cli.api_url.is_none());
+    fn rejects_unknown_api_url_flag() {
+        // --api-url was removed; ensure it's no longer accepted.
+        let cli = Cli::try_parse_from(["detail", "--api-url", "https://x.dev", "version"]);
+        assert!(cli.is_err());
     }
 }

@@ -66,7 +66,8 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
             }
 
             // Test the token by making an API call
-            let client = ApiClient::new(cli.effective_api_url(), Some(token.clone()))?;
+            let config_url = storage::load_config().ok().and_then(|c| c.api_url);
+            let client = ApiClient::new(config_url, Some(token.clone()))?;
 
             let user_info = client
                 .get_current_user()
