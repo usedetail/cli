@@ -340,6 +340,37 @@ mod tests {
     // ── concurrency ─────────────────────────────────────────────────
 
     #[test]
+    fn concurrent_claim_only_one_wins() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::thread;
+
+        with_temp_config(|| {
+            let winners = AtomicUsize::new(0);
+            thread::scope(|s| {
+                for _ in 0..10 {
+                    s.spawn(|| {
+                        // Mirrors what auto_update does: acquire lock, then
+                        // conditionally stamp the config.
+                        let _lock = acquire_update_lock().unwrap();
+                        update_config(|config| {
+                            if config.last_update_check.is_none() {
+                                config.last_update_check = Some(99_999);
+                                winners.fetch_add(1, Ordering::SeqCst);
+                            }
+                        })
+                        .unwrap();
+                    });
+                }
+            });
+            assert_eq!(
+                winners.load(Ordering::SeqCst),
+                1,
+                "exactly one thread should claim the update"
+            );
+        });
+    }
+
+    #[test]
     fn concurrent_update_config_does_not_corrupt() {
         use std::thread;
 
