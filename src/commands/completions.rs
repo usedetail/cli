@@ -42,11 +42,15 @@ fn rc_path(shell: &str) -> Result<PathBuf> {
         }
         "zsh" => Ok(home.join(".zshrc")),
         "fish" => Ok(home.join(".config/fish/completions/detail.fish")),
-        "elvish" => Ok(home.join(".elvish/rc.elv")),
-        "powershell" | "pwsh" => Ok(env::var("PROFILE").map_or_else(
-            |_| home.join(".config/powershell/Microsoft.PowerShell_profile.ps1"),
-            PathBuf::from,
-        )),
+        "elvish" => {
+            let config_dir = env::var("XDG_CONFIG_HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| home.join(".config"));
+            Ok(config_dir.join("elvish/rc.elv"))
+        }
+        "powershell" | "pwsh" => {
+            Ok(home.join(".config/powershell/Microsoft.PowerShell_profile.ps1"))
+        }
         _ => bail!("unsupported shell: {shell}"),
     }
 }
@@ -162,7 +166,11 @@ mod tests {
     #[test]
     fn rc_path_elvish_is_rc_elv() {
         let rc = rc_path("elvish").unwrap();
-        assert!(rc.ends_with(".elvish/rc.elv"));
+        assert!(
+            rc.ends_with(".config/elvish/rc.elv"),
+            "expected XDG-compliant elvish path, got: {}",
+            rc.display()
+        );
     }
 
     #[test]
@@ -200,5 +208,39 @@ mod tests {
         let ps = rc_path("powershell").unwrap();
         let pwsh = rc_path("pwsh").unwrap();
         assert_eq!(ps, pwsh);
+    }
+
+    #[test]
+    fn rc_path_powershell_ignores_profile_env_var() {
+        // PROFILE is a Windows system env var (user profile dir), NOT the
+        // PowerShell $PROFILE automatic variable. It must not affect the path.
+        let original = env::var("PROFILE").ok();
+        env::set_var("PROFILE", "/wrong/path");
+        let rc = rc_path("powershell").unwrap();
+        assert!(
+            rc.ends_with("powershell/Microsoft.PowerShell_profile.ps1"),
+            "PROFILE env var should not affect PowerShell rc path, got: {}",
+            rc.display()
+        );
+        match original {
+            Some(v) => env::set_var("PROFILE", v),
+            None => env::remove_var("PROFILE"),
+        }
+    }
+
+    #[test]
+    fn rc_path_elvish_respects_xdg_config_home() {
+        let original = env::var("XDG_CONFIG_HOME").ok();
+        env::set_var("XDG_CONFIG_HOME", "/custom/config");
+        let rc = rc_path("elvish").unwrap();
+        assert_eq!(
+            rc,
+            PathBuf::from("/custom/config/elvish/rc.elv"),
+            "elvish should respect XDG_CONFIG_HOME"
+        );
+        match original {
+            Some(v) => env::set_var("XDG_CONFIG_HOME", v),
+            None => env::remove_var("XDG_CONFIG_HOME"),
+        }
     }
 }
