@@ -98,6 +98,13 @@ impl Env {
             )
         })
     }
+
+    /// Write a raw config.toml into this environment's config directory.
+    fn write_config(&self, toml_content: &str) {
+        let cli_dir = self.config_dir.join("detail-cli");
+        std::fs::create_dir_all(&cli_dir).unwrap();
+        std::fs::write(cli_dir.join("config.toml"), toml_content).unwrap();
+    }
 }
 
 impl Drop for Env {
@@ -389,4 +396,55 @@ fn bugs_list_rejects_invalid_repo_format() {
 
     let out = env.run(&["bugs", "list", "a/b/c", "--format", "json"]);
     assert!(!out.success, "bugs list should reject a/b/c format");
+}
+
+#[test]
+fn config_api_url_is_used_when_no_flag() {
+    let key = require_api_key!();
+    let env = Env::new("config_api_url");
+
+    // Write a valid token but point api_url to a bogus host.
+    // If the CLI ignores the config, it would hit the real API and succeed.
+    // A failure proves the config api_url was picked up.
+    env.write_config(&format!(
+        r#"
+api_token = "{key}"
+api_url = "http://127.0.0.1:1"
+"#,
+    ));
+
+    let out = env.run(&["repos", "list", "--format", "json"]);
+    assert!(
+        !out.success,
+        "expected failure when config points to bogus host, but command succeeded"
+    );
+}
+
+#[test]
+fn cli_flag_overrides_config_api_url() {
+    let key = require_api_key!();
+    let env = Env::new("flag_overrides_config");
+
+    // Config points to a bogus host, but --api-url points to the real API.
+    env.write_config(&format!(
+        r#"
+api_token = "{key}"
+api_url = "http://127.0.0.1:1"
+"#,
+    ));
+
+    // The --api-url flag should override the config, reaching the real API.
+    let out = env.run(&[
+        "--api-url",
+        "https://api.detail.dev",
+        "repos",
+        "list",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        out.success,
+        "--api-url flag should override config's bogus api_url:\nstdout: {}\nstderr: {}",
+        out.stdout, out.stderr,
+    );
 }
