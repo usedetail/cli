@@ -1,8 +1,4 @@
-use ratatui::{
-    buffer::Cell,
-    style::Color,
-    Frame,
-};
+use ratatui::{buffer::Cell, style::Color, Frame};
 
 use super::logo_math::{
     logo_region_at, shuffled_index_for_nominal, source_local_x_for_index, triangle_nominal_index,
@@ -432,7 +428,11 @@ mod tests {
         //   bottom half = default foreground (Base) ✓
         let (ch, fg, bg) = rendered(PixelStyle::Active, PixelStyle::Base);
         assert_eq!(ch, '▄');
-        assert_eq!(fg, Color::Reset, "Base should be in fg (default foreground)");
+        assert_eq!(
+            fg,
+            Color::Reset,
+            "Base should be in fg (default foreground)"
+        );
         assert_eq!(bg, Color::Blue, "Active should be in bg (top half of ▄)");
 
         // Same for Complete + Base
