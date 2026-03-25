@@ -73,38 +73,52 @@ fn record_update_check_now() -> Result<()> {
     })
 }
 
+/// Atomically check whether an update is due and, if so, stamp the config
+/// so concurrent processes will see a fresh timestamp and skip.
+fn claim_update_check(now: u64) -> Result<bool> {
+    let mut claimed = false;
+    storage::update_config(|config| {
+        if should_check_for_updates(config, now) {
+            config.last_update_check = Some(now);
+            claimed = true;
+        }
+    })?;
+    Ok(claimed)
+}
+
 /// Automatically check for and install updates in the background
 pub async fn auto_update() -> Result<()> {
-    // Check if we should check for updates
-    let config = storage::load_config()?;
-
     let now = now_unix_seconds()?;
 
-    if !should_check_for_updates(&config, now) {
+    // Try to acquire a process-level lock. If another CLI instance is
+    // already checking for / installing an update, skip silently.
+    let Some(_lock) = storage::try_acquire_update_lock()? else {
+        return Ok(());
+    };
+
+    // Atomically check the interval and stamp the config so that
+    // concurrent processes that acquire the lock after us will see
+    // a fresh timestamp and skip.
+    if !claim_update_check(now)? {
         return Ok(());
     }
 
-    // Update last check time atomically
-    record_update_check_now()?;
-
-    // Automatically update using axoupdater
-    // This uses the install receipt created by cargo-dist
+    // Perform the update with the lock held to prevent concurrent
+    // binary replacement.
     if let Some(mut updater) = load_configured_updater() {
         if let Ok(Some(result)) = updater.run().await {
-            // Update was installed, binary on disk is now updated
             print_update_success(&result);
-        } else {
-            // Silently ignore errors (update check is not critical)
         }
-    } else {
-        // No receipt found, probably not installed via cargo-dist installer
-        // Skip the update check
     }
 
     Ok(())
 }
 
 pub async fn update_now() -> Result<ManualUpdateOutcome> {
+    // Acquire the update lock to prevent concurrent binary writes.
+    // Block (rather than skip) since this is an explicit user request.
+    let _lock = storage::acquire_update_lock()?;
+
     record_update_check_now()?;
 
     let Some(mut updater) = load_configured_updater() else {
