@@ -1,4 +1,8 @@
-use ratatui::{style::Color, Frame};
+use ratatui::{
+    buffer::Cell,
+    style::Color,
+    Frame,
+};
 
 use super::logo_math::{
     logo_region_at, shuffled_index_for_nominal, source_local_x_for_index, triangle_nominal_index,
@@ -111,39 +115,49 @@ const fn pixel_style_color(style: PixelStyle) -> Color {
     }
 }
 
+fn apply_halfblock_cell(cell: &mut Cell, top_style: PixelStyle, bottom_style: PixelStyle) {
+    let top_on = top_style != PixelStyle::Off;
+    let bottom_on = bottom_style != PixelStyle::Off;
+    let top_color = pixel_style_color(top_style);
+    let bottom_color = pixel_style_color(bottom_style);
+
+    match (top_on, bottom_on) {
+        (false, false) => {
+            cell.set_char(' ').set_fg(Color::Reset).set_bg(Color::Reset);
+        }
+        (true, true) => {
+            if top_style == bottom_style {
+                cell.set_char('█').set_fg(top_color).set_bg(Color::Reset);
+            } else if bottom_style == PixelStyle::Base {
+                // Use ▄ so that Base stays in the foreground position where
+                // Color::Reset means "default foreground" (the base logo color).
+                // Using ▀ here would put Color::Reset in bg, which resets to the
+                // terminal's default background — not the intended base logo color.
+                cell.set_char('▄').set_fg(bottom_color).set_bg(top_color);
+            } else {
+                cell.set_char('▀').set_fg(top_color).set_bg(bottom_color);
+            }
+        }
+        (true, false) => {
+            cell.set_char('▀').set_fg(top_color).set_bg(Color::Reset);
+        }
+        (false, true) => {
+            cell.set_char('▄').set_fg(bottom_color).set_bg(Color::Reset);
+        }
+    }
+}
+
 pub(super) fn render_halfblocks_logo(f: &mut Frame<'_>, state: &SortState, viewport: LogoViewport) {
     let buf = f.buffer_mut();
 
     rasterize_halfblocks(state, viewport, |x, y, top_style, bottom_style| {
-        let top_on = top_style != PixelStyle::Off;
-        let bottom_on = bottom_style != PixelStyle::Off;
-        let top_color = pixel_style_color(top_style);
-        let bottom_color = pixel_style_color(bottom_style);
         let (Ok(x), Ok(y)) = (u16::try_from(x), u16::try_from(y)) else {
             return;
         };
         let Some(cell) = buf.cell_mut((x, y)) else {
             return;
         };
-
-        match (top_on, bottom_on) {
-            (false, false) => {
-                cell.set_char(' ').set_fg(Color::Reset).set_bg(Color::Reset);
-            }
-            (true, true) => {
-                if top_style == bottom_style {
-                    cell.set_char('█').set_fg(top_color).set_bg(Color::Reset);
-                } else {
-                    cell.set_char('▀').set_fg(top_color).set_bg(bottom_color);
-                }
-            }
-            (true, false) => {
-                cell.set_char('▀').set_fg(top_color).set_bg(Color::Reset);
-            }
-            (false, true) => {
-                cell.set_char('▄').set_fg(bottom_color).set_bg(Color::Reset);
-            }
-        }
+        apply_halfblock_cell(cell, top_style, bottom_style);
     });
 }
 
@@ -337,6 +351,114 @@ mod tests {
         assert_eq!(pixel_style_color(PixelStyle::Base), Color::Reset);
         assert_eq!(pixel_style_color(PixelStyle::Active), Color::Blue);
         assert_eq!(pixel_style_color(PixelStyle::Complete), Color::Green);
+    }
+
+    /// Helper: apply the rendering logic and return (char, fg, bg).
+    fn rendered(top: PixelStyle, bottom: PixelStyle) -> (char, Color, Color) {
+        let mut cell = Cell::EMPTY;
+        apply_halfblock_cell(&mut cell, top, bottom);
+        (cell.symbol().chars().next().unwrap(), cell.fg, cell.bg)
+    }
+
+    /// For every style combination, verify that Color::Reset never appears
+    /// as a **background** unless the corresponding half is truly Off.
+    ///
+    /// Rationale: Color::Reset in fg means "default foreground" (the base logo
+    /// color), but Color::Reset in bg means "default background" (the terminal
+    /// backdrop). Using it as bg for a Base pixel creates a visible hole.
+    #[test]
+    fn base_pixel_never_rendered_as_background_color() {
+        let styles = [
+            PixelStyle::Off,
+            PixelStyle::Base,
+            PixelStyle::Active,
+            PixelStyle::Complete,
+        ];
+
+        for &top in &styles {
+            for &bottom in &styles {
+                let (ch, fg, bg) = rendered(top, bottom);
+                let top_on = top != PixelStyle::Off;
+                let bottom_on = bottom != PixelStyle::Off;
+
+                match (top_on, bottom_on) {
+                    (false, false) => {
+                        assert_eq!(ch, ' ');
+                        assert_eq!(fg, Color::Reset);
+                        assert_eq!(bg, Color::Reset);
+                    }
+                    (true, false) => {
+                        // Only the top pixel is on: ▀ with fg=top color, bg=Reset (Off).
+                        assert_eq!(ch, '▀');
+                        assert_eq!(fg, pixel_style_color(top));
+                        assert_eq!(bg, Color::Reset, "Off bottom should reset bg");
+                    }
+                    (false, true) => {
+                        // Only the bottom pixel is on: ▄ with fg=bottom color, bg=Reset (Off).
+                        assert_eq!(ch, '▄');
+                        assert_eq!(fg, pixel_style_color(bottom));
+                        assert_eq!(bg, Color::Reset, "Off top should reset bg");
+                    }
+                    (true, true) => {
+                        if top == bottom {
+                            // Same style: █ fills the cell with fg; bg is irrelevant.
+                            assert_eq!(ch, '█');
+                            assert_eq!(fg, pixel_style_color(top));
+                        } else {
+                            // Mixed styles using a half-block. If either pixel is
+                            // Base (Color::Reset), it must sit in the fg slot so
+                            // that Reset means "default foreground". Putting Reset
+                            // in bg would show the terminal backdrop instead.
+                            if top == PixelStyle::Base || bottom == PixelStyle::Base {
+                                assert_ne!(
+                                    bg, Color::Reset,
+                                    "Base must not land in bg; top={top:?} bottom={bottom:?} ch={ch}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Verify the specific half-block glyph and colors for the buggy case:
+    /// Active on top, Base on bottom.
+    #[test]
+    fn active_top_base_bottom_renders_correctly() {
+        // ▄ lower-half-block: bottom half = fg, top half = bg
+        // So ▄ with fg=Reset(Base), bg=Blue(Active) gives:
+        //   top half  = Blue  (Active) ✓
+        //   bottom half = default foreground (Base) ✓
+        let (ch, fg, bg) = rendered(PixelStyle::Active, PixelStyle::Base);
+        assert_eq!(ch, '▄');
+        assert_eq!(fg, Color::Reset, "Base should be in fg (default foreground)");
+        assert_eq!(bg, Color::Blue, "Active should be in bg (top half of ▄)");
+
+        // Same for Complete + Base
+        let (ch, fg, bg) = rendered(PixelStyle::Complete, PixelStyle::Base);
+        assert_eq!(ch, '▄');
+        assert_eq!(fg, Color::Reset);
+        assert_eq!(bg, Color::Green);
+    }
+
+    /// Verify that Base-on-top + Active/Complete-on-bottom still works
+    /// (this path was already correct with ▀).
+    #[test]
+    fn base_top_active_bottom_renders_correctly() {
+        // ▀ upper-half-block: top half = fg, bottom half = bg
+        // fg=Reset(Base), bg=Blue(Active) gives:
+        //   top half  = default foreground (Base) ✓
+        //   bottom half = Blue (Active) ✓
+        let (ch, fg, bg) = rendered(PixelStyle::Base, PixelStyle::Active);
+        assert_eq!(ch, '▀');
+        assert_eq!(fg, Color::Reset, "Base should be in fg");
+        assert_eq!(bg, Color::Blue, "Active should be in bg");
+
+        let (ch, fg, bg) = rendered(PixelStyle::Base, PixelStyle::Complete);
+        assert_eq!(ch, '▀');
+        assert_eq!(fg, Color::Reset);
+        assert_eq!(bg, Color::Green);
     }
 
     #[test]
