@@ -152,6 +152,7 @@ mod tests {
     fn base_config() -> Config {
         Config {
             api_url: None,
+            app_url: None,
             check_for_updates: true,
             last_update_check: None,
             api_token: None,

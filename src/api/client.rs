@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use reqwest::header::{HeaderMap, AUTHORIZATION};
+use serde::Deserialize;
 
 use progenitor::progenitor_client::ResponseValue;
 
@@ -11,6 +12,12 @@ use super::types::{
     ScansResponse, UserInfo,
 };
 
+fn base_http_client() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .user_agent(format!("detail-cli/{}", env!("CARGO_PKG_VERSION")))
+        .timeout(Duration::from_secs(30))
+}
+
 pub struct ApiClient {
     inner: super::generated::Client,
 }
@@ -19,9 +26,7 @@ impl ApiClient {
     pub fn new(base_url: Option<String>, token: Option<String>) -> Result<Self> {
         let base_url = base_url.unwrap_or_else(|| "https://api.detail.dev".into());
 
-        let mut builder = reqwest::Client::builder()
-            .user_agent(format!("detail-cli/{}", env!("CARGO_PKG_VERSION")))
-            .timeout(Duration::from_secs(30));
+        let mut builder = base_http_client();
 
         if let Some(token) = token {
             let mut headers = HeaderMap::new();
@@ -123,6 +128,32 @@ impl ApiClient {
             .map(ResponseValue::into_inner)
             .map_err(|e| anyhow::anyhow!("API error: {e}"))
     }
+}
+
+/// Exchange a PKCE auth code for an API token.
+/// This is a free function rather than an `ApiClient` method because it runs
+/// before any token exists (the code/verifier pair is the proof of identity)
+pub async fn pkce_token_exchange(api_url: &str, code: &str, code_verifier: &str) -> Result<String> {
+    #[derive(Deserialize)]
+    struct TokenResponse {
+        token: String,
+    }
+
+    let client = base_http_client().build()?;
+
+    let resp = client
+        .post(format!("{api_url}/api/v1/cli-auth/token"))
+        .json(&serde_json::json!({ "code": code, "code_verifier": code_verifier }))
+        .send()
+        .await
+        .context("Failed to reach authentication server")?
+        .error_for_status()
+        .context("Token exchange rejected, code may be expired or invalid")?
+        .json::<TokenResponse>()
+        .await
+        .context("Unexpected response from authentication server")?;
+
+    Ok(resp.token)
 }
 
 #[cfg(test)]

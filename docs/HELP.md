@@ -57,7 +57,7 @@ Manage login credentials
 
 ###### **Subcommands:**
 
-* `login` — Login with an API token
+* `login` — Login with your Detail account
 * `logout` — Logout and remove stored credentials
 * `status` — Show current authentication status
 
@@ -65,13 +65,13 @@ Manage login credentials
 
 ## `detail auth login`
 
-Login with an API token
+Login with your Detail account
 
 **Usage:** `detail auth login [OPTIONS]`
 
 ###### **Options:**
 
-* `--token <TOKEN>` — API token (`dtl_live`_...)
+* `--token <TOKEN>` — API token (`dtl_live_...`) — skips the browser flow
 
 
 

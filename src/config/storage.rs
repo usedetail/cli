@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct Config {
     pub api_url: Option<String>,
+    pub app_url: Option<String>,
     pub check_for_updates: bool,
     pub last_update_check: Option<u64>,
     pub api_token: Option<String>,
@@ -20,6 +21,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             api_url: None,
+            app_url: None,
             check_for_updates: true,
             last_update_check: None,
             api_token: None,
@@ -194,6 +196,7 @@ mod tests {
     fn config_round_trip_via_toml() {
         let config = Config {
             api_url: Some("https://api.example.com".into()),
+            app_url: None,
             check_for_updates: true,
             last_update_check: Some(12345),
             api_token: Some("dtl_test_token".into()),
@@ -241,6 +244,7 @@ mod tests {
         with_temp_config(|| {
             let config = Config {
                 api_url: Some("https://test.dev".into()),
+                app_url: None,
                 check_for_updates: true,
                 last_update_check: None,
                 api_token: Some("tok".into()),
