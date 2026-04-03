@@ -40,7 +40,10 @@ pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
                 .api_url
                 .as_deref()
                 .unwrap_or("https://api.detail.dev");
-            let app_url = config.app_url.as_deref().unwrap_or("https://detail.dev");
+            let app_url = config
+                .app_url
+                .as_deref()
+                .unwrap_or("https://app.detail.dev");
 
             let token = if let Some(t) = token {
                 if !t.starts_with("dtl_") {
