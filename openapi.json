@@ -192,10 +192,6 @@
         },
         "type": "object"
       },
-      "CreateRuleResultId": {
-        "pattern": "^rule_.*",
-        "type": "string"
-      },
       "IntroducedIn": {
         "properties": {
           "author": {
@@ -285,7 +281,7 @@
             "type": "integer"
           },
           "id": {
-            "$ref": "#/components/schemas/CreateRuleResultId"
+            "$ref": "#/components/schemas/RuleId"
           },
           "ruleFiles": {
             "additionalProperties": {
@@ -309,13 +305,17 @@
         "pattern": "^rcr_.*",
         "type": "string"
       },
+      "RuleId": {
+        "pattern": "^rule_.*",
+        "type": "string"
+      },
       "RuleListItem": {
         "properties": {
           "createdAt": {
             "type": "integer"
           },
           "id": {
-            "$ref": "#/components/schemas/CreateRuleResultId"
+            "$ref": "#/components/schemas/RuleId"
           },
           "ruleName": {
             "type": "string"
@@ -331,7 +331,7 @@
       "RuleRequestResult": {
         "properties": {
           "id": {
-            "$ref": "#/components/schemas/CreateRuleResultId"
+            "$ref": "#/components/schemas/RuleId"
           },
           "ruleName": {
             "type": "string"
@@ -1064,7 +1064,7 @@
             "name": "rule_id",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/CreateRuleResultId"
+              "$ref": "#/components/schemas/RuleId"
             }
           }
         ],
