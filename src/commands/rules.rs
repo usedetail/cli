@@ -12,14 +12,16 @@ use crate::api::types::{
 };
 use crate::output::{output_list, Formattable, SectionRenderer};
 use crate::utils::datetime::{format_date, format_datetime};
+use crate::utils::git::resolve_repo_arg;
 use crate::utils::repos::resolve_repo_id;
 
 #[derive(Subcommand)]
 pub enum RuleCommands {
     /// Submit a rule creation request for a repository
     Create {
-        /// Repository by owner/repo (e.g., usedetail/cli) or repo name
-        repo: String,
+        /// Repository by owner/repo (e.g., usedetail/cli) or repo name.
+        /// If omitted, inferred from the git remote (upstream, then origin).
+        repo: Option<String>,
 
         /// Description of the rule to create
         #[arg(long)]
@@ -36,8 +38,9 @@ pub enum RuleCommands {
 
     /// Ask Detail to propose rules for a repository
     Propose {
-        /// Repository by owner/repo (e.g., usedetail/cli) or repo name
-        repo: String,
+        /// Repository by owner/repo (e.g., usedetail/cli) or repo name.
+        /// If omitted, inferred from the git remote (upstream, then origin).
+        repo: Option<String>,
     },
 
     /// Check the status of rule creation requests
@@ -46,8 +49,9 @@ pub enum RuleCommands {
 
     /// List completed rules for a repository
     List {
-        /// Repository by owner/repo (e.g., usedetail/cli) or repo name
-        repo: String,
+        /// Repository by owner/repo (e.g., usedetail/cli) or repo name.
+        /// If omitted, inferred from the git remote (upstream, then origin).
+        repo: Option<String>,
 
         /// Output format
         #[arg(long, value_enum, default_value = "table")]
@@ -75,8 +79,9 @@ pub enum RuleCommands {
 pub enum RuleRequestCommands {
     /// List rule creation requests for a repository
     List {
-        /// Repository by owner/repo (e.g., usedetail/cli) or repo name
-        repo: String,
+        /// Repository by owner/repo (e.g., usedetail/cli) or repo name.
+        /// If omitted, inferred from the git remote (upstream, then origin).
+        repo: Option<String>,
 
         /// Output format
         #[arg(long, value_enum, default_value = "table")]
@@ -113,7 +118,8 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
         } => {
             validate_create_input(description.as_deref(), bug_ids, commit_shas)?;
 
-            let repo_id = resolve_repo_id(&client, repo)
+            let repo = resolve_repo_arg(repo.as_deref())?;
+            let repo_id = resolve_repo_id(&client, &repo)
                 .await
                 .context("Failed to resolve repository identifier")?;
 
@@ -140,7 +146,8 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
         }
 
         RuleCommands::List { repo, format } => {
-            let repo_id = resolve_repo_id(&client, repo)
+            let repo = resolve_repo_arg(repo.as_deref())?;
+            let repo_id = resolve_repo_id(&client, &repo)
                 .await
                 .context("Failed to resolve repository identifier")?;
 
@@ -246,7 +253,8 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
         }
 
         RuleCommands::Propose { repo } => {
-            let repo_id = resolve_repo_id(&client, repo)
+            let repo = resolve_repo_arg(repo.as_deref())?;
+            let repo_id = resolve_repo_id(&client, &repo)
                 .await
                 .context("Failed to resolve repository identifier")?;
 
@@ -267,7 +275,8 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
 
         RuleCommands::Requests(sub) => match sub {
             RuleRequestCommands::List { repo, format } => {
-                let repo_id = resolve_repo_id(&client, repo)
+                let repo = resolve_repo_arg(repo.as_deref())?;
+                let repo_id = resolve_repo_id(&client, &repo)
                     .await
                     .context("Failed to resolve repository identifier")?;
 

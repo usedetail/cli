@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::Subcommand;
 
 use crate::output::output_list;
+use crate::utils::git::resolve_repo_arg;
 use crate::utils::pagination::page_to_offset;
 use crate::utils::repos::resolve_repo_id;
 
@@ -9,8 +10,9 @@ use crate::utils::repos::resolve_repo_id;
 pub enum ScanCommands {
     /// List recent scans for a repository
     List {
-        /// Repository in owner/repo format or just repo name
-        repo: String,
+        /// Repository in owner/repo format or just repo name.
+        /// If omitted, inferred from the git remote (upstream, then origin).
+        repo: Option<String>,
 
         /// Maximum number of results per page
         #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..=100))]
@@ -36,7 +38,8 @@ pub async fn handle(command: &ScanCommands, cli: &crate::Cli) -> Result<()> {
             page,
             format,
         } => {
-            let repo_id = resolve_repo_id(&client, repo)
+            let repo = resolve_repo_arg(repo.as_deref())?;
+            let repo_id = resolve_repo_id(&client, &repo)
                 .await
                 .context("Failed to resolve repository identifier")?;
 

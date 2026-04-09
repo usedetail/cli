@@ -12,6 +12,7 @@ use crate::api::types::{
 };
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::datetime::format_datetime;
+use crate::utils::git::resolve_repo_arg;
 use crate::utils::pagination::page_to_offset;
 use crate::utils::repos::resolve_repo_id;
 
@@ -76,8 +77,9 @@ fn format_introduced_in(intro: &IntroducedIn) -> String {
 pub enum BugCommands {
     /// List bugs for a given repository
     List {
-        /// Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli)
-        repo: String,
+        /// Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli).
+        /// If omitted, inferred from the git remote (upstream, then origin).
+        repo: Option<String>,
 
         /// Status filter
         #[arg(long, value_enum, default_value = "pending")]
@@ -280,7 +282,8 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             format,
         } => {
             // Resolve owner/repo or repo to internal repo ID
-            let resolved_repo_id = resolve_repo_id(&client, repo)
+            let repo = resolve_repo_arg(repo.as_deref())?;
+            let resolved_repo_id = resolve_repo_id(&client, &repo)
                 .await
                 .context("Failed to resolve repository identifier")?;
 
