@@ -6,10 +6,12 @@ use serde::Deserialize;
 
 use progenitor::progenitor_client::ResponseValue;
 
+use super::generated::types::CreateRuleBody;
 use super::types::{
     Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugsResponse,
-    CreatePublicBugReviewBody, ListPublicBugsWorkflowRequestId, RepoId, ReposResponse,
-    ScansResponse, UserInfo,
+    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse,
+    ListPublicBugsWorkflowRequestId, RepoId, ReposResponse, Rule, RuleCreationRequestId, RuleId,
+    RuleRequestStatus, RuleRequestsResponse, RulesResponse, ScansResponse, UserInfo,
 };
 
 fn base_http_client() -> reqwest::ClientBuilder {
@@ -124,6 +126,57 @@ impl ApiClient {
 
         self.inner
             .list_public_repos(NonZeroU64::new(limit.into()), Some(offset.into()))
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+    }
+
+    pub async fn create_rule(
+        &self,
+        repo_id: &RepoId,
+        input: CreateRuleInput,
+    ) -> Result<CreateRuleResponse> {
+        let body = CreateRuleBody {
+            repo_id: repo_id.clone(),
+            input,
+        };
+        self.inner
+            .create_rule(&body)
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+    }
+
+    pub async fn list_rules(&self, repo_id: &RepoId) -> Result<RulesResponse> {
+        self.inner
+            .list_rules(repo_id)
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+    }
+
+    pub async fn get_rule(&self, rule_id: &RuleId) -> Result<Rule> {
+        self.inner
+            .get_rule(rule_id)
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+    }
+
+    pub async fn get_rule_request(
+        &self,
+        rcr_id: &RuleCreationRequestId,
+    ) -> Result<RuleRequestStatus> {
+        self.inner
+            .get_rule_request(rcr_id)
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+    }
+
+    pub async fn list_rule_requests(&self, repo_id: &RepoId) -> Result<RuleRequestsResponse> {
+        self.inner
+            .list_rule_requests(repo_id)
             .await
             .map(ResponseValue::into_inner)
             .map_err(|e| anyhow::anyhow!("API error: {e}"))

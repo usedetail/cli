@@ -6,8 +6,10 @@ use crate::utils::datetime::{format_date, format_datetime};
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
     Bug, BugCounts, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
-    CreatePublicBugReviewBody, IntroducedIn, ListPublicBugsWorkflowRequestId, Org, OrgId, Repo,
-    RepoId, Scan, ScanInitiator, ScanType, WorkflowStatus,
+    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, IntroducedIn,
+    ListPublicBugsWorkflowRequestId, Org, OrgId, Repo, RepoId, Rule, RuleCreationRequestId, RuleId,
+    RuleListItem, RuleRequestResult, RuleRequestStatus, RuleStatus, Scan, ScanInitiator, ScanType,
+    WorkflowStatus,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
@@ -15,6 +17,8 @@ pub type UserInfo = super::generated::types::GetPublicUserResponse;
 pub type BugsResponse = super::generated::types::ListPublicBugsResponse;
 pub type ReposResponse = super::generated::types::ListPublicReposResponse;
 pub type ScansResponse = super::generated::types::ListPublicScansResponse;
+pub type RulesResponse = super::generated::types::ListRulesResponse;
+pub type RuleRequestsResponse = super::generated::types::ListRuleRequestsResponse;
 
 // ── Display helpers ──────────────────────────────────────────────────
 // progenitor already implements Display for the generated enums, so we
@@ -34,6 +38,14 @@ pub const fn dismissal_reason_label(r: &BugDismissalReason) -> &'static str {
         BugDismissalReason::WontFix => "Won't Fix",
         BugDismissalReason::Duplicate => "Duplicate",
         BugDismissalReason::Other => "Other",
+    }
+}
+
+pub const fn rule_status_label(s: &RuleStatus) -> &'static str {
+    match s {
+        RuleStatus::Pending => "Pending",
+        RuleStatus::Complete => "Complete",
+        RuleStatus::Failed => "Failed",
     }
 }
 

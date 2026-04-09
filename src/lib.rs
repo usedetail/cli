@@ -67,6 +67,18 @@ impl Cli {
                     ..
                 }
             ),
+            Commands::Rules { command } => matches!(
+                command,
+                commands::rules::RuleCommands::List {
+                    format: OutputFormat::Json,
+                    ..
+                } | commands::rules::RuleCommands::Requests(
+                    commands::rules::RuleRequestCommands::List {
+                        format: OutputFormat::Json,
+                        ..
+                    }
+                )
+            ),
             Commands::Auth { .. }
             | Commands::Completions
             | Commands::SatisfyingSort
@@ -97,6 +109,7 @@ impl Cli {
             Commands::Auth { command } => commands::auth::handle(command, &self).await,
             Commands::Bugs { command } => commands::bugs::handle(command, &self).await,
             Commands::Completions => commands::completions::handle(),
+            Commands::Rules { command } => commands::rules::handle(command, &self).await,
             Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
             Commands::Scans { command } => commands::scans::handle(command, &self).await,
@@ -132,6 +145,12 @@ enum Commands {
 
     /// Install shell completions (auto-detects your shell)
     Completions,
+
+    /// Create and inspect rules
+    Rules {
+        #[command(subcommand)]
+        command: commands::rules::RuleCommands,
+    },
 
     /// Run a fun animation. Humans only.
     #[command(name = "satisfying-sort")]
@@ -181,6 +200,52 @@ mod tests {
     #[test]
     fn not_silent_when_bugs_list_default_format() {
         let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn silent_when_rules_list_json() {
+        let cli =
+            Cli::try_parse_from(["detail", "rules", "list", "owner/repo", "--format", "json"])
+                .unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_when_rules_list_table() {
+        let cli =
+            Cli::try_parse_from(["detail", "rules", "list", "owner/repo", "--format", "table"])
+                .unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn silent_when_rules_requests_list_json() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "rules",
+            "requests",
+            "list",
+            "owner/repo",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_when_rules_requests_list_table() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "rules",
+            "requests",
+            "list",
+            "owner/repo",
+            "--format",
+            "table",
+        ])
+        .unwrap();
         assert!(!cli.is_silent());
     }
 
