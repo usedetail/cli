@@ -3,40 +3,22 @@ use std::process::Command;
 
 /// Extract `owner/repo` from a GitHub remote URL.
 ///
-/// Supports HTTPS (`https://github.com/owner/repo.git`) and
-/// SSH (`git@github.com:owner/repo.git`) formats.
+/// Supports HTTPS (`https://github.com/owner/repo.git`),
+/// SSH colon (`git@github.com:owner/repo.git`), and
+/// SSH scheme (`ssh://git@github.com/owner/repo.git`) formats.
 fn parse_github_remote_url(url: &str) -> Option<String> {
-    // HTTPS: https://github.com/owner/repo or https://github.com/owner/repo.git
-    if let Some(rest) = url
-        .strip_prefix("https://github.com/")
-        .or_else(|| url.strip_prefix("http://github.com/"))
-    {
-        let rest = rest.trim_end_matches('/').trim_end_matches(".git");
-        let parts: Vec<&str> = rest.splitn(3, '/').collect();
-        if parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty() {
-            return Some(format!("{}/{}", parts[0], parts[1]));
-        }
-    }
+    const PREFIXES: &[&str] = &[
+        "https://github.com/",
+        "http://github.com/",
+        "git@github.com:",
+        "ssh://git@github.com/",
+    ];
 
-    // SSH: git@github.com:owner/repo.git
-    if let Some(rest) = url.strip_prefix("git@github.com:") {
-        let rest = rest.trim_end_matches('/').trim_end_matches(".git");
-        let parts: Vec<&str> = rest.splitn(3, '/').collect();
-        if parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty() {
-            return Some(format!("{}/{}", parts[0], parts[1]));
-        }
-    }
-
-    // SSH with ssh:// scheme: ssh://git@github.com/owner/repo.git
-    if let Some(rest) = url.strip_prefix("ssh://git@github.com/") {
-        let rest = rest.trim_end_matches('/').trim_end_matches(".git");
-        let parts: Vec<&str> = rest.splitn(3, '/').collect();
-        if parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty() {
-            return Some(format!("{}/{}", parts[0], parts[1]));
-        }
-    }
-
-    None
+    let rest = PREFIXES.iter().find_map(|p| url.strip_prefix(p))?;
+    let rest = rest.trim_end_matches('/').trim_end_matches(".git");
+    let parts: Vec<&str> = rest.splitn(3, '/').collect();
+    (parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty())
+        .then(|| format!("{}/{}", parts[0], parts[1]))
 }
 
 /// Get the URL for a named git remote, or `None` if it doesn't exist.
