@@ -11,7 +11,7 @@ fn parse_github_remote_url(url: &str) -> Option<String> {
         .strip_prefix("https://github.com/")
         .or_else(|| url.strip_prefix("http://github.com/"))
     {
-        let rest = rest.trim_end_matches(".git").trim_end_matches('/');
+        let rest = rest.trim_end_matches('/').trim_end_matches(".git");
         let parts: Vec<&str> = rest.splitn(3, '/').collect();
         if parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty() {
             return Some(format!("{}/{}", parts[0], parts[1]));
@@ -20,7 +20,7 @@ fn parse_github_remote_url(url: &str) -> Option<String> {
 
     // SSH: git@github.com:owner/repo.git
     if let Some(rest) = url.strip_prefix("git@github.com:") {
-        let rest = rest.trim_end_matches(".git").trim_end_matches('/');
+        let rest = rest.trim_end_matches('/').trim_end_matches(".git");
         let parts: Vec<&str> = rest.splitn(3, '/').collect();
         if parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty() {
             return Some(format!("{}/{}", parts[0], parts[1]));
@@ -29,7 +29,7 @@ fn parse_github_remote_url(url: &str) -> Option<String> {
 
     // SSH with ssh:// scheme: ssh://git@github.com/owner/repo.git
     if let Some(rest) = url.strip_prefix("ssh://git@github.com/") {
-        let rest = rest.trim_end_matches(".git").trim_end_matches('/');
+        let rest = rest.trim_end_matches('/').trim_end_matches(".git");
         let parts: Vec<&str> = rest.splitn(3, '/').collect();
         if parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty() {
             return Some(format!("{}/{}", parts[0], parts[1]));
@@ -175,6 +175,30 @@ mod tests {
         assert_eq!(
             parse_github_remote_url("http://github.com/owner/repo.git"),
             Some("owner/repo".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_https_with_git_suffix_and_trailing_slash() {
+        assert_eq!(
+            parse_github_remote_url("https://github.com/usedetail/cli.git/"),
+            Some("usedetail/cli".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_ssh_colon_with_git_suffix_and_trailing_slash() {
+        assert_eq!(
+            parse_github_remote_url("git@github.com:usedetail/cli.git/"),
+            Some("usedetail/cli".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_ssh_scheme_with_git_suffix_and_trailing_slash() {
+        assert_eq!(
+            parse_github_remote_url("ssh://git@github.com/usedetail/cli.git/"),
+            Some("usedetail/cli".to_string()),
         );
     }
 
