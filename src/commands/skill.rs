@@ -4,8 +4,17 @@ use std::process::Command;
 use std::str;
 
 use anyhow::{Context, Result};
+use clap::Subcommand;
 
-const SKILL_CONTENT: &str = include_str!("../../.claude/skills/detail-bugs/SKILL.md");
+const BUGS_SKILL_CONTENT: &str = include_str!("../../.claude/skills/detail-bugs/SKILL.md");
+const RULES_SKILL_CONTENT: &str = include_str!("../../.claude/skills/detail-create-rules/SKILL.md");
+
+#[derive(Subcommand)]
+pub enum SkillCommands {
+    /// Install the detail-create-rules skill
+    #[command(name = "rules")]
+    Rules,
+}
 
 fn parse_git_root_output(success: bool, stdout: &[u8]) -> Result<PathBuf> {
     anyhow::ensure!(success, "not inside a git repository");
@@ -13,11 +22,11 @@ fn parse_git_root_output(success: bool, stdout: &[u8]) -> Result<PathBuf> {
     Ok(PathBuf::from(root.trim()))
 }
 
-fn skill_install_path(repo_root: &Path) -> PathBuf {
+fn skill_install_path(repo_root: &Path, skill_name: &str) -> PathBuf {
     repo_root
         .join(".claude")
         .join("skills")
-        .join("detail-bugs")
+        .join(skill_name)
         .join("SKILL.md")
 }
 
@@ -29,18 +38,28 @@ fn git_root() -> Result<PathBuf> {
     parse_git_root_output(output.status.success(), &output.stdout)
 }
 
-pub fn handle() -> Result<()> {
-    let path = skill_install_path(&git_root()?);
+fn install_skill(repo_root: &Path, skill_name: &str, content: &str) -> Result<()> {
+    let path = skill_install_path(repo_root, skill_name);
     let dir = path
         .parent()
         .context("failed to compute skill install directory")?;
     fs::create_dir_all(dir)?;
-    fs::write(&path, SKILL_CONTENT)?;
+    fs::write(&path, content)?;
     console::Term::stderr().write_line(&format!(
-        "Installed detail-bugs skill to {}",
+        "Installed {skill_name} skill to {}",
         path.display()
     ))?;
     Ok(())
+}
+
+pub fn handle(command: Option<&SkillCommands>) -> Result<()> {
+    let root = git_root()?;
+    match command {
+        None => install_skill(&root, "detail-bugs", BUGS_SKILL_CONTENT),
+        Some(SkillCommands::Rules) => {
+            install_skill(&root, "detail-create-rules", RULES_SKILL_CONTENT)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -67,10 +86,19 @@ mod tests {
 
     #[test]
     fn skill_install_path_is_repo_relative() {
-        let path = skill_install_path(Path::new("/work/repo"));
+        let path = skill_install_path(Path::new("/work/repo"), "detail-bugs");
         assert_eq!(
             path,
             PathBuf::from("/work/repo/.claude/skills/detail-bugs/SKILL.md")
+        );
+    }
+
+    #[test]
+    fn rules_install_path_is_repo_relative() {
+        let path = skill_install_path(Path::new("/work/repo"), "detail-create-rules");
+        assert_eq!(
+            path,
+            PathBuf::from("/work/repo/.claude/skills/detail-create-rules/SKILL.md")
         );
     }
 }

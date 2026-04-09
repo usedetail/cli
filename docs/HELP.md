@@ -29,6 +29,7 @@ This document contains the help content for the `detail` command-line program.
 * [`detail scans`↴](#detail-scans)
 * [`detail scans list`↴](#detail-scans-list)
 * [`detail skill`↴](#detail-skill)
+* [`detail skill rules`↴](#detail-skill-rules)
 * [`detail update`↴](#detail-update)
 * [`detail version`↴](#detail-version)
 
@@ -53,7 +54,7 @@ Common workflow:
 * `satisfying-sort` — Run a fun animation. Humans only
 * `repos` — Manage repos tracked with Detail
 * `scans` — List and inspect scans
-* `skill` — Install the detail-bugs skill
+* `skill` — Install Detail skills (default: detail-bugs)
 * `update` — Update Immediately (auto-update also runs in the background)
 * `version` — Show version information
 
@@ -421,9 +422,21 @@ List recent scans for a repository
 
 ## `detail skill`
 
-Install the detail-bugs skill
+Install Detail skills (default: detail-bugs)
 
-**Usage:** `detail skill`
+**Usage:** `detail skill [COMMAND]`
+
+###### **Subcommands:**
+
+* `rules` — Install the detail-create-rules skill
+
+
+
+## `detail skill rules`
+
+Install the detail-create-rules skill
+
+**Usage:** `detail skill rules`
 
 
 
