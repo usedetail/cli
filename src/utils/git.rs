@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use std::process::Command;
 
 /// Extract `owner/repo` from a GitHub remote URL.
@@ -21,47 +21,22 @@ fn parse_github_remote_url(url: &str) -> Option<String> {
         .then(|| format!("{}/{}", parts[0], parts[1]))
 }
 
-/// Get the URL for a named git remote, or `None` if it doesn't exist.
-fn get_remote_url(remote: &str) -> Option<String> {
-    let output = Command::new("git")
-        .args(["remote", "get-url", remote])
-        .output()
-        .ok()?;
-
-    if output.status.success() {
-        let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if url.is_empty() {
-            None
-        } else {
-            Some(url)
-        }
-    } else {
-        None
-    }
-}
-
 /// Infer the `owner/repo` identifier from the current git repository by
 /// checking the `origin` remote.
 ///
 /// Returns `Ok(owner/repo)` on success, or an error if we are not inside a
 /// git repository or the `origin` remote is not a recognisable GitHub URL.
 pub fn infer_repo_from_git_remote() -> Result<String> {
-    // Make sure we are inside a git work-tree.
-    let in_git = Command::new("git")
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .output()
-        .context("Failed to run git")?;
+    let output = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .output();
 
-    if !in_git.status.success() {
-        bail!(
-            "Not inside a git repository. Please pass a repo argument explicitly \
-             (e.g. owner/repo)."
-        );
-    }
-
-    if let Some(url) = get_remote_url("origin") {
-        if let Some(owner_repo) = parse_github_remote_url(&url) {
-            return Ok(owner_repo);
+    if let Ok(output) = output {
+        if output.status.success() {
+            let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Some(owner_repo) = parse_github_remote_url(&url) {
+                return Ok(owner_repo);
+            }
         }
     }
 
