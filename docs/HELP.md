@@ -119,11 +119,11 @@ List, show, and close bugs
 
 List bugs for a given repository
 
-**Usage:** `detail bugs list [OPTIONS] <REPO>`
+**Usage:** `detail bugs list [OPTIONS] [REPO]`
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli)
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli). If omitted, inferred from the git remote (upstream, then origin)
 
 ###### **Options:**
 
@@ -216,11 +216,11 @@ Create and inspect rules
 
 Submit a rule creation request for a repository
 
-**Usage:** `detail rules create [OPTIONS] <REPO>`
+**Usage:** `detail rules create [OPTIONS] [REPO]`
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (upstream, then origin)
 
 ###### **Options:**
 
@@ -234,11 +234,11 @@ Submit a rule creation request for a repository
 
 Ask Detail to propose rules for a repository
 
-**Usage:** `detail rules propose <REPO>`
+**Usage:** `detail rules propose [REPO]`
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (upstream, then origin)
 
 
 
@@ -259,11 +259,11 @@ Check the status of rule creation requests
 
 List rule creation requests for a repository
 
-**Usage:** `detail rules requests list [OPTIONS] <REPO>`
+**Usage:** `detail rules requests list [OPTIONS] [REPO]`
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (upstream, then origin)
 
 ###### **Options:**
 
@@ -292,11 +292,11 @@ Show details and status of a rule creation request
 
 List completed rules for a repository
 
-**Usage:** `detail rules list [OPTIONS] <REPO>`
+**Usage:** `detail rules list [OPTIONS] [REPO]`
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (upstream, then origin)
 
 ###### **Options:**
 
@@ -396,11 +396,11 @@ List and inspect scans
 
 List recent scans for a repository
 
-**Usage:** `detail scans list [OPTIONS] <REPO>`
+**Usage:** `detail scans list [OPTIONS] [REPO]`
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository in owner/repo format or just repo name
+* `<REPO>` — Repository in owner/repo format or just repo name. If omitted, inferred from the git remote (upstream, then origin)
 
 ###### **Options:**
 
