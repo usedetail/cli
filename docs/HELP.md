@@ -123,7 +123,7 @@ List bugs for a given repository
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli). If omitted, inferred from the git remote (upstream, then origin)
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli). If omitted, inferred from the git remote (origin)
 
 ###### **Options:**
 
@@ -220,7 +220,7 @@ Submit a rule creation request for a repository
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (upstream, then origin)
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (origin)
 
 ###### **Options:**
 
@@ -238,7 +238,7 @@ Ask Detail to propose rules for a repository
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (upstream, then origin)
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (origin)
 
 
 
@@ -263,7 +263,7 @@ List rule creation requests for a repository
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (upstream, then origin)
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (origin)
 
 ###### **Options:**
 
@@ -296,7 +296,7 @@ List completed rules for a repository
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (upstream, then origin)
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo name. If omitted, inferred from the git remote (origin)
 
 ###### **Options:**
 
@@ -400,7 +400,7 @@ List recent scans for a repository
 
 ###### **Arguments:**
 
-* `<REPO>` — Repository in owner/repo format or just repo name. If omitted, inferred from the git remote (upstream, then origin)
+* `<REPO>` — Repository in owner/repo format or just repo name. If omitted, inferred from the git remote (origin)
 
 ###### **Options:**
 

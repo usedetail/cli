@@ -11,7 +11,7 @@ pub enum ScanCommands {
     /// List recent scans for a repository
     List {
         /// Repository in owner/repo format or just repo name.
-        /// If omitted, inferred from the git remote (upstream, then origin).
+        /// If omitted, inferred from the git remote (origin).
         repo: Option<String>,
 
         /// Maximum number of results per page

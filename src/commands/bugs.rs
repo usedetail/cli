@@ -78,7 +78,7 @@ pub enum BugCommands {
     /// List bugs for a given repository
     List {
         /// Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli).
-        /// If omitted, inferred from the git remote (upstream, then origin).
+        /// If omitted, inferred from the git remote (origin).
         repo: Option<String>,
 
         /// Status filter

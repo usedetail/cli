@@ -41,10 +41,10 @@ fn get_remote_url(remote: &str) -> Option<String> {
 }
 
 /// Infer the `owner/repo` identifier from the current git repository by
-/// checking `upstream` first, then `origin`.
+/// checking the `origin` remote.
 ///
 /// Returns `Ok(owner/repo)` on success, or an error if we are not inside a
-/// git repository or neither remote points to a recognisable GitHub URL.
+/// git repository or the `origin` remote is not a recognisable GitHub URL.
 pub fn infer_repo_from_git_remote() -> Result<String> {
     // Make sure we are inside a git work-tree.
     let in_git = Command::new("git")
@@ -59,12 +59,9 @@ pub fn infer_repo_from_git_remote() -> Result<String> {
         );
     }
 
-    // Try upstream first, then origin.
-    for remote in &["upstream", "origin"] {
-        if let Some(url) = get_remote_url(remote) {
-            if let Some(owner_repo) = parse_github_remote_url(&url) {
-                return Ok(owner_repo);
-            }
+    if let Some(url) = get_remote_url("origin") {
+        if let Some(owner_repo) = parse_github_remote_url(&url) {
+            return Ok(owner_repo);
         }
     }
 
