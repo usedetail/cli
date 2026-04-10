@@ -11,6 +11,10 @@ use percent_encoding::percent_decode_str;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+
+/// Buffer size used to read the OAuth PKCE HTTP callback request.
+/// 4 KiB is sufficient for a small request line plus headers.
+const CALLBACK_BUFFER_SIZE: usize = 4096;
 use tokio::time::timeout;
 
 use crate::api::client::{pkce_token_exchange, ApiClient};
@@ -167,7 +171,7 @@ async fn await_pkce_callback(
         .await
         .context("Authentication timed out after 10 minutes")??;
 
-    let mut buf = vec![0_u8; 4096];
+    let mut buf = vec![0_u8; CALLBACK_BUFFER_SIZE];
     let n = timeout(Duration::from_secs(30), stream.read(&mut buf))
         .await
         .context("Timed out waiting for callback data")?
