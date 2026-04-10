@@ -41,44 +41,37 @@ impl Cli {
         api::client::ApiClient::new(config.api_url, Some(token))
     }
 
+    const fn is_json(format: &OutputFormat) -> bool {
+        matches!(format, OutputFormat::Json)
+    }
+
     /// Returns true when machine-readable output is requested (e.g. `--format json`),
     /// meaning non-essential messages (update notices, progress) should be suppressed
     /// to avoid corrupting structured output.
     const fn is_silent(&self) -> bool {
         match &self.command {
-            Commands::Bugs { command } => matches!(
-                command,
-                commands::bugs::BugCommands::List {
-                    format: OutputFormat::Json,
-                    ..
-                }
-            ),
-            Commands::Repos { command } => matches!(
-                command,
-                commands::repos::RepoCommands::List {
-                    format: OutputFormat::Json,
-                    ..
-                }
-            ),
-            Commands::Scans { command } => matches!(
-                command,
-                commands::scans::ScanCommands::List {
-                    format: OutputFormat::Json,
-                    ..
-                }
-            ),
-            Commands::Rules { command } => matches!(
-                command,
-                commands::rules::RuleCommands::List {
-                    format: OutputFormat::Json,
-                    ..
-                } | commands::rules::RuleCommands::Requests(
-                    commands::rules::RuleRequestCommands::List {
-                        format: OutputFormat::Json,
-                        ..
-                    }
-                )
-            ),
+            Commands::Bugs { command } => match command {
+                commands::bugs::BugCommands::List { format, .. } => Self::is_json(format),
+                commands::bugs::BugCommands::Show { .. }
+                | commands::bugs::BugCommands::Close { .. } => false,
+            },
+            Commands::Repos { command } => match command {
+                commands::repos::RepoCommands::List { format, .. } => Self::is_json(format),
+            },
+            Commands::Scans { command } => match command {
+                commands::scans::ScanCommands::List { format, .. } => Self::is_json(format),
+            },
+            Commands::Rules { command } => match command {
+                commands::rules::RuleCommands::List { format, .. }
+                | commands::rules::RuleCommands::Requests(
+                    commands::rules::RuleRequestCommands::List { format, .. },
+                ) => Self::is_json(format),
+                commands::rules::RuleCommands::Create { .. }
+                | commands::rules::RuleCommands::Propose { .. }
+                | commands::rules::RuleCommands::Requests(_)
+                | commands::rules::RuleCommands::Show { .. }
+                | commands::rules::RuleCommands::Pull { .. } => false,
+            },
             Commands::Auth { .. }
             | Commands::Completions
             | Commands::SatisfyingSort
@@ -174,7 +167,7 @@ enum Commands {
         command: Option<commands::skill::SkillCommands>,
     },
 
-    /// Update Immediately (auto-update also runs in the background)
+    /// Update immediately (auto-update also runs in the background)
     Update,
 
     /// Show version information
