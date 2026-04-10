@@ -174,7 +174,7 @@ enum Commands {
         command: Option<commands::skill::SkillCommands>,
     },
 
-    /// Update Immediately (auto-update also runs in the background)
+    /// Update immediately (auto-update also runs in the background)
     Update,
 
     /// Show version information
