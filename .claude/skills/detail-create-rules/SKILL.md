@@ -36,12 +36,12 @@ Ask the user what they want to do:
 
 **For a specific rule**, build the command from whatever context the user provided. At least one of `--description`, `--bug-ids`, or `--commit-shas` is required:
 ```bash
-detail rules create <repo> [--description "<description>"] [--bug-ids <id1,id2>] [--commit-shas <sha1,sha2>]
+detail rules create $ARGUMENTS [--description "<description>"] [--bug-ids <id1,id2>] [--commit-shas <sha1,sha2>]
 ```
 
 **For AI-proposed rules**:
 ```bash
-detail rules propose <repo>
+detail rules propose $ARGUMENTS
 ```
 
 Both commands return a request ID (`rcr_...`). Save it — you will need it to poll for status.
