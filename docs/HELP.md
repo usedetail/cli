@@ -333,7 +333,7 @@ Persist a rule's generated files locally
 
 ###### **Options:**
 
-* `--output <OUTPUT>` — Skill directory to write detail-rules/ into (defaults to .agents/skills/)
+* `--output <OUTPUT>` — Skill directory to write detail-rules/ into (defaults to .claude/skills/)
 
 
 

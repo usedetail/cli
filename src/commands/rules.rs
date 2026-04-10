@@ -65,7 +65,7 @@ pub enum RuleCommands {
         /// Rule ID (rule_...)
         rule_id: String,
 
-        /// Skill directory to write detail-rules/ into (defaults to .agents/skills/)
+        /// Skill directory to write detail-rules/ into (defaults to .claude/skills/)
         #[arg(long)]
         output: Option<PathBuf>,
     },
@@ -195,7 +195,7 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
 
             let cwd = env::current_dir().context("Failed to get current directory")?;
             let parent: PathBuf = output.as_ref().map_or_else(
-                || cwd.join(".agents").join("skills"),
+                || cwd.join(".claude").join("skills"),
                 |p| {
                     if p.is_absolute() {
                         p.clone()
