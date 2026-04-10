@@ -70,7 +70,7 @@ Once completed, the request output lists all rule IDs that were created. Show ea
 detail rules show <rule_id>
 ```
 
-Walk the user through each rule's name and generated files. Ask if they're satisfied or if they'd like to submit another request with additional context.
+Walk the user through each rule's name and content. Ask if they're satisfied or if they'd like to submit another request with additional context.
 
 ## Step 5: Pull All Rules Locally
 

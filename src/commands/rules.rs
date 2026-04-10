@@ -58,7 +58,7 @@ pub enum RuleCommands {
         format: crate::OutputFormat,
     },
 
-    /// Show a rule's details and generated files
+    /// Show a rule's details and content
     Show {
         /// Rule ID (rule_...)
         rule_id: String,
@@ -183,6 +183,9 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
             let mut sorted: Vec<(&String, &String)> = rule.rule_files.iter().collect();
             sorted.sort_by_key(|(path, _)| path.as_str());
             for (path, content) in sorted {
+                if path.ends_with("SKILL.md") {
+                    continue;
+                }
                 renderer = renderer.markdown(path, content);
             }
 

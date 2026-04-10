@@ -208,7 +208,7 @@ Create and inspect rules
 * `propose` — Ask Detail to propose rules for a repository
 * `requests` — Check the status of rule creation requests
 * `list` — List completed rules for a repository
-* `show` — Show a rule's details and generated files
+* `show` — Show a rule's details and content
 * `pull` — Pull a rule's generated files locally
 
 
@@ -312,7 +312,7 @@ List completed rules for a repository
 
 ## `detail rules show`
 
-Show a rule's details and generated files
+Show a rule's details and content
 
 **Usage:** `detail rules show <RULE_ID>`
 
