@@ -243,11 +243,23 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
                 written.push(path.clone());
             }
 
+            // Attempt to resolve symlinks for display
+            let display_dir = cwd
+                .canonicalize()
+                .ok()
+                .zip(out_dir.canonicalize().ok())
+                .and_then(|(canon_cwd, canon_out)| {
+                    canon_out
+                        .strip_prefix(&canon_cwd)
+                        .ok()
+                        .map(Path::to_path_buf)
+                })
+                .unwrap_or_else(|| out_dir.clone());
             Term::stdout().write_line(&format!(
                 "{} Wrote {} file(s) to {}",
                 style("✓").green(),
                 written.len(),
-                style(out_dir.display()).bold(),
+                style(display_dir.display()).bold(),
             ))?;
             for path in &written {
                 Term::stdout().write_line(&format!("  {path}"))?;
