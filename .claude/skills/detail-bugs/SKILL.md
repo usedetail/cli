@@ -25,11 +25,7 @@ The Detail CLI must be installed. If it is not available, install it with:
 curl --proto '=https' --tlsv1.2 -LsSf https://cli.detail.dev | sh
 ```
 
-The user must be authenticated. Ask the user for their Detail API token, then
-run:
-```
-detail auth login --token <TOKEN>
-```
+The user must be authenticated. Assume that the user is authed and run commands directly. If a command fails with an authentication error, run `detail auth login` and guide the user through the process.
 
 ## Listing bugs for a specific scan
 
