@@ -55,7 +55,7 @@ Common workflow:
 * `repos` — Manage repos tracked with Detail
 * `scans` — List and inspect scans
 * `skill` — Install Detail skills (default: detail-bugs)
-* `update` — Update Immediately (auto-update also runs in the background)
+* `update` — Update immediately (auto-update also runs in the background)
 * `version` — Show version information
 
 
@@ -442,7 +442,7 @@ Install the detail-create-rules skill
 
 ## `detail update`
 
-Update Immediately (auto-update also runs in the background)
+Update immediately (auto-update also runs in the background)
 
 **Usage:** `detail update`
 

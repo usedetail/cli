@@ -52,22 +52,25 @@ impl Cli {
         match &self.command {
             Commands::Bugs { command } => match command {
                 commands::bugs::BugCommands::List { format, .. } => Self::is_json(format),
-                _ => false,
+                commands::bugs::BugCommands::Show { .. }
+                | commands::bugs::BugCommands::Close { .. } => false,
             },
             Commands::Repos { command } => match command {
                 commands::repos::RepoCommands::List { format, .. } => Self::is_json(format),
-                _ => false,
             },
             Commands::Scans { command } => match command {
                 commands::scans::ScanCommands::List { format, .. } => Self::is_json(format),
-                _ => false,
             },
             Commands::Rules { command } => match command {
-                commands::rules::RuleCommands::List { format, .. } => Self::is_json(format),
-                commands::rules::RuleCommands::Requests(
+                commands::rules::RuleCommands::List { format, .. }
+                | commands::rules::RuleCommands::Requests(
                     commands::rules::RuleRequestCommands::List { format, .. },
                 ) => Self::is_json(format),
-                _ => false,
+                commands::rules::RuleCommands::Create { .. }
+                | commands::rules::RuleCommands::Propose { .. }
+                | commands::rules::RuleCommands::Requests(_)
+                | commands::rules::RuleCommands::Show { .. }
+                | commands::rules::RuleCommands::Pull { .. } => false,
             },
             Commands::Auth { .. }
             | Commands::Completions
