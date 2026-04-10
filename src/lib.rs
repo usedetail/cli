@@ -41,44 +41,34 @@ impl Cli {
         api::client::ApiClient::new(config.api_url, Some(token))
     }
 
+    const fn is_json(format: &OutputFormat) -> bool {
+        matches!(format, OutputFormat::Json)
+    }
+
     /// Returns true when machine-readable output is requested (e.g. `--format json`),
     /// meaning non-essential messages (update notices, progress) should be suppressed
     /// to avoid corrupting structured output.
     const fn is_silent(&self) -> bool {
         match &self.command {
-            Commands::Bugs { command } => matches!(
-                command,
-                commands::bugs::BugCommands::List {
-                    format: OutputFormat::Json,
-                    ..
-                }
-            ),
-            Commands::Repos { command } => matches!(
-                command,
-                commands::repos::RepoCommands::List {
-                    format: OutputFormat::Json,
-                    ..
-                }
-            ),
-            Commands::Scans { command } => matches!(
-                command,
-                commands::scans::ScanCommands::List {
-                    format: OutputFormat::Json,
-                    ..
-                }
-            ),
-            Commands::Rules { command } => matches!(
-                command,
-                commands::rules::RuleCommands::List {
-                    format: OutputFormat::Json,
-                    ..
-                } | commands::rules::RuleCommands::Requests(
-                    commands::rules::RuleRequestCommands::List {
-                        format: OutputFormat::Json,
-                        ..
-                    }
-                )
-            ),
+            Commands::Bugs { command } => match command {
+                commands::bugs::BugCommands::List { format, .. } => Self::is_json(format),
+                _ => false,
+            },
+            Commands::Repos { command } => match command {
+                commands::repos::RepoCommands::List { format, .. } => Self::is_json(format),
+                _ => false,
+            },
+            Commands::Scans { command } => match command {
+                commands::scans::ScanCommands::List { format, .. } => Self::is_json(format),
+                _ => false,
+            },
+            Commands::Rules { command } => match command {
+                commands::rules::RuleCommands::List { format, .. } => Self::is_json(format),
+                commands::rules::RuleCommands::Requests(
+                    commands::rules::RuleRequestCommands::List { format, .. },
+                ) => Self::is_json(format),
+                _ => false,
+            },
             Commands::Auth { .. }
             | Commands::Completions
             | Commands::SatisfyingSort
