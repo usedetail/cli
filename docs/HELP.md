@@ -22,7 +22,7 @@ This document contains the help content for the `detail` command-line program.
 * [`detail rules requests show`↴](#detail-rules-requests-show)
 * [`detail rules list`↴](#detail-rules-list)
 * [`detail rules show`↴](#detail-rules-show)
-* [`detail rules persist`↴](#detail-rules-persist)
+* [`detail rules pull`↴](#detail-rules-pull)
 * [`detail satisfying-sort`↴](#detail-satisfying-sort)
 * [`detail repos`↴](#detail-repos)
 * [`detail repos list`↴](#detail-repos-list)
@@ -208,7 +208,7 @@ Create and inspect rules
 * `requests` — Check the status of rule creation requests
 * `list` — List completed rules for a repository
 * `show` — Show a rule's details and generated files
-* `persist` — Persist a rule's generated files locally
+* `pull` — Pull a rule's generated files locally
 
 
 
@@ -321,11 +321,11 @@ Show a rule's details and generated files
 
 
 
-## `detail rules persist`
+## `detail rules pull`
 
-Persist a rule's generated files locally
+Pull a rule's generated files locally
 
-**Usage:** `detail rules persist [OPTIONS] <RULE_ID>`
+**Usage:** `detail rules pull [OPTIONS] <RULE_ID>`
 
 ###### **Arguments:**
 

@@ -64,8 +64,8 @@ pub enum RuleCommands {
         rule_id: String,
     },
 
-    /// Persist a rule's generated files locally
-    Persist {
+    /// Pull a rule's generated files locally
+    Pull {
         /// Rule ID (rule_...)
         rule_id: String,
 
@@ -189,7 +189,7 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
             renderer.print()
         }
 
-        RuleCommands::Persist { rule_id, output } => {
+        RuleCommands::Pull { rule_id, output } => {
             let rule_id: RuleId = rule_id
                 .as_str()
                 .try_into()
@@ -241,7 +241,7 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
             }
 
             Term::stdout().write_line(&format!(
-                "{} Persisted {} file(s) to {}",
+                "{} Wrote {} file(s) to {}",
                 style("✓").green(),
                 written.len(),
                 style(out_dir.display()).bold(),
