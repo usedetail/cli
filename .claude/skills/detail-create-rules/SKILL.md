@@ -10,14 +10,11 @@ Guide the user through creating one or more new rules for their repository.
 
 ## Determining the Repository
 
-If `$ARGUMENTS` is not empty, use it as the repository (`owner/repo`).
+If `$ARGUMENTS` is not empty, use it as the repository (`owner/repo`) for all `detail rules` commands.
 
-Otherwise, auto-detect from the current git remote:
-```bash
-git remote get-url origin 2>/dev/null | sed -E 's|.*github\.com[:/]||;s|\.git$||'
-```
+Otherwise, the Detail CLI will infer the repository from the git remote. Use the CLI with no repository specified.
 
-Use the extracted `owner/repo` as the argument for all `detail rules` commands.
+If commands fail to infer the repository, ask the user to provide the repository and use it for the `detail rules` commands.
 
 ## Prerequisites
 
