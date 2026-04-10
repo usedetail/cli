@@ -1,6 +1,6 @@
 ---
 name: detail-create-rules
-description: Interactively create a new Detail rule for a repository — gather context, submit the creation request, wait for completion, review the results, and pull them locally.
+description: Interactively create a new Detail rule for a repository — gather context, submit the creation request, wait for completion, review the results, and pull them locally. Use when asked to "create a rule", "add a rule", "propose rules", "create/propose a Detail rule", or similar.
 argument-hint: <owner/repo>
 ---
 
