@@ -82,7 +82,7 @@ impl Cli {
             Commands::Auth { .. }
             | Commands::Completions
             | Commands::SatisfyingSort
-            | Commands::Skill
+            | Commands::Skill { .. }
             | Commands::Update
             | Commands::Version => false,
         }
@@ -113,7 +113,7 @@ impl Cli {
             Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
             Commands::Scans { command } => commands::scans::handle(command, &self).await,
-            Commands::Skill => commands::skill::handle(),
+            Commands::Skill { command } => commands::skill::handle(command.as_ref()),
             Commands::Update => commands::update::handle().await,
             Commands::Version => {
                 console::Term::stdout().write_line(&format!("detail-cli v{VERSION}"))?;
@@ -168,8 +168,11 @@ enum Commands {
         command: commands::scans::ScanCommands,
     },
 
-    /// Install the detail-bugs skill
-    Skill,
+    /// Install Detail skills (default: detail-bugs)
+    Skill {
+        #[command(subcommand)]
+        command: Option<commands::skill::SkillCommands>,
+    },
 
     /// Update Immediately (auto-update also runs in the background)
     Update,
@@ -290,6 +293,12 @@ mod tests {
     #[test]
     fn not_silent_for_skill() {
         let cli = Cli::try_parse_from(["detail", "skill"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_skill_rules() {
+        let cli = Cli::try_parse_from(["detail", "skill", "rules"]).unwrap();
         assert!(!cli.is_silent());
     }
 
