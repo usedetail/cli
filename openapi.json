@@ -87,7 +87,8 @@
           "title",
           "summary",
           "createdAt",
-          "repoId"
+          "repoId",
+          "linkedIssues"
         ],
         "type": "object"
       },
@@ -138,6 +139,9 @@
           "id": {
             "$ref": "#/components/schemas/BugReviewId",
             "nullable": true
+          },
+          "jiraStatusName": {
+            "type": "string"
           },
           "linearStateName": {
             "type": "string"

@@ -56,12 +56,12 @@ pub fn format_linked_issue(issue: &LinkedIssue) -> String {
         LinkedIssueTracker::Slack => issue
             .url
             .as_deref()
-            .map_or(tracker.clone(), |url| format!("{tracker}: {url}")),
+            .map_or_else(|| tracker.clone(), |url| format!("{tracker}: {url}")),
         LinkedIssueTracker::Linear | LinkedIssueTracker::Jira | LinkedIssueTracker::Github => {
-            match &issue.url {
-                Some(url) => format!("{tracker}: {} \u{2014} {url}", issue.issue_id),
-                None => format!("{tracker}: {}", issue.issue_id),
-            }
+            issue.url.as_ref().map_or_else(
+                || format!("{tracker}: {}", issue.issue_id),
+                |url| format!("{tracker}: {} \u{2014} {url}", issue.issue_id),
+            )
         }
     }
 }
@@ -352,7 +352,10 @@ mod tests {
         }))
         .expect("valid LinkedIssue JSON");
         let result = format_linked_issue(&issue);
-        assert_eq!(result, "linear: ENG-42 \u{2014} https://linear.app/team/issue/ENG-42");
+        assert_eq!(
+            result,
+            "linear: ENG-42 \u{2014} https://linear.app/team/issue/ENG-42"
+        );
     }
 
     #[test]
