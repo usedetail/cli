@@ -6,10 +6,10 @@ use crate::utils::datetime::{format_date, format_datetime};
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
     Bug, BugCounts, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
-    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, IntroducedIn,
-    ListPublicBugsWorkflowRequestId, Org, OrgId, Repo, RepoId, Rule, RuleCreationRequestId, RuleId,
-    RuleListItem, RuleRequestResult, RuleRequestStatus, RuleStatus, Scan, ScanInitiator, ScanType,
-    WorkflowStatus,
+    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, IntroducedIn, LinkedIssue,
+    LinkedIssueTracker, ListPublicBugsWorkflowRequestId, Org, OrgId, Repo, RepoId, Rule,
+    RuleCreationRequestId, RuleId, RuleListItem, RuleRequestResult, RuleRequestStatus, RuleStatus,
+    Scan, ScanInitiator, ScanType, WorkflowStatus,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
@@ -49,6 +49,23 @@ pub const fn rule_status_label(s: &RuleStatus) -> &'static str {
     }
 }
 
+/// Format a linked issue for display. Includes the URL for the detail/show view.
+pub fn format_linked_issue(issue: &LinkedIssue) -> String {
+    let tracker = issue.tracker.to_string();
+    match issue.tracker {
+        LinkedIssueTracker::Slack => issue
+            .url
+            .as_deref()
+            .map_or(tracker.clone(), |url| format!("{tracker}: {url}")),
+        LinkedIssueTracker::Linear | LinkedIssueTracker::Jira | LinkedIssueTracker::Github => {
+            match &issue.url {
+                Some(url) => format!("{tracker}: {} \u{2014} {url}", issue.issue_id),
+                None => format!("{tracker}: {}", issue.issue_id),
+            }
+        }
+    }
+}
+
 // ── clap::ValueEnum ──────────────────────────────────────────────────
 
 impl clap::ValueEnum for BugReviewState {
@@ -84,10 +101,24 @@ impl clap::ValueEnum for BugDismissalReason {
 
 impl Formattable for Bug {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
-        let pairs = vec![
+        let mut pairs = vec![
             ("Bug ID", self.id.to_string()),
             ("Created", format_date(self.created_at)),
         ];
+        if !self.linked_issues.is_empty() {
+            let formatted = self
+                .linked_issues
+                .iter()
+                .map(|i| match i.tracker {
+                    LinkedIssueTracker::Slack => i.tracker.to_string(),
+                    LinkedIssueTracker::Linear
+                    | LinkedIssueTracker::Jira
+                    | LinkedIssueTracker::Github => format!("{}: {}", i.tracker, i.issue_id),
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            pairs.push(("Linked Issues", formatted));
+        }
         (self.title.clone(), pairs)
     }
 }
@@ -214,7 +245,8 @@ mod tests {
             "title": "Null pointer in handler",
             "summary": "Crash when input is empty",
             "createdAt": 1_736_899_200_000_i64,
-            "repoId": "repo_xyz"
+            "repoId": "repo_xyz",
+            "linkedIssues": []
         }))
         .expect("valid Bug JSON")
     }
@@ -256,7 +288,8 @@ mod tests {
             "summary": "...",
             "createdAt": 1_736_899_200_000_i64,
             "repoId": "repo_xyz",
-            "isSecurityVulnerability": true
+            "isSecurityVulnerability": true,
+            "linkedIssues": []
         }))
         .expect("valid Bug JSON");
         let (_, pairs) = bug.to_card();
@@ -272,12 +305,93 @@ mod tests {
             "summary": "...",
             "createdAt": 1_736_899_200_000_i64,
             "repoId": "repo_xyz",
-            "isSecurityVulnerability": false
+            "isSecurityVulnerability": false,
+            "linkedIssues": []
         }))
         .expect("valid Bug JSON");
         let (_, pairs) = bug.to_card();
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
         assert_eq!(keys, vec!["Bug ID", "Created"]);
+    }
+
+    #[test]
+    fn bug_card_shows_linked_issues_when_present() {
+        let bug: Bug = serde_json::from_value(serde_json::json!({
+            "id": "bug_li1",
+            "title": "Auth bypass",
+            "summary": "...",
+            "createdAt": 1_736_899_200_000_i64,
+            "repoId": "repo_xyz",
+            "linkedIssues": [
+                { "tracker": "linear", "issueId": "ENG-42", "url": null },
+                { "tracker": "jira", "issueId": "PROJ-99", "url": null }
+            ]
+        }))
+        .expect("valid Bug JSON");
+        let (_, pairs) = bug.to_card();
+        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
+        assert!(keys.contains(&"Linked Issues"));
+        let issues_val = &pairs.iter().find(|(k, _)| *k == "Linked Issues").unwrap().1;
+        assert!(issues_val.contains("linear: ENG-42"));
+        assert!(issues_val.contains("jira: PROJ-99"));
+    }
+
+    #[test]
+    fn bug_card_omits_linked_issues_when_empty() {
+        let (_, pairs) = sample_bug().to_card();
+        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
+        assert!(!keys.contains(&"Linked Issues"));
+    }
+
+    #[test]
+    fn format_linked_issue_linear_with_url() {
+        let issue: LinkedIssue = serde_json::from_value(serde_json::json!({
+            "tracker": "linear",
+            "issueId": "ENG-42",
+            "url": "https://linear.app/team/issue/ENG-42"
+        }))
+        .expect("valid LinkedIssue JSON");
+        let result = format_linked_issue(&issue);
+        assert_eq!(result, "linear: ENG-42 \u{2014} https://linear.app/team/issue/ENG-42");
+    }
+
+    #[test]
+    fn format_linked_issue_slack_with_url() {
+        let issue: LinkedIssue = serde_json::from_value(serde_json::json!({
+            "tracker": "slack",
+            "issueId": "",
+            "url": "https://workspace.slack.com/archives/C123/p456"
+        }))
+        .expect("valid LinkedIssue JSON");
+        let result = format_linked_issue(&issue);
+        assert_eq!(
+            result,
+            "slack: https://workspace.slack.com/archives/C123/p456"
+        );
+    }
+
+    #[test]
+    fn format_linked_issue_slack_no_url() {
+        let issue: LinkedIssue = serde_json::from_value(serde_json::json!({
+            "tracker": "slack",
+            "issueId": "",
+            "url": null
+        }))
+        .expect("valid LinkedIssue JSON");
+        let result = format_linked_issue(&issue);
+        assert_eq!(result, "slack");
+    }
+
+    #[test]
+    fn format_linked_issue_github_no_url() {
+        let issue: LinkedIssue = serde_json::from_value(serde_json::json!({
+            "tracker": "github",
+            "issueId": "#123",
+            "url": null
+        }))
+        .expect("valid LinkedIssue JSON");
+        let result = format_linked_issue(&issue);
+        assert_eq!(result, "github: #123");
     }
 
     #[test]

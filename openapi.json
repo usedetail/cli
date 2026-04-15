@@ -63,6 +63,12 @@
             "nullable": true,
             "type": "boolean"
           },
+          "linkedIssues": {
+            "items": {
+              "$ref": "#/components/schemas/LinkedIssue"
+            },
+            "type": "array"
+          },
           "repoId": {
             "$ref": "#/components/schemas/RepoId"
           },
@@ -210,6 +216,32 @@
         "required": [
           "sha",
           "date"
+        ],
+        "type": "object"
+      },
+      "LinkedIssue": {
+        "properties": {
+          "issueId": {
+            "type": "string"
+          },
+          "tracker": {
+            "enum": [
+              "linear",
+              "jira",
+              "github",
+              "slack"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracker",
+          "issueId",
+          "url"
         ],
         "type": "object"
       },
