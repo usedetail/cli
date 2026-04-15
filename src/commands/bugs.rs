@@ -7,8 +7,8 @@ use dialoguer::{Input, Select};
 
 use crate::api::client::ApiClient;
 use crate::api::types::{
-    dismissal_reason_label, review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
-    IntroducedIn, ListPublicBugsWorkflowRequestId, RepoId,
+    dismissal_reason_label, format_linked_issue, review_state_label, Bug, BugDismissalReason,
+    BugId, BugReviewState, IntroducedIn, ListPublicBugsWorkflowRequestId, RepoId,
 };
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::datetime::format_datetime;
@@ -374,6 +374,9 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     pairs.push(("Notes", notes.clone()));
                 }
             }
+            for issue in &bug.linked_issues {
+                pairs.push(("Issue", format_linked_issue(issue)));
+            }
             SectionRenderer::new()
                 .key_value("", &pairs)
                 .markdown("", &bug.summary)
@@ -533,18 +536,18 @@ mod tests {
             serde_json::from_value(serde_json::json!({
                 "id": "bug_1", "title": "SQL injection", "summary": "...",
                 "createdAt": 1_000_000, "repoId": "repo_1",
-                "isSecurityVulnerability": true
+                "isSecurityVulnerability": true, "linkedIssues": []
             }))
             .unwrap(),
             serde_json::from_value(serde_json::json!({
                 "id": "bug_2", "title": "Off-by-one", "summary": "...",
                 "createdAt": 2_000_000, "repoId": "repo_1",
-                "isSecurityVulnerability": false
+                "isSecurityVulnerability": false, "linkedIssues": []
             }))
             .unwrap(),
             serde_json::from_value(serde_json::json!({
                 "id": "bug_3", "title": "Missing null check", "summary": "...",
-                "createdAt": 3_000_000, "repoId": "repo_1"
+                "createdAt": 3_000_000, "repoId": "repo_1", "linkedIssues": []
             }))
             .unwrap(),
         ]
@@ -570,12 +573,12 @@ mod tests {
             serde_json::from_value(serde_json::json!({
                 "id": "bug_a", "title": "A", "summary": "...",
                 "createdAt": 1, "repoId": "repo_1",
-                "isSecurityVulnerability": false
+                "isSecurityVulnerability": false, "linkedIssues": []
             }))
             .unwrap(),
             serde_json::from_value(serde_json::json!({
                 "id": "bug_b", "title": "B", "summary": "...",
-                "createdAt": 2, "repoId": "repo_1"
+                "createdAt": 2, "repoId": "repo_1", "linkedIssues": []
             }))
             .unwrap(),
         ];
@@ -588,25 +591,25 @@ mod tests {
         vec![
             serde_json::from_value(serde_json::json!({
                 "id": "bug_1", "title": "Bug by Alice", "summary": "...",
-                "createdAt": 1, "repoId": "repo_1",
+                "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
                 "introducedIn": { "sha": "abc1234", "date": "2024-01-01", "author": "alice" }
             }))
             .unwrap(),
             serde_json::from_value(serde_json::json!({
                 "id": "bug_2", "title": "Bug by Bob", "summary": "...",
-                "createdAt": 2, "repoId": "repo_1",
+                "createdAt": 2, "repoId": "repo_1", "linkedIssues": [],
                 "introducedIn": { "sha": "def5678", "date": "2024-01-02", "author": "bob" }
             }))
             .unwrap(),
             serde_json::from_value(serde_json::json!({
                 "id": "bug_3", "title": "Bug no author", "summary": "...",
-                "createdAt": 3, "repoId": "repo_1",
+                "createdAt": 3, "repoId": "repo_1", "linkedIssues": [],
                 "introducedIn": { "sha": "ghi9012", "date": "2024-01-03" }
             }))
             .unwrap(),
             serde_json::from_value(serde_json::json!({
                 "id": "bug_4", "title": "Bug no introduced_in", "summary": "...",
-                "createdAt": 4, "repoId": "repo_1"
+                "createdAt": 4, "repoId": "repo_1", "linkedIssues": []
             }))
             .unwrap(),
         ]
@@ -665,13 +668,13 @@ mod tests {
         let bugs: Vec<Bug> = vec![
             serde_json::from_value(serde_json::json!({
                 "id": "bug_1", "title": "No author", "summary": "...",
-                "createdAt": 1, "repoId": "repo_1",
+                "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
                 "introducedIn": { "sha": "abc1234", "date": "2024-01-01" }
             }))
             .unwrap(),
             serde_json::from_value(serde_json::json!({
                 "id": "bug_2", "title": "No introduced_in", "summary": "...",
-                "createdAt": 2, "repoId": "repo_1"
+                "createdAt": 2, "repoId": "repo_1", "linkedIssues": []
             }))
             .unwrap(),
         ];
@@ -683,13 +686,13 @@ mod tests {
         let bugs: Vec<Bug> = vec![
             serde_json::from_value(serde_json::json!({
                 "id": "bug_1", "title": "A", "summary": "...",
-                "createdAt": 1, "repoId": "repo_1",
+                "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
                 "introducedIn": { "sha": "aaa", "date": "2024-01-01", "author": "alice" }
             }))
             .unwrap(),
             serde_json::from_value(serde_json::json!({
                 "id": "bug_2", "title": "B", "summary": "...",
-                "createdAt": 2, "repoId": "repo_1",
+                "createdAt": 2, "repoId": "repo_1", "linkedIssues": [],
                 "introducedIn": { "sha": "bbb", "date": "2024-01-02", "author": "alice" }
             }))
             .unwrap(),
