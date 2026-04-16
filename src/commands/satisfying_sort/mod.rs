@@ -67,10 +67,9 @@ impl TerminalSession {
             restore_terminal_state(&mut terminal);
             return Err(err.into());
         }
-        let initial_size = terminal
-            .size()
-            .map(|rect| (usize::from(rect.height), usize::from(rect.width)))
-            .unwrap_or((0, 0));
+        let initial_size = terminal.size().map_or((0, 0), |rect| {
+            (usize::from(rect.height), usize::from(rect.width))
+        });
         let aspect_x = if initial_size.0 > 0 && initial_size.1 > 0 {
             halfblocks_cell_aspect_x()
         } else {
@@ -85,10 +84,9 @@ impl TerminalSession {
     }
 
     fn size(&self) -> (usize, usize) {
-        self.terminal
-            .size()
-            .map(|rect| (usize::from(rect.height), usize::from(rect.width)))
-            .unwrap_or((0, 0))
+        self.terminal.size().map_or((0, 0), |rect| {
+            (usize::from(rect.height), usize::from(rect.width))
+        })
     }
 
     fn draw(&mut self, state: &SortState) -> Result<()> {

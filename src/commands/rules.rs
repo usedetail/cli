@@ -134,8 +134,7 @@ pub async fn handle(command: &RuleCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to start rule creation")?;
 
-            Term::stdout()
-                .write_line(&format!("{} Rule creation started.", style("✓").green(),))?;
+            Term::stdout().write_line(&format!("{} Rule creation started.", style("✓").green()))?;
             Term::stdout().write_line(&format!(
                 "  Request ID: {}",
                 style(response.rule_creation_request_id.to_string()).bold(),
