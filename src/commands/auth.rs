@@ -167,7 +167,7 @@ async fn await_pkce_callback(
     listener: TcpListener,
     expected_state: &str,
 ) -> Result<(String, TcpStream)> {
-    let (mut stream, _) = timeout(Duration::from_secs(600), listener.accept())
+    let (mut stream, _) = timeout(Duration::from_mins(10), listener.accept())
         .await
         .context("Authentication timed out after 10 minutes")??;
 
