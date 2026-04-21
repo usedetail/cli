@@ -48,6 +48,33 @@ fn collect_authors(bugs: &[Bug]) -> Vec<&str> {
     authors
 }
 
+/// Build the hint message shown when `--introduced-by` filtering yields no results.
+///
+/// `pre_filter` is the set of bugs remaining after `--vulns` but before
+/// `--introduced-by`. When it is empty, the real reason for the empty result is
+/// the prior filter (or no bugs at all) — not missing author metadata — so the
+/// hint must not mention authors.
+fn empty_filter_hint(pre_filter: &[Bug], vulns: bool) -> String {
+    if pre_filter.is_empty() {
+        if vulns {
+            "No security vulnerabilities found with the current filters.".to_string()
+        } else {
+            "No bugs found with the current filters.".to_string()
+        }
+    } else {
+        let known = collect_authors(pre_filter);
+        if known.is_empty() {
+            "No bugs matched --introduced-by. None of the current bugs have author information."
+                .to_string()
+        } else {
+            format!(
+                "No bugs matched --introduced-by. Known authors: {}",
+                known.join(", ")
+            )
+        }
+    }
+}
+
 fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
     let offset = usize::try_from(page_to_offset(page, limit)).unwrap_or(0);
     items
@@ -305,15 +332,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     filtered = filter_by_introduced_by(&pre_filter, introduced_by);
                     if filtered.is_empty() {
                         if matches!(format, crate::OutputFormat::Table) {
-                            let known = collect_authors(&pre_filter);
-                            let hint = if known.is_empty() {
-                                "No bugs matched --introduced-by. None of the current bugs have author information.".to_string()
-                            } else {
-                                format!(
-                                    "No bugs matched --introduced-by. Known authors: {}",
-                                    known.join(", ")
-                                )
-                            };
+                            let hint = empty_filter_hint(&pre_filter, *vulns);
                             Term::stdout().write_line(&hint)?;
                         }
                         return output_list(&filtered, 0, *page, *limit, format);
@@ -698,6 +717,50 @@ mod tests {
             .unwrap(),
         ];
         assert_eq!(collect_authors(&bugs), vec!["alice"]);
+    }
+
+    // ── empty_filter_hint ────────────────────────────────────────────
+
+    #[test]
+    fn empty_filter_hint_vulns_flag_with_empty_prefilter() {
+        // --vulns produced no results: don't mention authors
+        let hint = empty_filter_hint(&[], true);
+        assert_eq!(
+            hint,
+            "No security vulnerabilities found with the current filters."
+        );
+    }
+
+    #[test]
+    fn empty_filter_hint_no_vulns_flag_with_empty_prefilter() {
+        // Repo had no bugs at all: don't mention authors
+        let hint = empty_filter_hint(&[], false);
+        assert_eq!(hint, "No bugs found with the current filters.");
+    }
+
+    #[test]
+    fn empty_filter_hint_prefilter_has_bugs_without_authors() {
+        let bugs: Vec<Bug> = vec![serde_json::from_value(serde_json::json!({
+            "id": "bug_1", "title": "No author", "summary": "...",
+            "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
+            "introducedIn": { "sha": "abc1234", "date": "2024-01-01" }
+        }))
+        .unwrap()];
+        let hint = empty_filter_hint(&bugs, true);
+        assert_eq!(
+            hint,
+            "No bugs matched --introduced-by. None of the current bugs have author information."
+        );
+    }
+
+    #[test]
+    fn empty_filter_hint_prefilter_has_known_authors() {
+        let bugs = sample_bugs_with_authors();
+        let hint = empty_filter_hint(&bugs, false);
+        assert_eq!(
+            hint,
+            "No bugs matched --introduced-by. Known authors: alice, bob"
+        );
     }
 
     // ── paginate_items ───────────────────────────────────────────────
