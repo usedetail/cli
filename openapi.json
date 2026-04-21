@@ -177,7 +177,10 @@
       "BugSource": {
         "enum": [
           "review",
-          "linear"
+          "linear",
+          "jira",
+          "github_issue",
+          "bug_fix_check"
         ],
         "type": "string"
       },
