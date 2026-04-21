@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{ErrorKind, Read as _, Write as _};
+use std::io::{ErrorKind, Read as _, Seek as _, SeekFrom, Write as _};
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -95,7 +95,12 @@ pub fn update_config(f: impl FnOnce(&mut Config)) -> Result<()> {
     f(&mut config);
 
     let new_contents = toml::to_string_pretty(&config)?;
-    let file = File::create(&path)?;
+    // Rewrite through the same handle. `File::create` would open a second
+    // file description and leave `file.unlock()` acting on a handle that was
+    // never locked — functionally OK because the real unlock still happens
+    // via Drop at end of scope, but confusing to read.
+    (&file).seek(SeekFrom::Start(0))?;
+    file.set_len(0)?;
     (&file).write_all(new_contents.as_bytes())?;
     file.unlock()?;
     Ok(())
