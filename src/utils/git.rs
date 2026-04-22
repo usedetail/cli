@@ -14,11 +14,35 @@ fn parse_github_remote_url(url: &str) -> Option<String> {
         "ssh://git@github.com/",
     ];
 
+    // Git accepts HTTPS remotes with embedded credentials
+    // (https://token@github.com/…, https://user:pass@github.com/…).
+    // Normalize to the un-credentialed form before prefix matching.
+    let normalized = strip_http_credentials(url);
+    let url = normalized.as_deref().unwrap_or(url);
+
     let rest = PREFIXES.iter().find_map(|p| url.strip_prefix(p))?;
     let rest = rest.trim_end_matches('/').trim_end_matches(".git");
     let parts: Vec<&str> = rest.splitn(3, '/').collect();
     (parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty())
         .then(|| format!("{}/{}", parts[0], parts[1]))
+}
+
+/// If `url` is an http(s) URL with `user[:pass]@` credentials in the authority,
+/// return the URL with those credentials stripped. Returns `None` for URLs
+/// without credentials or with non-http(s) schemes.
+fn strip_http_credentials(url: &str) -> Option<String> {
+    for scheme in ["https://", "http://"] {
+        if let Some(rest) = url.strip_prefix(scheme) {
+            // Credentials live in the authority, which runs up to the first `/`
+            // (or end of string). Anything after the authority — including a
+            // `@` in the path — stays untouched.
+            let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+            if let Some((_, host)) = authority.split_once('@') {
+                return Some(format!("{scheme}{host}/{path}"));
+            }
+        }
+    }
+    None
 }
 
 /// Infer the `owner/repo` identifier from the current git repository by
@@ -162,6 +186,49 @@ mod tests {
         assert_eq!(
             parse_github_remote_url("https://github.com/owner/repo/tree/main"),
             Some("owner/repo".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_https_with_token_credentials() {
+        assert_eq!(
+            parse_github_remote_url("https://token@github.com/usedetail/cli.git"),
+            Some("usedetail/cli".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_https_with_user_pass_credentials() {
+        assert_eq!(
+            parse_github_remote_url("https://user:pass@github.com/usedetail/cli.git"),
+            Some("usedetail/cli".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_http_with_credentials() {
+        assert_eq!(
+            parse_github_remote_url("http://user:pass@github.com/owner/repo"),
+            Some("owner/repo".to_string()),
+        );
+    }
+
+    #[test]
+    fn leaves_at_in_path_untouched() {
+        // An `@` after the first `/` is part of the path, not credentials.
+        assert_eq!(
+            parse_github_remote_url("https://github.com/owner/repo@tag"),
+            // Trailing `@tag` is treated as part of the repo name; gets trimmed
+            // along with anything after owner/repo.
+            Some("owner/repo@tag".to_string()),
+        );
+    }
+
+    #[test]
+    fn rejects_non_github_host_even_with_credentials() {
+        assert_eq!(
+            parse_github_remote_url("https://token@gitlab.com/owner/repo.git"),
+            None,
         );
     }
 
