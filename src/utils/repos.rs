@@ -74,17 +74,27 @@ pub async fn resolve_repo_id(client: &ApiClient, repo_identifier: &str) -> Resul
 }
 
 pub fn resolve_repo_id_from_repos(repos: &[Repo], repo_identifier: &str) -> Result<RepoId> {
-    if repo_identifier.contains('/') {
-        validate_owner_repo_format(repo_identifier)?;
+    // Normalize accidental whitespace before matching. `validate_owner_repo_format`
+    // already tolerated whitespace-only emptiness checks but the original input
+    // was then compared verbatim against `r.full_name`, producing a misleading
+    // "not found" error for inputs like " usedetail/cli".
+    let identifier = repo_identifier.trim();
+    if identifier.contains('/') {
+        validate_owner_repo_format(identifier)?;
+        let normalized = identifier
+            .split('/')
+            .map(str::trim)
+            .collect::<Vec<_>>()
+            .join("/");
         repos
             .iter()
-            .find(|r| r.full_name == repo_identifier)
+            .find(|r| r.full_name == normalized)
             .map(|r| r.id.clone())
             .context(format!(
-                "Repository '{repo_identifier}' not found. Make sure you have access to this repository."
+                "Repository '{normalized}' not found. Make sure you have access to this repository."
             ))
     } else {
-        match_repo_by_name(repo_identifier, repos)
+        match_repo_by_name(identifier, repos)
     }
 }
 
@@ -234,5 +244,36 @@ mod tests {
         let repos = sample_repos();
         let err = resolve_repo_id_from_repos(&repos, "cli").unwrap_err();
         assert!(err.to_string().contains("Multiple repositories"));
+    }
+
+    #[test]
+    fn resolve_owner_repo_trims_surrounding_whitespace() {
+        let repos = sample_repos();
+        let id = resolve_repo_id_from_repos(&repos, "  usedetail/cli  ").unwrap();
+        assert_eq!(id.to_string(), "repo_1");
+    }
+
+    #[test]
+    fn resolve_owner_repo_trims_around_slash() {
+        let repos = sample_repos();
+        let id = resolve_repo_id_from_repos(&repos, "usedetail / cli").unwrap();
+        assert_eq!(id.to_string(), "repo_1");
+    }
+
+    #[test]
+    fn resolve_bare_name_trims_whitespace() {
+        let repos = sample_repos();
+        let id = resolve_repo_id_from_repos(&repos, "  web  ").unwrap();
+        assert_eq!(id.to_string(), "repo_3");
+    }
+
+    #[test]
+    fn resolve_owner_repo_not_found_error_uses_normalized_form() {
+        // The "not found" hint should quote the cleaned identifier, not the
+        // raw whitespace-padded input.
+        let repos = sample_repos();
+        let err = resolve_repo_id_from_repos(&repos, "  usedetail/missing  ").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("'usedetail/missing'"), "got: {msg}");
     }
 }
