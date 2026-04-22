@@ -337,6 +337,16 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                         }
                         return output_list(&filtered, 0, *page, *limit, format);
                     }
+                } else if filtered.is_empty() {
+                    // `--vulns` alone filtered everything out. Without this
+                    // branch the user just sees an empty table and no hint,
+                    // even though `empty_filter_hint` already has the right
+                    // message for this case.
+                    if matches!(format, crate::OutputFormat::Table) {
+                        let hint = empty_filter_hint(&filtered, *vulns);
+                        Term::stdout().write_line(&hint)?;
+                    }
+                    return output_list(&filtered, 0, *page, *limit, format);
                 }
                 let total = filtered.len();
                 let page_items = paginate_items(&filtered, *page, *limit);
