@@ -149,7 +149,7 @@ async fn pkce_login(api_url: &str, app_url: &str) -> Result<String> {
     term.write_line("  detail auth login --token <your-api-key>")?;
     term.write_line("\nWaiting for authentication in the browser...")?;
 
-    let (code, mut stream) = await_pkce_callback(listener, &state).await?;
+    let (code, mut stream) = await_pkce_callback(listener, &state, app_url).await?;
 
     match pkce_token_exchange(api_url, &code, &code_verifier).await {
         Ok(token) => {
@@ -166,6 +166,7 @@ async fn pkce_login(api_url: &str, app_url: &str) -> Result<String> {
 async fn await_pkce_callback(
     listener: TcpListener,
     expected_state: &str,
+    app_url: &str,
 ) -> Result<(String, TcpStream)> {
     let (mut stream, _) = timeout(Duration::from_mins(10), listener.accept())
         .await
@@ -178,9 +179,16 @@ async fn await_pkce_callback(
         .context("Failed to read callback request")?;
     let request = from_utf8(&buf[..n]).context("Invalid UTF-8 in callback request")?;
 
-    let code = extract_pkce_code(request, expected_state)?;
-
-    Ok((code, stream))
+    match extract_pkce_code(request, expected_state) {
+        Ok(code) => Ok((code, stream)),
+        Err(e) => {
+            // Redirect the browser to the error page before surfacing the
+            // error, otherwise the user sees a blank "connection reset" tab.
+            // Mirrors the token-exchange error path in the caller.
+            redirect_browser(&mut stream, &format!("{app_url}/cli-auth/error")).await;
+            Err(e)
+        }
+    }
 }
 
 /// Send a 302 redirect to the browser (best-effort, ignore errors)
@@ -203,6 +211,16 @@ fn extract_pkce_code(request: &str, expected_state: &str) -> Result<String> {
     let state = params.get("state").context("No state in callback URL")?;
     if state != expected_state {
         bail!("State mismatch in callback — possible CSRF attempt");
+    }
+
+    // RFC 6749 §4.1.2.1: the provider may redirect to the callback with
+    // `error=...&error_description=...` instead of `code=...` (e.g. when the
+    // user denies authorization). Surface that directly.
+    if let Some(err) = params.get("error") {
+        match params.get("error_description") {
+            Some(desc) => bail!("OAuth authorization failed: {err} — {desc}"),
+            None => bail!("OAuth authorization failed: {err}"),
+        }
     }
 
     params
@@ -267,5 +285,34 @@ mod tests {
         let request = "GET /callback?state=teststate HTTP/1.1\r\n\r\n";
         let result = extract_pkce_code(request, "teststate");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn extract_code_surfaces_oauth_error_with_description() {
+        let request = "GET /callback?error=access_denied&error_description=The%20user%20denied%20the%20request&state=teststate HTTP/1.1\r\n\r\n";
+        let err = extract_pkce_code(request, "teststate").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("access_denied"), "got: {msg}");
+        assert!(msg.contains("The user denied the request"), "got: {msg}");
+    }
+
+    #[test]
+    fn extract_code_surfaces_oauth_error_without_description() {
+        let request = "GET /callback?error=server_error&state=teststate HTTP/1.1\r\n\r\n";
+        let err = extract_pkce_code(request, "teststate").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("server_error"), "got: {msg}");
+        // The "no code in callback URL" message is the wrong one for this case —
+        // guard against regressing back to it.
+        assert!(!msg.contains("No code"), "got: {msg}");
+    }
+
+    #[test]
+    fn extract_code_still_checks_state_before_oauth_error() {
+        // State mismatch must take priority even when an OAuth error is present,
+        // so a malicious callback can't avoid the CSRF check by adding `error=`.
+        let request = "GET /callback?error=access_denied&state=wrong HTTP/1.1\r\n\r\n";
+        let err = extract_pkce_code(request, "expected").unwrap_err();
+        assert!(err.to_string().contains("State mismatch"));
     }
 }
