@@ -1,11 +1,11 @@
 use chrono::Local;
 
-/// Conversion factor from milliseconds to seconds
-const MS_TO_SECONDS: i64 = 1000;
-
 /// Format a UTC timestamp (in milliseconds) in the machine's local timezone.
 fn format_timestamp(timestamp_ms: i64, fmt: &str) -> String {
-    chrono::DateTime::from_timestamp(timestamp_ms / MS_TO_SECONDS, 0).map_or_else(
+    // `from_timestamp_millis` floors toward negative infinity, so timestamps
+    // in (-1000, 0) correctly land in the second before the epoch instead of
+    // collapsing to epoch via integer-division truncation.
+    chrono::DateTime::from_timestamp_millis(timestamp_ms).map_or_else(
         || "-".into(),
         |dt| dt.with_timezone(&Local).format(fmt).to_string(),
     )
@@ -26,7 +26,7 @@ mod tests {
     use super::*;
 
     fn expected_local(timestamp_ms: i64, fmt: &str) -> String {
-        chrono::DateTime::from_timestamp(timestamp_ms / MS_TO_SECONDS, 0)
+        chrono::DateTime::from_timestamp_millis(timestamp_ms)
             .expect("valid timestamp")
             .with_timezone(&Local)
             .format(fmt)
@@ -74,5 +74,13 @@ mod tests {
             format_datetime(500),
             expected_local(500, "%Y-%m-%d %H:%M:%S %Z")
         );
+    }
+
+    #[test]
+    fn format_datetime_small_negative_is_not_epoch() {
+        // Timestamps in (-1000, 0) ms should land in the second *before* the
+        // epoch, not at the epoch itself. Integer-division truncation toward
+        // zero previously collapsed this whole window onto 1970-01-01 00:00:00.
+        assert_ne!(format_datetime(-1), format_datetime(0));
     }
 }
