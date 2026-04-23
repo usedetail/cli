@@ -6,6 +6,7 @@ use std::{env, fs};
 use anyhow::{Context, Result};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
+use toml_edit::de::from_document;
 use toml_edit::ser::to_document;
 use toml_edit::DocumentMut;
 
@@ -95,17 +96,8 @@ pub fn update_config(f: impl FnOnce(&mut Config)) -> Result<()> {
     let mut contents = String::new();
     (&file).read_to_string(&mut contents)?;
 
-    let mut doc: DocumentMut = if contents.is_empty() {
-        DocumentMut::new()
-    } else {
-        contents.parse().context("Failed to parse config")?
-    };
-
-    let mut config: Config = if contents.is_empty() {
-        Config::default()
-    } else {
-        toml::from_str(&contents).context("Failed to parse config")?
-    };
+    let mut doc: DocumentMut = contents.parse().context("Failed to parse config")?;
+    let mut config: Config = from_document(doc.clone()).context("Failed to parse config")?;
 
     let before = toml::Table::try_from(&config).context("Failed to serialize config")?;
     f(&mut config);
