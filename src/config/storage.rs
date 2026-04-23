@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::{ErrorKind, Read as _, Seek as _, SeekFrom, Write as _};
 use std::path::PathBuf;
@@ -6,6 +7,8 @@ use std::{env, fs};
 use anyhow::{Context, Result};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
+use toml_edit::DocumentMut;
+use toml_edit::ser::to_document;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -73,6 +76,12 @@ pub fn save_config(config: &Config) -> Result<()> {
 }
 
 /// Atomically read-modify-write the config file under an exclusive lock.
+///
+/// Preserves comments and formatting the user may have added by hand: the
+/// file is parsed as a `toml_edit::DocumentMut`, the mutated `Config` is
+/// merged back key-by-key, and assigning through `doc[key] = …` keeps the
+/// decor (including `# …` lines above each key) intact. Unknown keys the
+/// user wrote are left untouched.
 pub fn update_config(f: impl FnOnce(&mut Config)) -> Result<()> {
     let path = config_path()?;
     let file = File::options()
@@ -86,15 +95,41 @@ pub fn update_config(f: impl FnOnce(&mut Config)) -> Result<()> {
     let mut contents = String::new();
     (&file).read_to_string(&mut contents)?;
 
+    let mut doc: DocumentMut = if contents.is_empty() {
+        DocumentMut::new()
+    } else {
+        contents.parse().context("Failed to parse config")?
+    };
+
     let mut config: Config = if contents.is_empty() {
         Config::default()
     } else {
         toml::from_str(&contents).context("Failed to parse config")?
     };
 
+    // Snapshot which Config-owned keys exist before the closure runs so we
+    // can drop any whose value transitions Some → None (e.g. logout clearing
+    // `api_token`). Without this step, a field set to `None` would silently
+    // linger in the file because TOML serialization simply omits it.
+    let old_keys: BTreeSet<String> = to_document(&config)
+        .context("Failed to serialize config")?
+        .iter()
+        .map(|(k, _)| k.to_string())
+        .collect();
+
     f(&mut config);
 
-    let new_contents = toml::to_string_pretty(&config)?;
+    let fresh = to_document(&config).context("Failed to serialize config")?;
+    let new_keys: BTreeSet<String> = fresh.iter().map(|(k, _)| k.to_string()).collect();
+
+    for (key, item) in fresh.iter() {
+        doc[key] = item.clone();
+    }
+    for removed in old_keys.difference(&new_keys) {
+        doc.remove(removed);
+    }
+
+    let new_contents = doc.to_string();
     // Rewrite through the same handle. `File::create` would open a second
     // file description and leave `file.unlock()` acting on a handle that was
     // never locked — functionally OK because the real unlock still happens
@@ -343,6 +378,59 @@ mod tests {
             // After drop, another acquire should succeed
             let lock = try_acquire_update_lock().unwrap();
             assert!(lock.is_some());
+        });
+    }
+
+    // ── comment preservation ─────────────────────────────────────────
+
+    #[test]
+    fn update_config_preserves_comments_and_unknown_keys() {
+        with_temp_config(|| {
+            let path = config_path().unwrap();
+            let seeded = "\
+# Detail CLI config
+# hand-edited — do not overwrite comments.
+
+# API endpoint override
+api_url = \"https://custom.example.com\"
+
+# Auth token
+api_token = \"old_token\"
+
+# Unknown key the user added
+custom_note = \"leave me alone\"
+";
+            fs::write(&path, seeded).unwrap();
+
+            update_config(|config| {
+                config.api_token = Some("new_token".into());
+            })
+            .unwrap();
+
+            let raw = fs::read_to_string(&path).unwrap();
+            assert!(raw.contains("# Detail CLI config"), "header comment lost:\n{raw}");
+            assert!(raw.contains("# API endpoint override"), "key comment lost:\n{raw}");
+            assert!(raw.contains("# Auth token"), "key comment lost:\n{raw}");
+            assert!(raw.contains("# Unknown key the user added"), "unknown-key comment lost:\n{raw}");
+            assert!(raw.contains("custom_note"), "unknown key dropped:\n{raw}");
+            assert!(raw.contains("\"new_token\""), "update did not land:\n{raw}");
+            assert!(!raw.contains("old_token"), "old value lingered:\n{raw}");
+        });
+    }
+
+    #[test]
+    fn update_config_removes_key_when_field_set_to_none() {
+        with_temp_config(|| {
+            let path = config_path().unwrap();
+            fs::write(&path, "# token below\napi_token = \"to_be_cleared\"\n").unwrap();
+
+            update_config(|config| {
+                config.api_token = None;
+            })
+            .unwrap();
+
+            let raw = fs::read_to_string(&path).unwrap();
+            assert!(!raw.contains("api_token"), "cleared field still present:\n{raw}");
         });
     }
 
