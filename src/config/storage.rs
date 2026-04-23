@@ -7,8 +7,8 @@ use std::{env, fs};
 use anyhow::{Context, Result};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
-use toml_edit::DocumentMut;
 use toml_edit::ser::to_document;
+use toml_edit::DocumentMut;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -408,10 +408,19 @@ custom_note = \"leave me alone\"
             .unwrap();
 
             let raw = fs::read_to_string(&path).unwrap();
-            assert!(raw.contains("# Detail CLI config"), "header comment lost:\n{raw}");
-            assert!(raw.contains("# API endpoint override"), "key comment lost:\n{raw}");
+            assert!(
+                raw.contains("# Detail CLI config"),
+                "header comment lost:\n{raw}"
+            );
+            assert!(
+                raw.contains("# API endpoint override"),
+                "key comment lost:\n{raw}"
+            );
             assert!(raw.contains("# Auth token"), "key comment lost:\n{raw}");
-            assert!(raw.contains("# Unknown key the user added"), "unknown-key comment lost:\n{raw}");
+            assert!(
+                raw.contains("# Unknown key the user added"),
+                "unknown-key comment lost:\n{raw}"
+            );
             assert!(raw.contains("custom_note"), "unknown key dropped:\n{raw}");
             assert!(raw.contains("\"new_token\""), "update did not land:\n{raw}");
             assert!(!raw.contains("old_token"), "old value lingered:\n{raw}");
@@ -430,7 +439,10 @@ custom_note = \"leave me alone\"
             .unwrap();
 
             let raw = fs::read_to_string(&path).unwrap();
-            assert!(!raw.contains("api_token"), "cleared field still present:\n{raw}");
+            assert!(
+                !raw.contains("api_token"),
+                "cleared field still present:\n{raw}"
+            );
         });
     }
 
