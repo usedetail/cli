@@ -439,6 +439,33 @@ api_token = \"old_token\"
     }
 
     #[test]
+    fn update_config_on_empty_file_writes_mutated_fields() {
+        with_temp_config(|| {
+            let path = config_path().unwrap();
+            // File is created empty by update_config's `create(true)` + first
+            // read of an empty handle returns "". This locks in that neither
+            // the `DocumentMut` parse nor the `toml::from_str` deserialization
+            // chokes on an empty string — the defensive `if contents.is_empty()`
+            // branch we removed was never actually necessary.
+            assert!(!path.exists(), "precondition: no config file yet");
+
+            update_config(|config| {
+                config.api_token = Some("fresh_token".into());
+            })
+            .unwrap();
+
+            let raw = fs::read_to_string(&path).unwrap();
+            assert!(
+                raw.contains("api_token = \"fresh_token\""),
+                "mutation missing:\n{raw}"
+            );
+
+            let loaded = load_config().unwrap();
+            assert_eq!(loaded.api_token.as_deref(), Some("fresh_token"));
+        });
+    }
+
+    #[test]
     fn update_config_removes_key_when_field_set_to_none() {
         with_temp_config(|| {
             let path = config_path().unwrap();
