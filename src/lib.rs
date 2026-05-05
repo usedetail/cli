@@ -469,6 +469,30 @@ mod tests {
     }
 
     #[test]
+    fn bugs_list_since_until_parses() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "bugs",
+            "list",
+            "owner/repo",
+            "--since",
+            "1d",
+            "--until",
+            "2024-01-15",
+        ])
+        .unwrap();
+        if let Commands::Bugs {
+            command: commands::bugs::BugCommands::List { since, until, .. },
+        } = &cli.command
+        {
+            assert_eq!(since.as_deref(), Some("1d"));
+            assert_eq!(until.as_deref(), Some("2024-01-15"));
+        } else {
+            panic!("expected bugs list command");
+        }
+    }
+
+    #[test]
     fn rejects_repos_list_page_zero() {
         let cli = Cli::try_parse_from(["detail", "repos", "list", "--page", "0"]);
         assert!(cli.is_err());
