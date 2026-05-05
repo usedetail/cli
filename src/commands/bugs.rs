@@ -118,9 +118,10 @@ pub enum BugCommands {
         /// If omitted, inferred from the git remote (origin).
         repo: Option<String>,
 
-        /// Status filter
-        #[arg(long, value_enum, default_value = "pending")]
-        status: BugReviewState,
+        /// Status filter — repeat the flag or comma-separate values to
+        /// combine (e.g. `--status pending,resolved`). Default: pending.
+        #[arg(long, value_enum, value_delimiter = ',', default_value = "pending")]
+        status: Vec<BugReviewState>,
 
         /// Only show security vulnerabilities
         #[arg(long)]
@@ -370,6 +371,23 @@ async fn fetch_all_bugs(
     Ok(all_bugs)
 }
 
+/// Fetch every bug for each of `statuses`, concatenated in the order given.
+/// The bugs API only accepts a single status per request, so multi-status
+/// queries fan out into one paginated call per status.
+async fn fetch_all_bugs_multi_status(
+    client: &ApiClient,
+    repo_id: &RepoId,
+    statuses: &[BugReviewState],
+    scan_id: Option<&ListPublicBugsWorkflowRequestId>,
+) -> Result<Vec<Bug>> {
+    let mut combined = Vec::new();
+    for status in statuses {
+        let bugs = fetch_all_bugs(client, repo_id, *status, scan_id).await?;
+        combined.extend(bugs);
+    }
+    Ok(combined)
+}
+
 pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
     let client = cli.create_client()?;
 
@@ -406,15 +424,25 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             let since_ms = resolve_time_flag("--since", since.as_deref(), now)?;
             let until_ms = resolve_time_flag("--until", until.as_deref(), now)?;
 
+            // The bugs API takes a single status per request. When the user
+            // asks for several statuses (or `--all`, or any client-side
+            // filter), fan out and combine — that also forces the all-fetch
+            // path so client-side filters and pagination see the merged set.
             let needs_full_fetch = *all
                 || *vulns
                 || !introduced_by.is_empty()
                 || since_ms.is_some()
-                || until_ms.is_some();
+                || until_ms.is_some()
+                || status.len() > 1;
 
             if needs_full_fetch {
-                let all_bugs =
-                    fetch_all_bugs(&client, &resolved_repo_id, *status, scan_id.as_ref()).await?;
+                let all_bugs = fetch_all_bugs_multi_status(
+                    &client,
+                    &resolved_repo_id,
+                    status,
+                    scan_id.as_ref(),
+                )
+                .await?;
                 let mut filtered = all_bugs;
                 if since_ms.is_some() || until_ms.is_some() {
                     filtered = filter_by_time_range(&filtered, since_ms, until_ms);
@@ -453,9 +481,19 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 let page_items = paginate_items(&filtered, *page, *limit);
                 output_list(&page_items, total, *page, *limit, format)
             } else {
+                // Single-status, no other filters: keep the original
+                // single-page server fetch — cheaper and lets the API drive
+                // pagination.
+                let single_status = status.first().copied().unwrap_or(BugReviewState::Pending);
                 let offset = page_to_offset(*page, *limit);
                 let bugs = client
-                    .list_bugs(&resolved_repo_id, *status, *limit, offset, scan_id.as_ref())
+                    .list_bugs(
+                        &resolved_repo_id,
+                        single_status,
+                        *limit,
+                        offset,
+                        scan_id.as_ref(),
+                    )
                     .await
                     .context("Failed to fetch bugs from repository")?;
 

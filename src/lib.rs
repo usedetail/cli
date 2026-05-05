@@ -386,6 +386,71 @@ mod tests {
     }
 
     #[test]
+    fn bugs_list_status_default_is_pending() {
+        use crate::api::types::BugReviewState;
+        let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo"]).unwrap();
+        if let Commands::Bugs {
+            command: commands::bugs::BugCommands::List { status, .. },
+        } = &cli.command
+        {
+            assert_eq!(status.len(), 1);
+            assert!(matches!(status[0], BugReviewState::Pending));
+        } else {
+            panic!("expected bugs list command");
+        }
+    }
+
+    #[test]
+    fn bugs_list_status_comma_separated_parses() {
+        use crate::api::types::BugReviewState;
+        let cli = Cli::try_parse_from([
+            "detail",
+            "bugs",
+            "list",
+            "owner/repo",
+            "--status",
+            "pending,resolved",
+        ])
+        .unwrap();
+        if let Commands::Bugs {
+            command: commands::bugs::BugCommands::List { status, .. },
+        } = &cli.command
+        {
+            assert_eq!(status.len(), 2);
+            assert!(matches!(status[0], BugReviewState::Pending));
+            assert!(matches!(status[1], BugReviewState::Resolved));
+        } else {
+            panic!("expected bugs list command");
+        }
+    }
+
+    #[test]
+    fn bugs_list_status_repeated_flag_parses() {
+        use crate::api::types::BugReviewState;
+        let cli = Cli::try_parse_from([
+            "detail",
+            "bugs",
+            "list",
+            "owner/repo",
+            "--status",
+            "resolved",
+            "--status",
+            "dismissed",
+        ])
+        .unwrap();
+        if let Commands::Bugs {
+            command: commands::bugs::BugCommands::List { status, .. },
+        } = &cli.command
+        {
+            assert_eq!(status.len(), 2);
+            assert!(matches!(status[0], BugReviewState::Resolved));
+            assert!(matches!(status[1], BugReviewState::Dismissed));
+        } else {
+            panic!("expected bugs list command");
+        }
+    }
+
+    #[test]
     fn rejects_bugs_list_page_zero() {
         let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--page", "0"]);
         assert!(cli.is_err());
