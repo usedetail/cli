@@ -175,13 +175,6 @@
         "type": "string"
       },
       "BugSource": {
-        "enum": [
-          "review",
-          "linear",
-          "jira",
-          "github_issue",
-          "bug_fix_check"
-        ],
         "type": "string"
       },
       "CreateRuleInput": {

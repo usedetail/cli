@@ -343,6 +343,32 @@ mod tests {
         assert!(!keys.contains(&"Linked Issues"));
     }
 
+    /// Regression: backend can ship new `review.source` values (next is
+    /// anyone's guess) faster than we can release a CLI that knows about
+    /// them. Our vendored openapi.json removes the enum from BugSource so
+    /// progenitor generates a `String` and unknown values pass through.
+    #[test]
+    fn bug_with_unknown_review_source_deserializes() {
+        let bug: Result<Bug, _> = serde_json::from_value(serde_json::json!({
+            "id": "bug_unknown_src",
+            "title": "Bug with brand-new review source",
+            "summary": "...",
+            "createdAt": 1,
+            "repoId": "repo_1",
+            "linkedIssues": [],
+            "review": {
+                "state": "resolved",
+                "createdAt": 2,
+                "source": "some_future_integration_we_have_not_shipped_yet"
+            }
+        }));
+        assert!(
+            bug.is_ok(),
+            "Unknown BugSource value broke Bug deserialization: {:?}",
+            bug.err()
+        );
+    }
+
     #[test]
     fn format_linked_issue_linear_with_url() {
         let issue: LinkedIssue = serde_json::from_value(serde_json::json!({

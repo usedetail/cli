@@ -88,8 +88,26 @@ fn with_comment(mut value: serde_json::Value) -> serde_json::Value {
     value
 }
 
+/// Apply local-only overrides to the upstream spec.
+///
+/// We strip the `enum` constraint from `BugSource` so progenitor generates a
+/// plain `String` for the field. Released CLIs would otherwise fail to
+/// deserialize any bug review whose `source` matches a backend value the
+/// CLI's vendored spec hasn't seen yet (we got bitten by `github_issue` and
+/// `bug_fix_check` in 0.2.0 → fixed reactively in #255). The CLI never
+/// inspects this field, so the lost type safety costs nothing.
+fn apply_local_overrides(spec: &mut serde_json::Value) {
+    if let Some(schema) = spec
+        .pointer_mut("/components/schemas/BugSource")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        schema.remove("enum");
+    }
+}
+
 fn generate_openapi() -> Result<(), String> {
-    let upstream = fetch_openapi()?;
+    let mut upstream = fetch_openapi()?;
+    apply_local_overrides(&mut upstream);
     let pretty = serde_json::to_string_pretty(&with_comment(upstream))
         .map_err(|e| format!("Failed to format JSON: {e}"))?;
     std::fs::write(OPENAPI_PATH, format!("{pretty}\n"))
@@ -99,7 +117,8 @@ fn generate_openapi() -> Result<(), String> {
 }
 
 fn check_openapi() -> Result<(), String> {
-    let upstream = fetch_openapi()?;
+    let mut upstream = fetch_openapi()?;
+    apply_local_overrides(&mut upstream);
     let local_bytes = std::fs::read_to_string(OPENAPI_PATH)
         .map_err(|e| format!("Failed to read {OPENAPI_PATH}: {e}"))?;
     let mut local: serde_json::Value = serde_json::from_str(&local_bytes)
