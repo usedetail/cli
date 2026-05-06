@@ -130,7 +130,7 @@ List bugs for a given repository
 
 ###### **Options:**
 
-* `--status <STATUS>` — Status filter
+* `--status <STATUS>` — Status filter — repeat the flag or comma-separate values to combine (e.g. `--status pending,resolved`). Default: pending
 
   Default value: `pending`
 
