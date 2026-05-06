@@ -167,10 +167,6 @@ pub enum BugCommands {
     Reopen {
         /// Bug ID
         bug_id: String,
-
-        /// Additional notes recorded on the new pending review
-        #[arg(long)]
-        notes: Option<String>,
     },
 }
 
@@ -474,14 +470,19 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             Ok(())
         }
 
-        BugCommands::Reopen { bug_id, notes } => {
+        BugCommands::Reopen { bug_id } => {
             let bug_id: BugId = bug_id
                 .as_str()
                 .try_into()
                 .context("Invalid bug ID format (expected bug_...)")?;
 
+            // Don't pass notes from the CLI — `create_public_bug_review`
+            // replaces the whole review row, so any value (including the
+            // implicit None) overwrites whatever notes the existing review
+            // already carried. Until the API gains PATCH semantics, the
+            // safe shape for `reopen` is a pure state flip.
             client
-                .update_bug_close(&bug_id, BugReviewState::Pending, None, notes.as_deref())
+                .update_bug_close(&bug_id, BugReviewState::Pending, None, None)
                 .await
                 .context("Failed to reopen bug")?;
 

@@ -276,35 +276,24 @@ mod tests {
     fn bugs_reopen_parses() {
         let cli = Cli::try_parse_from(["detail", "bugs", "reopen", "bug_abc"]).unwrap();
         if let Commands::Bugs {
-            command: commands::bugs::BugCommands::Reopen { bug_id, notes },
+            command: commands::bugs::BugCommands::Reopen { bug_id },
         } = &cli.command
         {
             assert_eq!(bug_id, "bug_abc");
-            assert!(notes.is_none());
         } else {
             panic!("expected bugs reopen command");
         }
     }
 
     #[test]
-    fn bugs_reopen_with_notes_parses() {
-        let cli = Cli::try_parse_from([
-            "detail",
-            "bugs",
-            "reopen",
-            "bug_abc",
-            "--notes",
-            "PR reverted",
-        ])
-        .unwrap();
-        if let Commands::Bugs {
-            command: commands::bugs::BugCommands::Reopen { notes, .. },
-        } = &cli.command
-        {
-            assert_eq!(notes.as_deref(), Some("PR reverted"));
-        } else {
-            panic!("expected bugs reopen command");
-        }
+    fn bugs_reopen_rejects_notes_flag() {
+        // --notes was deliberately removed because the API replaces the
+        // whole review row; passing notes here would just clobber the
+        // existing review's notes. Keep this test until either the API
+        // gains PATCH semantics or the CLI fetches-then-merges.
+        let cli =
+            Cli::try_parse_from(["detail", "bugs", "reopen", "bug_abc", "--notes", "anything"]);
+        assert!(cli.is_err());
     }
 
     #[test]
