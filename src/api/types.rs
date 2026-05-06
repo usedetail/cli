@@ -112,6 +112,34 @@ impl clap::ValueEnum for BugDismissalReason {
     }
 }
 
+impl clap::ValueEnum for WorkflowStatus {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::InProgress, Self::Complete, Self::Failed, Self::Dlq]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::InProgress => Some(PossibleValue::new("in-progress")),
+            Self::Complete => Some(PossibleValue::new("complete")),
+            Self::Failed => Some(PossibleValue::new("failed")),
+            Self::Dlq => Some(PossibleValue::new("dlq")),
+        }
+    }
+}
+
+impl clap::ValueEnum for ScanType {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Default, Self::RecentChanges]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::Default => Some(PossibleValue::new("default")),
+            Self::RecentChanges => Some(PossibleValue::new("recent-changes")),
+        }
+    }
+}
+
 // ── Formattable ──────────────────────────────────────────────────────
 
 impl Formattable for Bug {

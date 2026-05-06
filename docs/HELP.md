@@ -437,6 +437,16 @@ List recent scans for a repository
 
 ###### **Options:**
 
+* `--status <STATUS>` — Filter by workflow status (e.g. failed scans in the last day)
+
+  Possible values: `in-progress`, `complete`, `failed`, `dlq`
+
+* `--scan-type <SCAN_TYPE>` — Filter by scan type
+
+  Possible values: `default`, `recent-changes`
+
+* `--since <SINCE>` — Only show scans created at or after this point. Accepts a duration (e.g. 1d, 24h, 30m), an ISO date (YYYY-MM-DD), or an RFC3339 timestamp
+* `--until <UNTIL>` — Only show scans created at or before this point. Same forms as --since
 * `--limit <LIMIT>` — Maximum number of results per page
 
   Default value: `50`
