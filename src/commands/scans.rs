@@ -266,7 +266,10 @@ mod tests {
     fn filter_since_inclusive_lower_bound() {
         let scans = sample_scans();
         let f = filter_scans(&scans, None, None, Some(2_000), None);
-        let ids: Vec<_> = f.iter().map(|s| s.workflow_request_id.as_deref().unwrap_or("")).collect();
+        let ids: Vec<_> = f
+            .iter()
+            .map(|s| s.workflow_request_id.as_deref().unwrap_or(""))
+            .collect();
         assert_eq!(ids, vec!["wr_b", "wr_c"]);
     }
 
@@ -274,7 +277,10 @@ mod tests {
     fn filter_until_inclusive_upper_bound() {
         let scans = sample_scans();
         let f = filter_scans(&scans, None, None, None, Some(2_000));
-        let ids: Vec<_> = f.iter().map(|s| s.workflow_request_id.as_deref().unwrap_or("")).collect();
+        let ids: Vec<_> = f
+            .iter()
+            .map(|s| s.workflow_request_id.as_deref().unwrap_or(""))
+            .collect();
         assert_eq!(ids, vec!["wr_a", "wr_b"]);
     }
 
