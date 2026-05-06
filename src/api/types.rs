@@ -126,11 +126,18 @@ impl Formattable for Bug {
 impl Formattable for Scan {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
         let repo = format!("{}/{}", self.owner_name, self.repo_name);
+        // Drop the "(N Open)" parenthetical when it would be noise:
+        //  - total == 0: "0 Bugs Found (0 Open)" reads as boilerplate; the
+        //    leading count already conveys "nothing"
+        //  - open == total: "(N Open)" just restates the total
         let header = match &self.bug_counts {
-            Some(counts) => format!("{repo} {} Bugs Found ({} Open)", counts.total, counts.open),
+            Some(counts) if counts.total > 0 && counts.open != counts.total => {
+                format!("{repo} {} Bugs Found ({} Open)", counts.total, counts.open)
+            }
+            Some(counts) => format!("{repo} {} Bugs Found", counts.total),
             None => repo,
         };
-        let pairs = vec![
+        let mut pairs = vec![
             (
                 "Status",
                 self.workflow_status
@@ -144,14 +151,20 @@ impl Formattable for Scan {
                     .map_or_else(|| "-".to_string(), ToString::to_string),
             ),
             ("Initiator", self.initiator.to_string()),
-            (
-                "Workflow ID",
-                self.workflow_request_id
-                    .clone()
-                    .unwrap_or_else(|| "-".to_string()),
-            ),
-            ("Created", format_datetime(self.created_at)),
         ];
+        // Surface the commit the scan ran against so users can answer "did
+        // this run on the current main?" without an extra round-trip.
+        if let Some(sha) = self.commit_sha.as_deref() {
+            let short = sha.get(..7).unwrap_or(sha);
+            pairs.push(("Commit", short.to_string()));
+        }
+        pairs.push((
+            "Workflow ID",
+            self.workflow_request_id
+                .clone()
+                .unwrap_or_else(|| "-".to_string()),
+        ));
+        pairs.push(("Created", format_datetime(self.created_at)));
         (header, pairs)
     }
 }
@@ -430,8 +443,49 @@ mod tests {
         .expect("valid Scan JSON")
     }
 
+    fn scan_pair<'a>(pairs: &'a [(&'static str, String)], key: &str) -> Option<&'a String> {
+        pairs.iter().find(|(k, _)| *k == key).map(|(_, v)| v)
+    }
+
     #[test]
     fn scan_card_header_with_bug_counts() {
+        let (header, _) = sample_scan().to_card();
+        assert_eq!(header, "usedetail/cli 5 Bugs Found (3 Open)");
+    }
+
+    #[test]
+    fn scan_card_header_drops_parenthetical_when_total_is_zero() {
+        let scan: Scan = serde_json::from_value(serde_json::json!({
+            "id": "scan_zero", "repoId": "repo_001",
+            "ownerName": "usedetail", "repoName": "cli",
+            "initiator": "scheduler", "createdAt": 1,
+            "completedAt": null, "commitSha": "abc123",
+            "workflowRequestId": null,
+            "bugCounts": { "total": 0, "open": 0, "dismissed": 0, "resolved": 0 }
+        }))
+        .expect("valid Scan JSON");
+        let (header, _) = scan.to_card();
+        assert_eq!(header, "usedetail/cli 0 Bugs Found");
+    }
+
+    #[test]
+    fn scan_card_header_drops_parenthetical_when_open_equals_total() {
+        // 7 found, 7 open: "(7 Open)" is just restating the total.
+        let scan: Scan = serde_json::from_value(serde_json::json!({
+            "id": "scan_alldopen", "repoId": "repo_001",
+            "ownerName": "usedetail", "repoName": "cli",
+            "initiator": "scheduler", "createdAt": 1,
+            "completedAt": null, "commitSha": "abc123",
+            "workflowRequestId": null,
+            "bugCounts": { "total": 7, "open": 7, "dismissed": 0, "resolved": 0 }
+        }))
+        .expect("valid Scan JSON");
+        let (header, _) = scan.to_card();
+        assert_eq!(header, "usedetail/cli 7 Bugs Found");
+    }
+
+    #[test]
+    fn scan_card_header_keeps_parenthetical_when_partially_resolved() {
         let (header, _) = sample_scan().to_card();
         assert_eq!(header, "usedetail/cli 5 Bugs Found (3 Open)");
     }
@@ -460,8 +514,45 @@ mod tests {
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
         assert_eq!(
             keys,
-            vec!["Status", "Scan Type", "Initiator", "Workflow ID", "Created"]
+            vec![
+                "Status",
+                "Scan Type",
+                "Initiator",
+                "Commit",
+                "Workflow ID",
+                "Created",
+            ]
         );
+    }
+
+    #[test]
+    fn scan_card_includes_short_commit_sha() {
+        // Truncated to 7 chars to match how introducedIn renders blame.
+        let scan: Scan = serde_json::from_value(serde_json::json!({
+            "id": "scan_sha", "repoId": "repo_001",
+            "ownerName": "usedetail", "repoName": "cli",
+            "initiator": "scheduler", "createdAt": 1,
+            "completedAt": null,
+            "commitSha": "deadbeef1234567890abcdef",
+            "workflowRequestId": null
+        }))
+        .expect("valid Scan JSON");
+        let (_, pairs) = scan.to_card();
+        assert_eq!(scan_pair(&pairs, "Commit"), Some(&"deadbee".to_string()));
+    }
+
+    #[test]
+    fn scan_card_omits_commit_when_null() {
+        let scan: Scan = serde_json::from_value(serde_json::json!({
+            "id": "scan_nosha", "repoId": "repo_001",
+            "ownerName": "usedetail", "repoName": "cli",
+            "initiator": "scheduler", "createdAt": 1,
+            "completedAt": null, "commitSha": null,
+            "workflowRequestId": null
+        }))
+        .expect("valid Scan JSON");
+        let (_, pairs) = scan.to_card();
+        assert!(scan_pair(&pairs, "Commit").is_none());
     }
 
     #[test]
@@ -479,8 +570,8 @@ mod tests {
         }))
         .expect("valid Scan JSON");
         let (_, pairs) = scan.to_card();
-        assert_eq!(pairs[0].1, "-"); // Status
-        assert_eq!(pairs[1].1, "-"); // Scan Type
+        assert_eq!(scan_pair(&pairs, "Status"), Some(&"-".to_string()));
+        assert_eq!(scan_pair(&pairs, "Scan Type"), Some(&"-".to_string()));
     }
 
     #[test]
@@ -498,13 +589,15 @@ mod tests {
         }))
         .expect("valid Scan JSON");
         let (_, pairs) = scan.to_card();
-        // Workflow ID is the 4th pair (index 3)
-        assert_eq!(pairs[3].1, "-");
+        assert_eq!(scan_pair(&pairs, "Workflow ID"), Some(&"-".to_string()));
     }
 
     #[test]
     fn scan_card_workflow_id_present() {
         let (_, pairs) = sample_scan().to_card();
-        assert_eq!(pairs[3].1, "wr_abc123");
+        assert_eq!(
+            scan_pair(&pairs, "Workflow ID"),
+            Some(&"wr_abc123".to_string())
+        );
     }
 }
