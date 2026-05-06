@@ -109,6 +109,10 @@ pub enum BugCommands {
         #[arg(long)]
         scan_id: Option<String>,
 
+        /// Auto-paginate: fetch every matching bug instead of a single page.
+        #[arg(long, conflicts_with_all = ["page", "limit"])]
+        all: bool,
+
         /// Maximum number of results per page
         #[arg(long, default_value = "50", value_parser = clap::value_parser!(u32).range(1..=100))]
         limit: u32,
@@ -289,6 +293,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             vulns,
             introduced_by,
             scan_id,
+            all,
             limit,
             page,
             format,
@@ -305,7 +310,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .transpose()
                 .context("Invalid scan ID format (expected wr_...)")?;
 
-            if *vulns || !introduced_by.is_empty() {
+            if *all || *vulns || !introduced_by.is_empty() {
                 let all_bugs =
                     fetch_all_bugs(&client, &resolved_repo_id, *status, scan_id.as_ref()).await?;
                 let mut filtered = all_bugs;
@@ -323,10 +328,9 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                         return output_list(&filtered, 0, *page, *limit, format);
                     }
                 } else if filtered.is_empty() {
-                    // `--vulns` alone filtered everything out. Without this
-                    // branch the user just sees an empty table and no hint,
-                    // even though `empty_filter_hint` already has the right
-                    // message for this case.
+                    // Filters (or `--all` against an empty repo) removed
+                    // everything. Print the hint so the user gets context
+                    // beyond an empty table.
                     if matches!(format, crate::OutputFormat::Table) {
                         let hint = empty_filter_hint(&filtered, *vulns);
                         Term::stdout().write_line(&hint)?;
@@ -334,6 +338,13 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     return output_list(&filtered, 0, *page, *limit, format);
                 }
                 let total = filtered.len();
+                if *all {
+                    // No client-side paging: emit every matching bug as a
+                    // single page so JSON consumers and table users alike
+                    // see the full result set.
+                    let effective_limit = u32::try_from(total.max(1)).unwrap_or(u32::MAX);
+                    return output_list(&filtered, total, 1, effective_limit, format);
+                }
                 let page_items = paginate_items(&filtered, *page, *limit);
                 output_list(&page_items, total, *page, *limit, format)
             } else {

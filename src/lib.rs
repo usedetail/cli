@@ -344,6 +344,62 @@ mod tests {
     }
 
     #[test]
+    fn bugs_list_all_flag_parses() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--all"]).unwrap();
+        if let Commands::Bugs {
+            command: commands::bugs::BugCommands::List { all, .. },
+        } = &cli.command
+        {
+            assert!(*all);
+        } else {
+            panic!("expected bugs list command");
+        }
+    }
+
+    #[test]
+    fn bugs_list_all_silences_when_json() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "bugs",
+            "list",
+            "owner/repo",
+            "--all",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn bugs_list_all_conflicts_with_page() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "bugs",
+            "list",
+            "owner/repo",
+            "--all",
+            "--page",
+            "2",
+        ]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn bugs_list_all_conflicts_with_limit() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "bugs",
+            "list",
+            "owner/repo",
+            "--all",
+            "--limit",
+            "10",
+        ]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
     fn bugs_list_scan_id_parses() {
         let cli = Cli::try_parse_from([
             "detail",
