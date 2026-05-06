@@ -130,6 +130,10 @@ pub enum BugCommands {
     Show {
         /// Bug ID
         bug_id: String,
+
+        /// Output format
+        #[arg(long, value_enum, default_value = "table")]
+        format: crate::OutputFormat,
     },
 
     /// Close a bug as resolved or dismissed
@@ -148,6 +152,10 @@ pub enum BugCommands {
         /// Additional notes
         #[arg(long)]
         notes: Option<String>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value = "table")]
+        format: crate::OutputFormat,
     },
 
     /// Reopen a previously resolved or dismissed bug — flips it back to
@@ -257,6 +265,42 @@ fn validate_close_flags(
     };
 
     Ok((state, dismissal_reason, notes))
+}
+
+/// Render a single bug as the human-readable `bugs show` view.
+fn render_bug_show(bug: &Bug) -> Result<()> {
+    let mut pairs: Vec<(&str, String)> = vec![
+        ("ID", bug.id.to_string()),
+        ("Title", bug.title.clone()),
+        ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
+        ("Created", format_datetime(bug.created_at)),
+        (
+            "Security",
+            bug.is_security_vulnerability
+                .map_or("-", |v| if v { "Yes" } else { "No" })
+                .to_string(),
+        ),
+    ];
+    if let Some(intro) = &bug.introduced_in {
+        pairs.push(("Introduced", format_introduced_in(intro)));
+    }
+    if let Some(review) = &bug.review {
+        pairs.push(("Close", review_state_label(&review.state).to_string()));
+        pairs.push(("Close Date", format_datetime(review.created_at)));
+        if let Some(reason) = &review.dismissal_reason {
+            pairs.push(("Dismissal", dismissal_reason_label(reason).to_string()));
+        }
+        if let Some(notes) = &review.notes {
+            pairs.push(("Notes", notes.clone()));
+        }
+    }
+    for issue in &bug.linked_issues {
+        pairs.push(("Issue", format_linked_issue(issue)));
+    }
+    SectionRenderer::new()
+        .key_value("", &pairs)
+        .markdown("", &bug.summary)
+        .print()
 }
 
 /// Page size used when scanning all bugs for client-side vulnerability filtering.
@@ -372,7 +416,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             }
         }
 
-        BugCommands::Show { bug_id } => {
+        BugCommands::Show { bug_id, format } => {
             let bug_id: BugId = bug_id
                 .as_str()
                 .try_into()
@@ -382,38 +426,11 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .await
                 .context("Failed to fetch bug details")?;
 
-            let mut pairs: Vec<(&str, String)> = vec![
-                ("ID", bug.id.to_string()),
-                ("Title", bug.title.clone()),
-                ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
-                ("Created", format_datetime(bug.created_at)),
-                (
-                    "Security",
-                    bug.is_security_vulnerability
-                        .map_or("-", |v| if v { "Yes" } else { "No" })
-                        .to_string(),
-                ),
-            ];
-            if let Some(intro) = &bug.introduced_in {
-                pairs.push(("Introduced", format_introduced_in(intro)));
+            if matches!(format, crate::OutputFormat::Json) {
+                Term::stdout().write_line(&serde_json::to_string_pretty(&bug)?)?;
+                return Ok(());
             }
-            if let Some(review) = &bug.review {
-                pairs.push(("Close", review_state_label(&review.state).to_string()));
-                pairs.push(("Close Date", format_datetime(review.created_at)));
-                if let Some(reason) = &review.dismissal_reason {
-                    pairs.push(("Dismissal", dismissal_reason_label(reason).to_string()));
-                }
-                if let Some(notes) = &review.notes {
-                    pairs.push(("Notes", notes.clone()));
-                }
-            }
-            for issue in &bug.linked_issues {
-                pairs.push(("Issue", format_linked_issue(issue)));
-            }
-            SectionRenderer::new()
-                .key_value("", &pairs)
-                .markdown("", &bug.summary)
-                .print()
+            render_bug_show(&bug)
         }
 
         BugCommands::Close {
@@ -421,6 +438,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             state,
             dismissal_reason,
             notes,
+            format,
         } => {
             let bug_id: BugId = bug_id
                 .as_str()
@@ -452,10 +470,17 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 None => None,
             };
 
-            client
+            let review = client
                 .update_bug_close(&bug_id, state, dismissal_reason, notes.as_deref())
                 .await
                 .context("Failed to close bug")?;
+
+            if matches!(format, crate::OutputFormat::Json) {
+                // Emit only the BugReview JSON — the human-friendly success
+                // banner would corrupt the structured output.
+                Term::stdout().write_line(&serde_json::to_string_pretty(&review)?)?;
+                return Ok(());
+            }
 
             Term::stdout()
                 .write_line(&format!(

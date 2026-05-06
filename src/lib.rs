@@ -51,10 +51,10 @@ impl Cli {
     const fn is_silent(&self) -> bool {
         match &self.command {
             Commands::Bugs { command } => match command {
-                commands::bugs::BugCommands::List { format, .. } => Self::is_json(format),
-                commands::bugs::BugCommands::Show { .. }
-                | commands::bugs::BugCommands::Close { .. }
-                | commands::bugs::BugCommands::Reopen { .. } => false,
+                commands::bugs::BugCommands::List { format, .. }
+                | commands::bugs::BugCommands::Show { format, .. }
+                | commands::bugs::BugCommands::Close { format, .. } => Self::is_json(format),
+                commands::bugs::BugCommands::Reopen { .. } => false,
             },
             Commands::Repos { command } => match command {
                 commands::repos::RepoCommands::List { format, .. } => Self::is_json(format),
@@ -265,6 +265,13 @@ mod tests {
     }
 
     #[test]
+    fn silent_when_bugs_show_json() {
+        let cli =
+            Cli::try_parse_from(["detail", "bugs", "show", "bug_123", "--format", "json"]).unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
     fn not_silent_for_bugs_close() {
         let cli =
             Cli::try_parse_from(["detail", "bugs", "close", "bug_123", "--state", "resolved"])
@@ -298,8 +305,18 @@ mod tests {
 
     #[test]
     fn not_silent_for_bugs_reopen() {
+        // Reopen has no JSON output to corrupt, so update notices stay on.
         let cli = Cli::try_parse_from(["detail", "bugs", "reopen", "bug_123"]).unwrap();
         assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn silent_when_bugs_close_json() {
+        let cli = Cli::try_parse_from([
+            "detail", "bugs", "close", "bug_123", "--state", "resolved", "--format", "json",
+        ])
+        .unwrap();
+        assert!(cli.is_silent());
     }
 
     #[test]
