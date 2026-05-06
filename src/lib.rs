@@ -53,7 +53,8 @@ impl Cli {
             Commands::Bugs { command } => match command {
                 commands::bugs::BugCommands::List { format, .. } => Self::is_json(format),
                 commands::bugs::BugCommands::Show { .. }
-                | commands::bugs::BugCommands::Close { .. } => false,
+                | commands::bugs::BugCommands::Close { .. }
+                | commands::bugs::BugCommands::Reopen { .. } => false,
             },
             Commands::Repos { command } => match command {
                 commands::repos::RepoCommands::List { format, .. } => Self::is_json(format),
@@ -268,6 +269,36 @@ mod tests {
         let cli =
             Cli::try_parse_from(["detail", "bugs", "close", "bug_123", "--state", "resolved"])
                 .unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn bugs_reopen_parses() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "reopen", "bug_abc"]).unwrap();
+        if let Commands::Bugs {
+            command: commands::bugs::BugCommands::Reopen { bug_id },
+        } = &cli.command
+        {
+            assert_eq!(bug_id, "bug_abc");
+        } else {
+            panic!("expected bugs reopen command");
+        }
+    }
+
+    #[test]
+    fn bugs_reopen_rejects_notes_flag() {
+        // --notes was deliberately removed because the API replaces the
+        // whole review row; passing notes here would just clobber the
+        // existing review's notes. Keep this test until either the API
+        // gains PATCH semantics or the CLI fetches-then-merges.
+        let cli =
+            Cli::try_parse_from(["detail", "bugs", "reopen", "bug_abc", "--notes", "anything"]);
+        assert!(cli.is_err());
+    }
+
+    #[test]
+    fn not_silent_for_bugs_reopen() {
+        let cli = Cli::try_parse_from(["detail", "bugs", "reopen", "bug_123"]).unwrap();
         assert!(!cli.is_silent());
     }
 

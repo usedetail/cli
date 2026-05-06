@@ -149,6 +149,14 @@ pub enum BugCommands {
         #[arg(long)]
         notes: Option<String>,
     },
+
+    /// Reopen a previously resolved or dismissed bug — flips it back to
+    /// pending. Useful when a "fix" PR is reverted or a "won't fix"
+    /// decision is overturned.
+    Reopen {
+        /// Bug ID
+        bug_id: String,
+    },
 }
 
 // ── Interactive prompt helpers ──────────────────────────────────────
@@ -454,6 +462,28 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     "{}",
                     style(format!("✓ Bug closed as: {}", review_state_label(&state))).green()
                 ))
+                .ok();
+            Ok(())
+        }
+
+        BugCommands::Reopen { bug_id } => {
+            let bug_id: BugId = bug_id
+                .as_str()
+                .try_into()
+                .context("Invalid bug ID format (expected bug_...)")?;
+
+            // Don't pass notes from the CLI — `create_public_bug_review`
+            // replaces the whole review row, so any value (including the
+            // implicit None) overwrites whatever notes the existing review
+            // already carried. Until the API gains PATCH semantics, the
+            // safe shape for `reopen` is a pure state flip.
+            client
+                .update_bug_close(&bug_id, BugReviewState::Pending, None, None)
+                .await
+                .context("Failed to reopen bug")?;
+
+            Term::stdout()
+                .write_line(&format!("{}", style("✓ Bug reopened (pending)").green()))
                 .ok();
             Ok(())
         }
