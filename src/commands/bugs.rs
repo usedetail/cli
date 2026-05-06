@@ -371,9 +371,24 @@ async fn fetch_all_bugs(
     Ok(all_bugs)
 }
 
+/// Dedupe a slice of `BugReviewState` while preserving first-seen order.
+/// Used to normalize repeated `--status` inputs (e.g. `pending,pending`) so
+/// the multi-status helper doesn't fan out duplicate API calls and inflate
+/// totals.
+fn dedupe_statuses(statuses: &[BugReviewState]) -> Vec<BugReviewState> {
+    let mut out: Vec<BugReviewState> = Vec::with_capacity(statuses.len());
+    for s in statuses {
+        if !out.contains(s) {
+            out.push(*s);
+        }
+    }
+    out
+}
+
 /// Fetch every bug for each of `statuses`, concatenated in the order given.
 /// The bugs API only accepts a single status per request, so multi-status
-/// queries fan out into one paginated call per status.
+/// queries fan out into one paginated call per status. Repeated statuses
+/// are deduped first so `--status pending,pending` doesn't double-count.
 async fn fetch_all_bugs_multi_status(
     client: &ApiClient,
     repo_id: &RepoId,
@@ -381,8 +396,8 @@ async fn fetch_all_bugs_multi_status(
     scan_id: Option<&ListPublicBugsWorkflowRequestId>,
 ) -> Result<Vec<Bug>> {
     let mut combined = Vec::new();
-    for status in statuses {
-        let bugs = fetch_all_bugs(client, repo_id, *status, scan_id).await?;
+    for status in dedupe_statuses(statuses) {
+        let bugs = fetch_all_bugs(client, repo_id, status, scan_id).await?;
         combined.extend(bugs);
     }
     Ok(combined)
@@ -823,6 +838,49 @@ mod tests {
         let bugs = sample_bugs_with_authors();
         let filtered = filter_by_introduced_by(&bugs, &["nobody".to_string()]);
         assert!(filtered.is_empty());
+    }
+
+    // ── dedupe_statuses ──────────────────────────────────────────────
+
+    #[test]
+    fn dedupe_statuses_passes_through_distinct_values() {
+        let input = [
+            BugReviewState::Pending,
+            BugReviewState::Resolved,
+            BugReviewState::Dismissed,
+        ];
+        assert_eq!(dedupe_statuses(&input), input.to_vec());
+    }
+
+    #[test]
+    fn dedupe_statuses_drops_repeats_preserving_first_seen_order() {
+        // `--status resolved --status pending --status resolved` →
+        // [Resolved, Pending] (resolved deduped, original order kept).
+        let input = [
+            BugReviewState::Resolved,
+            BugReviewState::Pending,
+            BugReviewState::Resolved,
+        ];
+        assert_eq!(
+            dedupe_statuses(&input),
+            vec![BugReviewState::Resolved, BugReviewState::Pending]
+        );
+    }
+
+    #[test]
+    fn dedupe_statuses_collapses_all_repeats_to_single() {
+        // `--status pending,pending,pending` → [Pending]
+        let input = [
+            BugReviewState::Pending,
+            BugReviewState::Pending,
+            BugReviewState::Pending,
+        ];
+        assert_eq!(dedupe_statuses(&input), vec![BugReviewState::Pending]);
+    }
+
+    #[test]
+    fn dedupe_statuses_handles_empty() {
+        assert!(dedupe_statuses(&[]).is_empty());
     }
 
     // ── filter_by_time_range ─────────────────────────────────────────
