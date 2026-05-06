@@ -11,7 +11,7 @@ use crate::api::types::{
     BugDismissalReason, BugId, BugReviewState, ListPublicBugsWorkflowRequestId, RepoId,
 };
 use crate::output::{output_list, SectionRenderer};
-use crate::utils::datetime::format_datetime;
+use crate::utils::datetime::{format_datetime, parse_time_spec};
 use crate::utils::git::resolve_repo_arg;
 use crate::utils::pagination::page_to_offset;
 use crate::utils::repos::resolve_repo_id;
@@ -20,6 +20,31 @@ use crate::utils::repos::resolve_repo_id;
 fn filter_vulns_only(bugs: &[Bug]) -> Vec<Bug> {
     bugs.iter()
         .filter(|b| b.is_security_vulnerability == Some(true))
+        .cloned()
+        .collect()
+}
+
+/// Resolve a `--since` / `--until` flag value to epoch millis, flattening
+/// `parse_time_spec`'s error into the top-level message so users see the
+/// accepted-form list without needing `RUST_LOG`-style chain expansion.
+fn resolve_time_flag(
+    name: &str,
+    value: Option<&str>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<Option<i64>> {
+    value.map_or(Ok(None), |s| {
+        parse_time_spec(s, now)
+            .map(|dt| Some(dt.timestamp_millis()))
+            .map_err(|e| anyhow::anyhow!("invalid {name} value: {e}"))
+    })
+}
+
+/// Return only bugs whose `createdAt` falls within the given inclusive bounds.
+fn filter_by_time_range(bugs: &[Bug], since_ms: Option<i64>, until_ms: Option<i64>) -> Vec<Bug> {
+    bugs.iter()
+        .filter(|b| {
+            since_ms.is_none_or(|s| b.created_at >= s) && until_ms.is_none_or(|u| b.created_at <= u)
+        })
         .cloned()
         .collect()
 }
@@ -108,6 +133,16 @@ pub enum BugCommands {
         /// Filter bugs to a specific scan by workflow request ID
         #[arg(long)]
         scan_id: Option<String>,
+
+        /// Only show bugs created at or after this point.
+        /// Accepts a duration (e.g. 1d, 24h, 30m) interpreted as "now minus
+        /// this", an ISO date (YYYY-MM-DD), or an RFC3339 timestamp.
+        #[arg(long)]
+        since: Option<String>,
+
+        /// Only show bugs created at or before this point. Same forms as --since.
+        #[arg(long)]
+        until: Option<String>,
 
         /// Auto-paginate: fetch every matching bug instead of a single page.
         #[arg(long, conflicts_with_all = ["page", "limit"])]
@@ -345,6 +380,8 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             vulns,
             introduced_by,
             scan_id,
+            since,
+            until,
             all,
             limit,
             page,
@@ -362,10 +399,26 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .transpose()
                 .context("Invalid scan ID format (expected wr_...)")?;
 
-            if *all || *vulns || !introduced_by.is_empty() {
+            // Resolve --since/--until against the same `now` so a relative
+            // window like `--since 7d --until 1d` reads as a single half-open
+            // interval anchored to the same instant.
+            let now = chrono::Utc::now();
+            let since_ms = resolve_time_flag("--since", since.as_deref(), now)?;
+            let until_ms = resolve_time_flag("--until", until.as_deref(), now)?;
+
+            let needs_full_fetch = *all
+                || *vulns
+                || !introduced_by.is_empty()
+                || since_ms.is_some()
+                || until_ms.is_some();
+
+            if needs_full_fetch {
                 let all_bugs =
                     fetch_all_bugs(&client, &resolved_repo_id, *status, scan_id.as_ref()).await?;
                 let mut filtered = all_bugs;
+                if since_ms.is_some() || until_ms.is_some() {
+                    filtered = filter_by_time_range(&filtered, since_ms, until_ms);
+                }
                 if *vulns {
                     filtered = filter_vulns_only(&filtered);
                 }
@@ -732,6 +785,65 @@ mod tests {
         let bugs = sample_bugs_with_authors();
         let filtered = filter_by_introduced_by(&bugs, &["nobody".to_string()]);
         assert!(filtered.is_empty());
+    }
+
+    // ── filter_by_time_range ─────────────────────────────────────────
+
+    fn time_ranged_bugs() -> Vec<Bug> {
+        vec![
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_old", "title": "old", "summary": "...",
+                "createdAt": 1_000, "repoId": "repo_1", "linkedIssues": []
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_mid", "title": "mid", "summary": "...",
+                "createdAt": 2_000, "repoId": "repo_1", "linkedIssues": []
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "id": "bug_new", "title": "new", "summary": "...",
+                "createdAt": 3_000, "repoId": "repo_1", "linkedIssues": []
+            }))
+            .unwrap(),
+        ]
+    }
+
+    #[test]
+    fn time_range_no_bounds_returns_all() {
+        let bugs = time_ranged_bugs();
+        assert_eq!(filter_by_time_range(&bugs, None, None).len(), 3);
+    }
+
+    #[test]
+    fn time_range_since_is_inclusive_lower_bound() {
+        let bugs = time_ranged_bugs();
+        let filtered = filter_by_time_range(&bugs, Some(2_000), None);
+        let ids: Vec<_> = filtered.iter().map(|b| b.id.to_string()).collect();
+        assert_eq!(ids, vec!["bug_mid", "bug_new"]);
+    }
+
+    #[test]
+    fn time_range_until_is_inclusive_upper_bound() {
+        let bugs = time_ranged_bugs();
+        let filtered = filter_by_time_range(&bugs, None, Some(2_000));
+        let ids: Vec<_> = filtered.iter().map(|b| b.id.to_string()).collect();
+        assert_eq!(ids, vec!["bug_old", "bug_mid"]);
+    }
+
+    #[test]
+    fn time_range_both_bounds_clamps_to_window() {
+        let bugs = time_ranged_bugs();
+        let filtered = filter_by_time_range(&bugs, Some(2_000), Some(2_000));
+        let ids: Vec<_> = filtered.iter().map(|b| b.id.to_string()).collect();
+        assert_eq!(ids, vec!["bug_mid"]);
+    }
+
+    #[test]
+    fn time_range_inverted_window_is_empty() {
+        // since > until: nothing matches; we don't error, we just return empty.
+        let bugs = time_ranged_bugs();
+        assert!(filter_by_time_range(&bugs, Some(3_000), Some(1_000)).is_empty());
     }
 
     // ── collect_authors ──────────────────────────────────────────────
