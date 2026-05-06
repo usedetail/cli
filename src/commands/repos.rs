@@ -69,7 +69,7 @@ pub async fn handle(command: &RepoCommands, cli: &crate::Cli) -> Result<()> {
                     term.write_line(&format!("Page: {page} of {total_pages}"))?;
                     Ok(())
                 }
-                crate::OutputFormat::Json => output_list(
+                crate::OutputFormat::Json | crate::OutputFormat::JsonArray => output_list(
                     &repos.repos,
                     usize::try_from(repos.total.max(0)).unwrap_or(0),
                     *page,

@@ -42,7 +42,7 @@ impl Cli {
     }
 
     const fn is_json(format: &OutputFormat) -> bool {
-        matches!(format, OutputFormat::Json)
+        format.is_machine_readable()
     }
 
     /// Returns true when machine-readable output is requested (e.g. `--format json`),
@@ -118,8 +118,21 @@ impl Cli {
 
 #[derive(Clone, clap::ValueEnum)]
 pub enum OutputFormat {
+    /// Human-readable table view (default).
     Table,
+    /// Wrapped JSON with `{items, total, page, total_pages}` envelope —
+    /// useful when you need pagination metadata.
     Json,
+    /// Top-level JSON array of items, no envelope. Drop-in for
+    /// `python -c 'json.load(...)'` consumers and `jq '.[]'`.
+    JsonArray,
+}
+
+impl OutputFormat {
+    /// Returns true for any machine-readable variant.
+    const fn is_machine_readable(&self) -> bool {
+        matches!(self, Self::Json | Self::JsonArray)
+    }
 }
 
 #[derive(Subcommand)]
@@ -183,6 +196,27 @@ mod tests {
         let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--format", "json"])
             .unwrap();
         assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn silent_when_bugs_list_json_array() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "bugs",
+            "list",
+            "owner/repo",
+            "--format",
+            "json-array",
+        ])
+        .unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn json_array_is_machine_readable() {
+        assert!(OutputFormat::JsonArray.is_machine_readable());
+        assert!(OutputFormat::Json.is_machine_readable());
+        assert!(!OutputFormat::Table.is_machine_readable());
     }
 
     #[test]

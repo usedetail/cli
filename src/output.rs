@@ -138,6 +138,13 @@ pub fn output_list<T: Formattable + Serialize>(
             });
             Term::stdout().write_line(&serde_json::to_string_pretty(&response)?)?;
         }
+        crate::OutputFormat::JsonArray => {
+            // No envelope: the items are the entire payload. Drops the
+            // pagination metadata — callers who need it should use `json`.
+            // This is the shape `python -c 'bugs = json.load(...)'` and
+            // `jq '.[]'` consumers expect by default.
+            Term::stdout().write_line(&serde_json::to_string_pretty(items)?)?;
+        }
         crate::OutputFormat::Table => {
             let term = Term::stdout();
             let max_key = items

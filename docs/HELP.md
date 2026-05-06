@@ -147,7 +147,13 @@ List bugs for a given repository
 
   Default value: `table`
 
-  Possible values: `table`, `json`
+  Possible values:
+  - `table`:
+    Human-readable table view (default)
+  - `json`:
+    Wrapped JSON with `{items, total, page, total_pages}` envelope — useful when you need pagination metadata
+  - `json-array`:
+    Top-level JSON array of items, no envelope. Drop-in for `python -c 'json.load(...)'` consumers and `jq '.[]'`
 
 
 
@@ -272,7 +278,13 @@ List rule creation requests for a repository
 
   Default value: `table`
 
-  Possible values: `table`, `json`
+  Possible values:
+  - `table`:
+    Human-readable table view (default)
+  - `json`:
+    Wrapped JSON with `{items, total, page, total_pages}` envelope — useful when you need pagination metadata
+  - `json-array`:
+    Top-level JSON array of items, no envelope. Drop-in for `python -c 'json.load(...)'` consumers and `jq '.[]'`
 
 
 
@@ -305,7 +317,13 @@ List completed rules for a repository
 
   Default value: `table`
 
-  Possible values: `table`, `json`
+  Possible values:
+  - `table`:
+    Human-readable table view (default)
+  - `json`:
+    Wrapped JSON with `{items, total, page, total_pages}` envelope — useful when you need pagination metadata
+  - `json-array`:
+    Top-level JSON array of items, no envelope. Drop-in for `python -c 'json.load(...)'` consumers and `jq '.[]'`
 
 
 
@@ -376,7 +394,13 @@ List all repositories you have access to
 
   Default value: `table`
 
-  Possible values: `table`, `json`
+  Possible values:
+  - `table`:
+    Human-readable table view (default)
+  - `json`:
+    Wrapped JSON with `{items, total, page, total_pages}` envelope — useful when you need pagination metadata
+  - `json-array`:
+    Top-level JSON array of items, no envelope. Drop-in for `python -c 'json.load(...)'` consumers and `jq '.[]'`
 
 
 
@@ -415,7 +439,13 @@ List recent scans for a repository
 
   Default value: `table`
 
-  Possible values: `table`, `json`
+  Possible values:
+  - `table`:
+    Human-readable table view (default)
+  - `json`:
+    Wrapped JSON with `{items, total, page, total_pages}` envelope — useful when you need pagination metadata
+  - `json-array`:
+    Top-level JSON array of items, no envelope. Drop-in for `python -c 'json.load(...)'` consumers and `jq '.[]'`
 
 
 
