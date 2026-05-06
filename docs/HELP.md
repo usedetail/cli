@@ -13,6 +13,7 @@ This document contains the help content for the `detail` command-line program.
 * [`detail bugs list`↴](#detail-bugs-list)
 * [`detail bugs show`↴](#detail-bugs-show)
 * [`detail bugs close`↴](#detail-bugs-close)
+* [`detail bugs reopen`↴](#detail-bugs-reopen)
 * [`detail completions`↴](#detail-completions)
 * [`detail rules`↴](#detail-rules)
 * [`detail rules create`↴](#detail-rules-create)
@@ -113,6 +114,7 @@ List, show, and close bugs
 * `list` — List bugs for a given repository
 * `show` — Show the report for a bug
 * `close` — Close a bug as resolved or dismissed
+* `reopen` — Reopen a previously resolved or dismissed bug — flips it back to pending. Useful when a "fix" PR is reverted or a "won't fix" decision is overturned
 
 
 
@@ -185,6 +187,22 @@ Close a bug as resolved or dismissed
   Possible values: `not-a-bug`, `wont-fix`, `duplicate`, `other`
 
 * `--notes <NOTES>` — Additional notes
+
+
+
+## `detail bugs reopen`
+
+Reopen a previously resolved or dismissed bug — flips it back to pending. Useful when a "fix" PR is reverted or a "won't fix" decision is overturned
+
+**Usage:** `detail bugs reopen [OPTIONS] <BUG_ID>`
+
+###### **Arguments:**
+
+* `<BUG_ID>` — Bug ID
+
+###### **Options:**
+
+* `--notes <NOTES>` — Additional notes recorded on the new pending review
 
 
 
