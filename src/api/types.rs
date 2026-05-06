@@ -49,6 +49,21 @@ pub const fn rule_status_label(s: &RuleStatus) -> &'static str {
     }
 }
 
+/// Format blame/attribution info for display, e.g. "PR #42 (abc1234) on 2024-12-23 by alice".
+pub fn format_introduced_in(intro: &IntroducedIn) -> String {
+    let commit = intro.sha.get(..7).unwrap_or(&intro.sha);
+    let ref_label = intro
+        .pr_number
+        .map_or_else(|| commit.to_string(), |pr| format!("PR #{pr} ({commit})"));
+    let date_part = format!(" on {}", intro.date);
+    let author_part = intro
+        .author
+        .as_deref()
+        .map(|a| format!(" by {a}"))
+        .unwrap_or_default();
+    format!("{ref_label}{date_part}{author_part}")
+}
+
 /// Format a linked issue for display. Includes the URL for the detail/show view.
 pub fn format_linked_issue(issue: &LinkedIssue) -> String {
     let tracker = issue.tracker.to_string();
@@ -105,6 +120,19 @@ impl Formattable for Bug {
             ("Bug ID", self.id.to_string()),
             ("Created", format_date(self.created_at)),
         ];
+        // Each remaining field is conditional so non-applicable bugs don't
+        // get a forest of "-" rows. Triage threads regularly need file path
+        // and introducing PR — pulling them straight from `--format json`
+        // costs no extra round-trip vs. the previous N+1 `bugs show` loop.
+        if let Some(path) = self.file_path.as_deref() {
+            pairs.push(("File", path.to_string()));
+        }
+        if self.is_security_vulnerability == Some(true) {
+            pairs.push(("Security", "Yes".to_string()));
+        }
+        if let Some(intro) = &self.introduced_in {
+            pairs.push(("Introduced", format_introduced_in(intro)));
+        }
         if !self.linked_issues.is_empty() {
             let formatted = self
                 .linked_issues
@@ -293,39 +321,10 @@ mod tests {
         assert_eq!(pairs[1].1, format_date(1_736_899_200_000));
     }
 
-    #[test]
-    fn bug_card_omits_security_when_true() {
-        let bug: Bug = serde_json::from_value(serde_json::json!({
-            "id": "bug_sec1",
-            "title": "XSS vulnerability",
-            "summary": "...",
-            "createdAt": 1_736_899_200_000_i64,
-            "repoId": "repo_xyz",
-            "isSecurityVulnerability": true,
-            "linkedIssues": []
-        }))
-        .expect("valid Bug JSON");
-        let (_, pairs) = bug.to_card();
-        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, vec!["Bug ID", "Created"]);
-    }
-
-    #[test]
-    fn bug_card_hides_security_when_false() {
-        let bug: Bug = serde_json::from_value(serde_json::json!({
-            "id": "bug_nosec",
-            "title": "Typo in docs",
-            "summary": "...",
-            "createdAt": 1_736_899_200_000_i64,
-            "repoId": "repo_xyz",
-            "isSecurityVulnerability": false,
-            "linkedIssues": []
-        }))
-        .expect("valid Bug JSON");
-        let (_, pairs) = bug.to_card();
-        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, vec!["Bug ID", "Created"]);
-    }
+    // The old `bug_card_omits_security_when_true` and `_hides_security_when_false`
+    // tests asserted that `Security` was never emitted; that's now superseded
+    // by `bug_card_includes_security_only_when_true` below, which exercises
+    // all three states (None / false / true).
 
     #[test]
     fn bug_card_shows_linked_issues_when_present() {
@@ -354,6 +353,158 @@ mod tests {
         let (_, pairs) = sample_bug().to_card();
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
         assert!(!keys.contains(&"Linked Issues"));
+    }
+
+    // ── richer Bug card: File / Security / Introduced ────────────────
+
+    #[test]
+    fn bug_card_omits_file_when_absent() {
+        let (_, pairs) = sample_bug().to_card();
+        assert!(!pairs.iter().any(|(k, _)| *k == "File"));
+    }
+
+    #[test]
+    fn bug_card_includes_file_when_present() {
+        let bug: Bug = serde_json::from_value(serde_json::json!({
+            "id": "bug_filed", "title": "...", "summary": "...",
+            "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
+            "filePath": "src/handlers/login.rs"
+        }))
+        .expect("valid Bug JSON");
+        let (_, pairs) = bug.to_card();
+        let value = pairs.iter().find(|(k, _)| *k == "File").map(|(_, v)| v);
+        assert_eq!(value, Some(&"src/handlers/login.rs".to_string()));
+    }
+
+    #[test]
+    fn bug_card_includes_security_only_when_true() {
+        // None and false should *not* emit the Security row — keeps the
+        // table view quiet for non-vulns.
+        let none_bug = sample_bug();
+        assert!(!none_bug.to_card().1.iter().any(|(k, _)| *k == "Security"));
+
+        let false_bug: Bug = serde_json::from_value(serde_json::json!({
+            "id": "bug_safe", "title": "...", "summary": "...",
+            "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
+            "isSecurityVulnerability": false
+        }))
+        .expect("valid Bug JSON");
+        assert!(!false_bug.to_card().1.iter().any(|(k, _)| *k == "Security"));
+
+        let true_bug: Bug = serde_json::from_value(serde_json::json!({
+            "id": "bug_vuln", "title": "...", "summary": "...",
+            "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
+            "isSecurityVulnerability": true
+        }))
+        .expect("valid Bug JSON");
+        let (_, pairs) = true_bug.to_card();
+        let v = pairs.iter().find(|(k, _)| *k == "Security").map(|(_, v)| v);
+        assert_eq!(v, Some(&"Yes".to_string()));
+    }
+
+    #[test]
+    fn bug_card_includes_introduced_when_present() {
+        let bug: Bug = serde_json::from_value(serde_json::json!({
+            "id": "bug_blamed", "title": "...", "summary": "...",
+            "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
+            "introducedIn": { "sha": "abc1234def", "date": "2024-12-23",
+                              "prNumber": 42, "author": "alice" }
+        }))
+        .expect("valid Bug JSON");
+        let (_, pairs) = bug.to_card();
+        let v = pairs
+            .iter()
+            .find(|(k, _)| *k == "Introduced")
+            .map(|(_, v)| v);
+        assert_eq!(
+            v,
+            Some(&"PR #42 (abc1234) on 2024-12-23 by alice".to_string())
+        );
+    }
+
+    // ── format_introduced_in ─────────────────────────────────────────
+
+    #[test]
+    fn format_introduced_in_full_sha_with_pr_and_author() {
+        let intro = IntroducedIn {
+            sha: "abc1234def5678".to_string(),
+            date: "2024-12-23".to_string(),
+            pr_number: Some(42),
+            author: Some("alice".to_string()),
+        };
+        assert_eq!(
+            format_introduced_in(&intro),
+            "PR #42 (abc1234) on 2024-12-23 by alice"
+        );
+    }
+
+    #[test]
+    fn format_introduced_in_no_pr_number() {
+        let intro = IntroducedIn {
+            sha: "abc1234def5678".to_string(),
+            date: "2024-12-23".to_string(),
+            pr_number: None,
+            author: Some("bob".to_string()),
+        };
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-12-23 by bob");
+    }
+
+    #[test]
+    fn format_introduced_in_no_author() {
+        let intro = IntroducedIn {
+            sha: "abc1234def5678".to_string(),
+            date: "2024-12-23".to_string(),
+            pr_number: Some(99),
+            author: None,
+        };
+        assert_eq!(
+            format_introduced_in(&intro),
+            "PR #99 (abc1234) on 2024-12-23"
+        );
+    }
+
+    #[test]
+    fn format_introduced_in_no_pr_no_author() {
+        let intro = IntroducedIn {
+            sha: "abc1234def5678".to_string(),
+            date: "2024-12-23".to_string(),
+            pr_number: None,
+            author: None,
+        };
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-12-23");
+    }
+
+    #[test]
+    fn format_introduced_in_short_sha() {
+        let intro = IntroducedIn {
+            sha: "abc".to_string(),
+            date: "2024-01-01".to_string(),
+            pr_number: None,
+            author: None,
+        };
+        assert_eq!(format_introduced_in(&intro), "abc on 2024-01-01");
+    }
+
+    #[test]
+    fn format_introduced_in_exactly_7_char_sha() {
+        let intro = IntroducedIn {
+            sha: "abc1234".to_string(),
+            date: "2024-01-01".to_string(),
+            pr_number: None,
+            author: None,
+        };
+        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-01-01");
+    }
+
+    #[test]
+    fn format_introduced_in_empty_sha() {
+        let intro = IntroducedIn {
+            sha: String::new(),
+            date: "2024-01-01".to_string(),
+            pr_number: None,
+            author: None,
+        };
+        assert_eq!(format_introduced_in(&intro), " on 2024-01-01");
     }
 
     #[test]

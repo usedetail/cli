@@ -7,8 +7,8 @@ use dialoguer::{Input, Select};
 
 use crate::api::client::ApiClient;
 use crate::api::types::{
-    dismissal_reason_label, format_linked_issue, review_state_label, Bug, BugDismissalReason,
-    BugId, BugReviewState, IntroducedIn, ListPublicBugsWorkflowRequestId, RepoId,
+    dismissal_reason_label, format_introduced_in, format_linked_issue, review_state_label, Bug,
+    BugDismissalReason, BugId, BugReviewState, ListPublicBugsWorkflowRequestId, RepoId,
 };
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::datetime::format_datetime;
@@ -83,21 +83,6 @@ fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
         .take(usize::try_from(limit).unwrap_or(0))
         .cloned()
         .collect()
-}
-
-/// Format blame/attribution info for display, e.g. "PR #42 (abc1234) on 2024-12-23 by alice".
-fn format_introduced_in(intro: &IntroducedIn) -> String {
-    let commit = intro.sha.get(..7).unwrap_or(&intro.sha);
-    let ref_label = intro
-        .pr_number
-        .map_or_else(|| commit.to_string(), |pr| format!("PR #{pr} ({commit})"));
-    let date_part = format!(" on {}", intro.date);
-    let author_part = intro
-        .author
-        .as_deref()
-        .map(|a| format!(" by {a}"))
-        .unwrap_or_default();
-    format!("{ref_label}{date_part}{author_part}")
 }
 
 #[derive(Subcommand)]
@@ -796,90 +781,6 @@ mod tests {
         assert!(page.is_empty());
     }
 
-    // ── format_introduced_in ─────────────────────────────────────────
-
-    #[test]
-    fn format_introduced_in_full_sha_with_pr_and_author() {
-        let intro = IntroducedIn {
-            sha: "abc1234def5678".to_string(),
-            date: "2024-12-23".to_string(),
-            pr_number: Some(42),
-            author: Some("alice".to_string()),
-        };
-        assert_eq!(
-            format_introduced_in(&intro),
-            "PR #42 (abc1234) on 2024-12-23 by alice"
-        );
-    }
-
-    #[test]
-    fn format_introduced_in_no_pr_number() {
-        let intro = IntroducedIn {
-            sha: "abc1234def5678".to_string(),
-            date: "2024-12-23".to_string(),
-            pr_number: None,
-            author: Some("bob".to_string()),
-        };
-        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-12-23 by bob");
-    }
-
-    #[test]
-    fn format_introduced_in_no_author() {
-        let intro = IntroducedIn {
-            sha: "abc1234def5678".to_string(),
-            date: "2024-12-23".to_string(),
-            pr_number: Some(99),
-            author: None,
-        };
-        assert_eq!(
-            format_introduced_in(&intro),
-            "PR #99 (abc1234) on 2024-12-23"
-        );
-    }
-
-    #[test]
-    fn format_introduced_in_no_pr_no_author() {
-        let intro = IntroducedIn {
-            sha: "abc1234def5678".to_string(),
-            date: "2024-12-23".to_string(),
-            pr_number: None,
-            author: None,
-        };
-        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-12-23");
-    }
-
-    #[test]
-    fn format_introduced_in_short_sha() {
-        // SHA shorter than 7 chars should use the full SHA
-        let intro = IntroducedIn {
-            sha: "abc".to_string(),
-            date: "2024-01-01".to_string(),
-            pr_number: None,
-            author: None,
-        };
-        assert_eq!(format_introduced_in(&intro), "abc on 2024-01-01");
-    }
-
-    #[test]
-    fn format_introduced_in_exactly_7_char_sha() {
-        let intro = IntroducedIn {
-            sha: "abc1234".to_string(),
-            date: "2024-01-01".to_string(),
-            pr_number: None,
-            author: None,
-        };
-        assert_eq!(format_introduced_in(&intro), "abc1234 on 2024-01-01");
-    }
-
-    #[test]
-    fn format_introduced_in_empty_sha() {
-        let intro = IntroducedIn {
-            sha: "".to_string(),
-            date: "2024-01-01".to_string(),
-            pr_number: None,
-            author: None,
-        };
-        // Empty SHA hits unwrap_or, returns empty string
-        assert_eq!(format_introduced_in(&intro), " on 2024-01-01");
-    }
+    // `format_introduced_in` moved to `crate::api::types`; tests now live
+    // alongside the function in `src/api/types.rs`.
 }
