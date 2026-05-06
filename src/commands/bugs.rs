@@ -24,6 +24,21 @@ fn filter_vulns_only(bugs: &[Bug]) -> Vec<Bug> {
         .collect()
 }
 
+/// Resolve a `--since` / `--until` flag value to epoch millis, flattening
+/// `parse_time_spec`'s error into the top-level message so users see the
+/// accepted-form list without needing `RUST_LOG`-style chain expansion.
+fn resolve_time_flag(
+    name: &str,
+    value: Option<&str>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<Option<i64>> {
+    value.map_or(Ok(None), |s| {
+        parse_time_spec(s, now)
+            .map(|dt| Some(dt.timestamp_millis()))
+            .map_err(|e| anyhow::anyhow!("invalid {name} value: {e}"))
+    })
+}
+
 /// Return only bugs whose `createdAt` falls within the given inclusive bounds.
 fn filter_by_time_range(bugs: &[Bug], since_ms: Option<i64>, until_ms: Option<i64>) -> Vec<Bug> {
     bugs.iter()
@@ -388,16 +403,8 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             // window like `--since 7d --until 1d` reads as a single half-open
             // interval anchored to the same instant.
             let now = chrono::Utc::now();
-            let since_ms: Option<i64> = since
-                .as_deref()
-                .map(|s| parse_time_spec(s, now).map(|dt| dt.timestamp_millis()))
-                .transpose()
-                .context("Invalid --since value")?;
-            let until_ms: Option<i64> = until
-                .as_deref()
-                .map(|s| parse_time_spec(s, now).map(|dt| dt.timestamp_millis()))
-                .transpose()
-                .context("Invalid --until value")?;
+            let since_ms = resolve_time_flag("--since", since.as_deref(), now)?;
+            let until_ms = resolve_time_flag("--until", until.as_deref(), now)?;
 
             let needs_full_fetch = *all
                 || *vulns
