@@ -41,8 +41,9 @@ detail bugs list $ARGUMENTS --scan-id <workflow_request_id>
 ```
 
 This returns only bugs found in that scan, still filtered by `--status`
-(default: `pending`). Use `--status resolved` or `--status dismissed` to see
-closed bugs for the scan.
+(default: `pending`). Use `--status resolved`, `--status dismissed`, or combine
+multiple statuses (e.g. `--status resolved,dismissed`) to see closed bugs for
+the scan.
 
 ## Step 1: List pending bugs
 
