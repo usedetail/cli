@@ -1,7 +1,6 @@
 ---
 name: detail-create-rules
 description: Interactively create a new Detail rule for a repository — gather context, submit the creation request, wait for completion, review the results, and pull them locally. Use when asked to "create a rule", "add a rule", "propose rules", "create/propose a Detail rule", or similar.
-argument-hint: <owner/repo>
 ---
 
 # Create a Detail Rule
@@ -10,11 +9,7 @@ Guide the user through creating one or more new rules for their repository.
 
 ## Determining the Repository
 
-If `$ARGUMENTS` is not empty, use it as the repository (`owner/repo`) for all `detail rules` commands.
-
-Otherwise, the Detail CLI will infer the repository from the git remote. Use the CLI with no repository specified.
-
-If commands fail to infer the repository, ask the user to provide the repository and use it for the `detail rules` commands.
+The Detail CLI infers the repository from the git remote; if the user specifies a different repo, pass it explicitly to the CLI commands.
 
 ## Prerequisites
 
@@ -36,12 +31,12 @@ Ask the user what they want to do:
 
 **For a specific rule**, build the command from whatever context the user provided. At least one of `--description`, `--bug-ids`, or `--commit-shas` is required:
 ```bash
-detail rules create $ARGUMENTS [--description "<description>"] [--bug-ids <id1,id2>] [--commit-shas <sha1,sha2>]
+detail rules create [--description "<description>"] [--bug-ids <id1,id2>] [--commit-shas <sha1,sha2>]
 ```
 
 **For AI-proposed rules**:
 ```bash
-detail rules propose $ARGUMENTS
+detail rules propose
 ```
 
 Both commands return a request ID (`rcr_...`). Save it — you will need it to poll for status.
