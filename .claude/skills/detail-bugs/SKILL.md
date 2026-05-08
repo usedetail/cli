@@ -1,7 +1,6 @@
 ---
 name: detail-bugs
 description: Fetch Detail bugs for a repository. List pending bugs, show details for each, fix the bugs, and mark them as resolved or dismissed.
-argument-hint: <owner/repo>
 ---
 
 # Fetch Detail Bugs
@@ -10,11 +9,7 @@ Get bugs from Detail for a repository and help the user triage them.
 
 ## Determining the Repository
 
-If `$ARGUMENTS` is not empty, use it as the repository (`owner/repo`) for all `detail bugs` commands.
-
-Otherwise, the Detail CLI will infer the repository from the git remote. Use the CLI with no repository specified.
-
-If commands fail to infer the repository, ask the user to provide the repository and use it for the `detail bugs` commands.
+The Detail CLI infers the repository from the git remote; if the user specifies a different repo, pass it explicitly to the CLI commands.
 
 ## Prerequisites
 
@@ -30,14 +25,14 @@ The user must be authenticated. Assume that the user is authed and run commands 
 To scope bugs to a particular scan, first get the scan's workflow request ID:
 
 ```bash
-detail scans list $ARGUMENTS
+detail scans list
 ```
 
 The output includes a `Workflow ID` column (values like `wr_...`). Then pass
 that ID to `bugs list`:
 
 ```bash
-detail bugs list $ARGUMENTS --scan-id <workflow_request_id>
+detail bugs list --scan-id <workflow_request_id>
 ```
 
 This returns only bugs found in that scan, still filtered by `--status`
@@ -47,7 +42,7 @@ the scan.
 
 ## Step 1: List pending bugs
 
-Run `detail bugs list $ARGUMENTS` to fetch all pending bugs.
+Run `detail bugs list` to fetch all pending bugs.
 
 Present the list to the user and ask which bug they want to look at first, or
 offer to go through them in order.
