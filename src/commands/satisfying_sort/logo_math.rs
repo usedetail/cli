@@ -74,40 +74,6 @@ pub(super) fn triangle_nominal_index(nx: f32, n: usize, region: LogoRegion) -> u
     floor_f32_to_usize(t * usize_to_f32(n)).min(n - 1)
 }
 
-pub(super) fn shuffled_index_for_nominal(array: &[usize], nominal_index: usize, n: usize) -> usize {
-    let n = n.max(1);
-    array
-        .get(nominal_index.min(n - 1))
-        .copied()
-        .unwrap_or_else(|| nominal_index.saturating_add(1))
-        .saturating_sub(1)
-        .min(n - 1)
-}
-
-pub(super) fn source_local_x_for_index(
-    shuffled_index: usize,
-    n: usize,
-    region: LogoRegion,
-    viewport_width: usize,
-) -> usize {
-    if viewport_width == 0 {
-        return 0;
-    }
-    let max_col = viewport_width - 1;
-    let unit = if n <= 1 {
-        0.0
-    } else {
-        usize_to_f32(shuffled_index.min(n - 1)) / usize_to_f32(n - 1)
-    };
-
-    let nx = match region {
-        LogoRegion::TopTriangle => (unit * TOP_TRIANGLE_X_SPAN).clamp(0.0, 1.0),
-        LogoRegion::BottomTriangle => (1.0 - unit * BOTTOM_TRIANGLE_X_SPAN).clamp(0.0, 1.0),
-        LogoRegion::Static | LogoRegion::Empty => unit.clamp(0.0, 1.0),
-    };
-    round_f32_to_usize(nx * usize_to_f32(max_col)).min(max_col)
-}
-
 pub(super) fn logo_region_at(
     local_x: usize,
     local_y: usize,
@@ -239,25 +205,6 @@ mod tests {
             triangle_nominal_index(1.0, n, LogoRegion::BottomTriangle),
             0
         );
-    }
-
-    #[test]
-    fn source_column_uses_shuffled_order() {
-        let array = vec![2, 1, 3, 4, 5, 6, 7, 8];
-        let n = array.len();
-        let viewport_width = 80;
-
-        let nominal_left = 0_usize;
-        let nominal_next = 1_usize;
-        let shuffled_left = shuffled_index_for_nominal(&array, nominal_left, n);
-        let shuffled_next = shuffled_index_for_nominal(&array, nominal_next, n);
-
-        let source_left =
-            source_local_x_for_index(shuffled_left, n, LogoRegion::TopTriangle, viewport_width);
-        let source_next =
-            source_local_x_for_index(shuffled_next, n, LogoRegion::TopTriangle, viewport_width);
-
-        assert!(source_left > source_next);
     }
 
     #[test]

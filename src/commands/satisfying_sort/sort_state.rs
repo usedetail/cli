@@ -42,21 +42,6 @@ impl SortState {
         self.source_array.len()
     }
 
-    pub(super) fn source_array(&self) -> &[usize] {
-        &self.source_array
-    }
-
-    pub(super) const fn current_scan_index(&self) -> Option<usize> {
-        match self.phase {
-            Phase::Sorting { scan_start } => Some(scan_start),
-            Phase::Idle | Phase::Completion { .. } => None,
-        }
-    }
-
-    pub(super) const fn scan_complete(&self) -> bool {
-        matches!(self.phase, Phase::Completion { .. })
-    }
-
     pub(super) const fn apply_sort_step(&mut self, index: usize) {
         self.phase = Phase::Sorting { scan_start: index };
     }
@@ -142,18 +127,6 @@ mod tests {
     }
 
     #[test]
-    fn state_source_array_is_permutation_after_reset() {
-        let mut rng = SmallRng::seed_from_u64(13);
-        let mut state = SortState::new(128, &mut rng);
-        state.reset(&mut rng);
-
-        let mut array = state.source_array().to_vec();
-        array.sort_unstable();
-        let expected: Vec<usize> = (1..=128).collect();
-        assert_eq!(array, expected);
-    }
-
-    #[test]
     fn style_for_index_respects_active_window() {
         let mut rng = SmallRng::seed_from_u64(1);
         let mut state = SortState::new(64, &mut rng);
@@ -188,25 +161,5 @@ mod tests {
             BandStyle::Complete
         );
         assert_eq!(state.style_for_index_with_min_window(7, 0), BandStyle::Idle);
-    }
-
-    #[test]
-    fn phase_helpers_match_state_transitions() {
-        let mut rng = SmallRng::seed_from_u64(21);
-        let mut state = SortState::new(32, &mut rng);
-        assert_eq!(state.current_scan_index(), None);
-        assert!(!state.scan_complete());
-
-        state.apply_sort_step(4);
-        assert_eq!(state.current_scan_index(), Some(4));
-        assert!(!state.scan_complete());
-
-        state.finalize_sort_pass();
-        assert_eq!(state.current_scan_index(), None);
-        assert!(state.scan_complete());
-
-        state.reset(&mut rng);
-        assert_eq!(state.current_scan_index(), None);
-        assert!(!state.scan_complete());
     }
 }
