@@ -399,6 +399,20 @@ fn bugs_list_rejects_invalid_repo_format() {
 }
 
 #[test]
+fn error_includes_status_code_for_auth_failures() {
+    let env = Env::new("error_status_code");
+    env.write_config(r#"api_token = "dtl_live_invalid_token""#);
+
+    let out = env.run(&["repos", "list"]);
+    assert!(!out.success);
+    assert!(
+        out.stderr.contains("401") || out.stderr.contains("Unauthorized"),
+        "Error should indicate auth failure:\nstderr: {}",
+        out.stderr,
+    );
+}
+
+#[test]
 fn config_api_url_is_used() {
     let key = require_api_key!();
     let env = Env::new("config_api_url");
