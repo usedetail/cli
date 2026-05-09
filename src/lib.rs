@@ -21,6 +21,26 @@ Common workflow:
   3. Fix the bug
   4. Close the bug:       detail bugs close <bug_id>";
 
+const COMPLETIONS_LONG_ABOUT: &str = "\
+Print shell completion script to stdout.
+
+Add the appropriate line to your shell's startup file:
+
+  bash (~/.bashrc):
+    source <(detail completions bash)
+
+  zsh (~/.zshrc):
+    source <(detail completions zsh)
+
+  fish (~/.config/fish/config.fish):
+    detail completions fish | source
+
+  powershell ($PROFILE):
+    detail completions powershell | Out-String | Invoke-Expression
+
+SHELL defaults to whatever is detected from $SHELL. Supported shells:
+bash, zsh, fish, elvish, powershell.";
+
 #[derive(Parser)]
 #[command(name = "detail")]
 #[command(version = VERSION)]
@@ -142,12 +162,7 @@ enum Commands {
     },
 
     /// Print shell completion script to stdout
-    ///
-    /// Add `source <(detail completions bash)` to your shell rc file
-    /// (.bashrc, .zshrc, etc.) to enable tab completion. SHELL defaults
-    /// to whatever is detected from $SHELL.
-    ///
-    /// Supported shells: bash, zsh, fish, elvish, powershell.
+    #[command(long_about = COMPLETIONS_LONG_ABOUT)]
     Completions {
         /// Shell to print completions for (defaults to $SHELL)
         shell: Option<String>,

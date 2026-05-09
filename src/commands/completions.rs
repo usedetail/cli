@@ -23,7 +23,12 @@ fn snippet(shell: &str) -> Result<&'static str> {
     }
 }
 
-fn print_snippet<W: Write>(shell: Option<&str>, out: &mut W) -> Result<()> {
+fn print_snippet<W: Write>(shell: &str, out: &mut W) -> Result<()> {
+    writeln!(out, "{}", snippet(shell)?)?;
+    Ok(())
+}
+
+pub fn handle(shell: Option<&str>) -> Result<()> {
     let detected;
     let shell = if let Some(s) = shell {
         s
@@ -31,11 +36,6 @@ fn print_snippet<W: Write>(shell: Option<&str>, out: &mut W) -> Result<()> {
         detected = detect_shell()?;
         detected.as_str()
     };
-    writeln!(out, "{}", snippet(shell)?)?;
-    Ok(())
-}
-
-pub fn handle(shell: Option<&str>) -> Result<()> {
     let stdout = io::stdout();
     print_snippet(shell, &mut stdout.lock())
 }
@@ -97,30 +97,16 @@ mod tests {
     }
 
     #[test]
-    fn print_snippet_writes_explicit_shell_to_writer() {
+    fn print_snippet_writes_to_writer() {
         let mut out = Vec::new();
-        print_snippet(Some("bash"), &mut out).unwrap();
+        print_snippet("bash", &mut out).unwrap();
         let s = String::from_utf8(out).unwrap();
         assert_eq!(s, "eval \"$(COMPLETE=bash detail 2>/dev/null)\"\n");
     }
 
     #[test]
-    fn print_snippet_uses_detected_shell_when_none() {
-        let original = env::var("SHELL").ok();
-        env::set_var("SHELL", "/bin/zsh");
-        let mut out = Vec::new();
-        print_snippet(None, &mut out).unwrap();
-        let s = String::from_utf8(out).unwrap();
-        assert_eq!(s, "source <(COMPLETE=zsh detail)\n");
-        match original {
-            Some(v) => env::set_var("SHELL", v),
-            None => env::remove_var("SHELL"),
-        }
-    }
-
-    #[test]
     fn print_snippet_unsupported_shell_errors() {
         let mut out = Vec::new();
-        assert!(print_snippet(Some("tcsh"), &mut out).is_err());
+        assert!(print_snippet("tcsh", &mut out).is_err());
     }
 }

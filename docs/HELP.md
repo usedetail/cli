@@ -222,11 +222,24 @@ Reopen a previously resolved or dismissed bug — flips it back to pending. Usef
 
 ## `detail completions`
 
-Print shell completion script to stdout
+Print shell completion script to stdout.
 
-Add `source <(detail completions bash)` to your shell rc file (.bashrc, .zshrc, etc.) to enable tab completion. SHELL defaults to whatever is detected from $SHELL.
+Add the appropriate line to your shell's startup file:
 
-Supported shells: bash, zsh, fish, elvish, powershell.
+  bash (~/.bashrc):
+    source <(detail completions bash)
+
+  zsh (~/.zshrc):
+    source <(detail completions zsh)
+
+  fish (~/.config/fish/config.fish):
+    detail completions fish | source
+
+  powershell ($PROFILE):
+    detail completions powershell | Out-String | Invoke-Expression
+
+SHELL defaults to whatever is detected from $SHELL. Supported shells:
+bash, zsh, fish, elvish, powershell.
 
 **Usage:** `detail completions [SHELL]`
 
