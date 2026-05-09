@@ -5,7 +5,7 @@ use std::process::Command;
 ///
 /// Supports HTTPS (`https://github.com/owner/repo.git`),
 /// SSH colon (`git@github.com:owner/repo.git`), and
-/// SSH scheme (`ssh://git@github.com/owner/repo.git`) formats.
+/// SSH scheme (`ssh://git@github.com[:PORT]/owner/repo.git`) formats.
 fn parse_github_remote_url(url: &str) -> Option<String> {
     const PREFIXES: &[&str] = &[
         "https://github.com/",
@@ -15,9 +15,10 @@ fn parse_github_remote_url(url: &str) -> Option<String> {
     ];
 
     // Git accepts HTTPS remotes with embedded credentials
-    // (https://token@github.com/…, https://user:pass@github.com/…).
-    // Normalize to the un-credentialed form before prefix matching.
-    let normalized = strip_http_credentials(url);
+    // (https://token@github.com/…, https://user:pass@github.com/…) and SSH
+    // remotes with explicit ports (ssh://git@github.com:22/…). Normalize
+    // either to a canonical form before prefix matching.
+    let normalized = strip_http_credentials(url).or_else(|| strip_ssh_port(url));
     let url = normalized.as_deref().unwrap_or(url);
 
     let rest = PREFIXES.iter().find_map(|p| url.strip_prefix(p))?;
@@ -25,6 +26,25 @@ fn parse_github_remote_url(url: &str) -> Option<String> {
     let parts: Vec<&str> = rest.splitn(3, '/').collect();
     (parts.len() >= 2 && !parts[0].is_empty() && !parts[1].is_empty())
         .then(|| format!("{}/{}", parts[0], parts[1]))
+}
+
+/// If `url` is an `ssh://` URL whose authority includes an explicit port
+/// (e.g. `ssh://git@github.com:22/owner/repo.git`), return the URL with the
+/// port stripped. Returns `None` for SSH URLs without a port or for URLs
+/// that don't use the `ssh://` scheme.
+fn strip_ssh_port(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("ssh://")?;
+    // The authority runs up to the first `/`. Anything after stays as-is,
+    // so a `:` later in the path won't be mistaken for a port separator.
+    let (authority, path) = rest.split_once('/')?;
+    // Authority is `[user@]host[:port]`. Split off the optional `user@`.
+    let (user_at, host_port) = match authority.rsplit_once('@') {
+        Some((u, h)) => (format!("{u}@"), h),
+        None => (String::new(), authority),
+    };
+    // Only normalize when there's actually a port to strip.
+    let (host, _port) = host_port.split_once(':')?;
+    Some(format!("ssh://{user_at}{host}/{path}"))
 }
 
 /// If `url` is an http(s) URL with `user[:pass]@` credentials in the authority,
@@ -228,6 +248,47 @@ mod tests {
     fn rejects_non_github_host_even_with_credentials() {
         assert_eq!(
             parse_github_remote_url("https://token@gitlab.com/owner/repo.git"),
+            None,
+        );
+    }
+
+    #[test]
+    fn parses_ssh_scheme_with_port() {
+        // Git accepts this URL format; the CLI should too.
+        assert_eq!(
+            parse_github_remote_url("ssh://git@github.com:22/owner/repo.git"),
+            Some("owner/repo".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_ssh_scheme_with_nondefault_port() {
+        assert_eq!(
+            parse_github_remote_url("ssh://git@github.com:443/usedetail/cli.git"),
+            Some("usedetail/cli".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_ssh_scheme_with_port_no_git_suffix() {
+        assert_eq!(
+            parse_github_remote_url("ssh://git@github.com:22/owner/repo"),
+            Some("owner/repo".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_ssh_scheme_with_port_and_trailing_slash() {
+        assert_eq!(
+            parse_github_remote_url("ssh://git@github.com:22/owner/repo.git/"),
+            Some("owner/repo".to_string()),
+        );
+    }
+
+    #[test]
+    fn rejects_ssh_scheme_with_port_for_non_github_host() {
+        assert_eq!(
+            parse_github_remote_url("ssh://git@gitlab.com:22/owner/repo.git"),
             None,
         );
     }
