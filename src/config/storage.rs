@@ -64,16 +64,6 @@ pub fn load_config() -> Result<Config> {
     toml::from_str(&contents).context("Failed to parse config")
 }
 
-pub fn save_config(config: &Config) -> Result<()> {
-    let path = config_path()?;
-    let contents = toml::to_string_pretty(config)?;
-    let file = File::create(&path)?;
-    file.lock_exclusive()?;
-    (&file).write_all(contents.as_bytes())?;
-    file.unlock()?;
-    Ok(())
-}
-
 /// Atomically read-modify-write the config file under an exclusive lock.
 ///
 /// Preserves comments and formatting the user may have added by hand. The
@@ -262,24 +252,7 @@ mod tests {
         });
     }
 
-    // ── save / load round-trip ───────────────────────────────────────
-
-    #[test]
-    fn save_then_load_config() {
-        with_temp_config(|| {
-            let config = Config {
-                api_url: Some("https://test.dev".into()),
-                app_url: None,
-                check_for_updates: true,
-                last_update_check: None,
-                api_token: Some("tok".into()),
-            };
-            save_config(&config).unwrap();
-            let loaded = load_config().unwrap();
-            assert_eq!(loaded.api_url.as_deref(), Some("https://test.dev"));
-            assert_eq!(loaded.api_token.as_deref(), Some("tok"));
-        });
-    }
+    // ── load_config ──────────────────────────────────────────────────
 
     #[test]
     fn load_config_partial_file_defaults_check_for_updates() {
@@ -492,7 +465,7 @@ api_token = \"old_token\"
 
         with_temp_config(|| {
             // Initialize config
-            save_config(&Config::default()).unwrap();
+            update_config(|_| {}).unwrap();
 
             let handles: Vec<_> = (0..10)
                 .map(|i| {
