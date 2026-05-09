@@ -1,10 +1,52 @@
+use std::fmt::Debug;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use reqwest::header::{HeaderMap, AUTHORIZATION};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use progenitor::progenitor_client::ResponseValue;
+use progenitor::progenitor_client::{Error as ProgenitorError, ResponseValue};
+
+/// Convert a progenitor client error into a concise anyhow error.
+///
+/// progenitor's own `Display` for `ErrorResponse` dumps headers and the typed
+/// body via `Debug`, which is the verbose output the CLI is trying to avoid.
+/// This collapses HTTP error responses to `<status> <reason>: <message>` so
+/// the chain stays actionable (e.g. "401 Unauthorized") without leaking
+/// internal struct shape.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "shape matches map_err's FnOnce(E) -> F"
+)]
+fn api_error<E: Debug + Serialize>(e: ProgenitorError<E>) -> anyhow::Error {
+    if let ProgenitorError::ErrorResponse(rv) = &e {
+        let status = rv.status();
+        let head = format!(
+            "API error: {} {}",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("HTTP error"),
+        );
+        let msg = serde_json::to_value(rv.as_ref())
+            .ok()
+            .as_ref()
+            .and_then(|v| v.get("message"))
+            .and_then(serde_json::Value::as_str)
+            .filter(|m| !m.is_empty())
+            .map(str::to_owned);
+        return msg.map_or_else(
+            || anyhow::anyhow!("{head}"),
+            |m| anyhow::anyhow!("{head}: {m}"),
+        );
+    }
+    if let Some(status) = e.status() {
+        return anyhow::anyhow!(
+            "API error: {} {}",
+            status.as_u16(),
+            status.canonical_reason().unwrap_or("HTTP error"),
+        );
+    }
+    anyhow::anyhow!("API error: {e}")
+}
 
 use super::generated::types::CreateRuleBody;
 use super::types::{
@@ -52,7 +94,7 @@ impl ApiClient {
             .get_public_user()
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn list_bugs(
@@ -75,7 +117,7 @@ impl ApiClient {
             )
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn get_bug(&self, bug_id: &BugId) -> Result<Bug> {
@@ -83,7 +125,7 @@ impl ApiClient {
             .get_public_bug(bug_id)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn update_bug_close(
@@ -103,7 +145,7 @@ impl ApiClient {
             .create_public_bug_review(bug_id, &body)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn list_scans(
@@ -118,7 +160,7 @@ impl ApiClient {
             .list_public_scans(NonZeroU64::new(limit.into()), Some(offset.into()), repo_id)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn list_repos(&self, limit: u32, offset: u32) -> Result<ReposResponse> {
@@ -128,7 +170,7 @@ impl ApiClient {
             .list_public_repos(NonZeroU64::new(limit.into()), Some(offset.into()))
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn create_rule(
@@ -144,7 +186,7 @@ impl ApiClient {
             .create_rule(&body)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn list_rules(&self, repo_id: &RepoId) -> Result<RulesResponse> {
@@ -152,7 +194,7 @@ impl ApiClient {
             .list_rules(repo_id)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn get_rule(&self, rule_id: &RuleId) -> Result<Rule> {
@@ -160,7 +202,7 @@ impl ApiClient {
             .get_rule(rule_id)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn get_rule_request(
@@ -171,7 +213,7 @@ impl ApiClient {
             .get_rule_request(rcr_id)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 
     pub async fn list_rule_requests(&self, repo_id: &RepoId) -> Result<RuleRequestsResponse> {
@@ -179,7 +221,7 @@ impl ApiClient {
             .list_rule_requests(repo_id)
             .await
             .map(ResponseValue::into_inner)
-            .map_err(|e| anyhow::anyhow!("API error: {e}"))
+            .map_err(api_error)
     }
 }
 
