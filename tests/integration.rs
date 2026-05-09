@@ -4,6 +4,26 @@
 //! Set `DETAIL_API_KEY` in the environment to enable them; when absent the
 //! tests are silently skipped.
 
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::as_conversions,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_wrap,
+        clippy::needless_collect,
+        clippy::absolute_paths,
+        clippy::if_then_some_else_none,
+        clippy::doc_markdown,
+        clippy::semicolon_outside_block,
+        clippy::redundant_closure_for_method_calls,
+        clippy::tests_outside_test_module,
+        reason = "restriction/pedantic lints relaxed in test cfg — unwrap/expect/panic/casts and minor stylistic lints are idiomatic in tests"
+    )
+)]
+
 use std::path::PathBuf;
 use std::process::Command;
 
