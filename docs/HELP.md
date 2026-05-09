@@ -50,7 +50,7 @@ Common workflow:
 
 * `auth` — Manage login credentials
 * `bugs` — List, show, and close bugs
-* `completions` — Install shell completions (auto-detects your shell)
+* `completions` — Print shell completion script to stdout
 * `rules` — Create and inspect rules
 * `satisfying-sort` — Run a fun animation. Humans only
 * `repos` — Manage repos tracked with Detail
@@ -222,9 +222,30 @@ Reopen a previously resolved or dismissed bug — flips it back to pending. Usef
 
 ## `detail completions`
 
-Install shell completions (auto-detects your shell)
+Print shell completion script to stdout.
 
-**Usage:** `detail completions`
+Add the appropriate line to your shell's startup file:
+
+  bash (~/.bashrc):
+    source <(detail completions bash)
+
+  zsh (~/.zshrc):
+    source <(detail completions zsh)
+
+  fish (~/.config/fish/config.fish):
+    detail completions fish | source
+
+  powershell ($PROFILE):
+    detail completions powershell | Out-String | Invoke-Expression
+
+SHELL defaults to whatever is detected from $SHELL. Supported shells:
+bash, zsh, fish, elvish, powershell.
+
+**Usage:** `detail completions [SHELL]`
+
+###### **Arguments:**
+
+* `<SHELL>` — Shell to print completions for (defaults to $SHELL)
 
 
 
