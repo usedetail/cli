@@ -73,8 +73,12 @@ impl Cli {
                 | commands::rules::RuleCommands::Show { .. }
                 | commands::rules::RuleCommands::Pull { .. } => false,
             },
+            // Completions prints a shell snippet that may be sourced via
+            // `source <(detail completions bash)` from the user's rc file, so
+            // any auto-update notice on stderr would surface on every shell
+            // startup — keep this silent.
+            Commands::Completions { .. } => true,
             Commands::Auth { .. }
-            | Commands::Completions
             | Commands::SatisfyingSort
             | Commands::Skill { .. }
             | Commands::Update
@@ -102,7 +106,7 @@ impl Cli {
         match &self.command {
             Commands::Auth { command } => commands::auth::handle(command, &self).await,
             Commands::Bugs { command } => commands::bugs::handle(command, &self).await,
-            Commands::Completions => commands::completions::handle(),
+            Commands::Completions { shell } => commands::completions::handle(shell.as_deref()),
             Commands::Rules { command } => commands::rules::handle(command, &self).await,
             Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
@@ -137,8 +141,17 @@ enum Commands {
         command: commands::bugs::BugCommands,
     },
 
-    /// Install shell completions (auto-detects your shell)
-    Completions,
+    /// Print shell completion script to stdout
+    ///
+    /// Add `source <(detail completions bash)` to your shell rc file
+    /// (.bashrc, .zshrc, etc.) to enable tab completion. SHELL defaults
+    /// to whatever is detected from $SHELL.
+    ///
+    /// Supported shells: bash, zsh, fish, elvish, powershell.
+    Completions {
+        /// Shell to print completions for (defaults to $SHELL)
+        shell: Option<String>,
+    },
 
     /// Create and inspect rules
     Rules {
@@ -341,6 +354,34 @@ mod tests {
     fn not_silent_for_skill_rules() {
         let cli = Cli::try_parse_from(["detail", "skill", "rules"]).unwrap();
         assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn completions_accepts_optional_shell_arg() {
+        let cli = Cli::try_parse_from(["detail", "completions", "bash"]).unwrap();
+        if let Commands::Completions { shell } = &cli.command {
+            assert_eq!(shell.as_deref(), Some("bash"));
+        } else {
+            panic!("expected completions command");
+        }
+    }
+
+    #[test]
+    fn completions_shell_arg_optional() {
+        let cli = Cli::try_parse_from(["detail", "completions"]).unwrap();
+        if let Commands::Completions { shell } = &cli.command {
+            assert!(shell.is_none());
+        } else {
+            panic!("expected completions command");
+        }
+    }
+
+    #[test]
+    fn silent_for_completions() {
+        // Output is sourced by shell rc files via `source <(detail completions bash)`,
+        // so auto-update notices must stay off.
+        let cli = Cli::try_parse_from(["detail", "completions"]).unwrap();
+        assert!(cli.is_silent());
     }
 
     #[test]
