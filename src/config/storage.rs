@@ -1,7 +1,8 @@
 use std::fs::File;
-use std::io::{ErrorKind, Read as _, Seek as _, SeekFrom, Write as _};
-use std::path::PathBuf;
-use std::{env, fs};
+use std::io::{ErrorKind, Write as _};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::{env, fs, process};
 
 use anyhow::{Context, Result};
 use fs2::FileExt;
@@ -66,15 +67,13 @@ pub fn load_config() -> Result<Config> {
 
 pub fn save_config(config: &Config) -> Result<()> {
     let path = config_path()?;
+    let _lock = acquire_write_lock()?;
     let contents = toml::to_string_pretty(config)?;
-    let file = File::create(&path)?;
-    file.lock_exclusive()?;
-    (&file).write_all(contents.as_bytes())?;
-    file.unlock()?;
-    Ok(())
+    atomic_write(&path, contents.as_bytes())
 }
 
-/// Atomically read-modify-write the config file under an exclusive lock.
+/// Read-modify-write the config file, serialized against other writers and
+/// published atomically so concurrent readers never observe a partial file.
 ///
 /// Preserves comments and formatting the user may have added by hand. The
 /// file is parsed as a `toml_edit::DocumentMut`; we snapshot the typed
@@ -84,16 +83,13 @@ pub fn save_config(config: &Config) -> Result<()> {
 /// the update didn't care about — and leaves unknown user-added keys alone.
 pub fn update_config(f: impl FnOnce(&mut Config)) -> Result<()> {
     let path = config_path()?;
-    let file = File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(&path)?;
-    file.lock_exclusive()?;
+    let _lock = acquire_write_lock()?;
 
-    let mut contents = String::new();
-    (&file).read_to_string(&mut contents)?;
+    let contents = match fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(e) if e.kind() == ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e.into()),
+    };
 
     let mut doc: DocumentMut = contents.parse().context("Failed to parse config")?;
     let mut config: Config = toml::from_str(&contents).context("Failed to parse config")?;
@@ -114,15 +110,108 @@ pub fn update_config(f: impl FnOnce(&mut Config)) -> Result<()> {
         }
     }
 
-    let new_contents = doc.to_string();
-    // Rewrite through the same handle. `File::create` would open a second
-    // file description and leave `file.unlock()` acting on a handle that was
-    // never locked — functionally OK because the real unlock still happens
-    // via Drop at end of scope, but confusing to read.
-    (&file).seek(SeekFrom::Start(0))?;
-    file.set_len(0)?;
-    (&file).write_all(new_contents.as_bytes())?;
-    file.unlock()?;
+    atomic_write(&path, doc.to_string().as_bytes())
+}
+
+/// Path of the lockfile used to serialize concurrent `save_config` /
+/// `update_config` calls. We can't lock the config file itself: writers
+/// publish via `rename(2)`, which swaps in a new inode — any lock on the
+/// previous inode would no longer cover the visible path, so two concurrent
+/// writers would each lock a different (already-unlinked) inode and race.
+fn config_write_lock_path() -> Result<PathBuf> {
+    config_path().map(|p| p.with_file_name("config.lock"))
+}
+
+fn acquire_write_lock() -> Result<File> {
+    let lock_path = config_write_lock_path()?;
+    let file = File::options()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(lock_path)?;
+    file.lock_exclusive()?;
+    Ok(file)
+}
+
+/// Per-process counter for unique temp file names; combined with the PID
+/// it lets concurrent writers (within or across processes) stage to
+/// non-colliding paths.
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Removes a staged temp file on the error path. Disarmed once `rename` has
+/// successfully published the file.
+struct TempCleanup<'a> {
+    path: &'a Path,
+    armed: bool,
+}
+
+impl Drop for TempCleanup<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = fs::remove_file(self.path);
+        }
+    }
+}
+
+/// Write `contents` to `path` atomically: stage to a temp file in the same
+/// directory, then `rename` onto the target. Readers see either the complete
+/// old file or the complete new file — never a partial write.
+///
+/// Mirrors the target's existing Unix mode (or falls back to 0600, since the
+/// config can hold an API token). Cross-filesystem renames aren't atomic, so
+/// the temp file must live in the same directory as the target.
+///
+/// We don't `fsync` the temp file: the bug we're fixing is reader/writer
+/// visibility within a single uptime, not crash durability, and the original
+/// in-place rewrite didn't fsync either. A power loss mid-update can still
+/// leave the file empty, but `load_config` already treats that as defaults.
+fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {
+    let parent = path
+        .parent()
+        .context("config path has no parent directory")?;
+    let mut tmp_name = path
+        .file_name()
+        .context("config path has no file name")?
+        .to_os_string();
+    tmp_name.push(format!(
+        ".tmp.{}.{}",
+        process::id(),
+        TEMP_COUNTER.fetch_add(1, Ordering::Relaxed),
+    ));
+    let tmp_path = parent.join(tmp_name);
+
+    let mut cleanup = TempCleanup {
+        path: &tmp_path,
+        armed: true,
+    };
+
+    let mut opts = File::options();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let _ = opts.mode(0o600);
+    }
+    let mut file = opts.open(&tmp_path)?;
+    file.write_all(contents)?;
+    // Close before rename: on Windows `MoveFileExW` with REPLACE_EXISTING
+    // tolerates open handles inconsistently across versions, and there's no
+    // benefit to keeping the temp file open past this point.
+    drop(file);
+
+    // If there's an existing config, mirror its Unix mode so we don't silently
+    // tighten or loosen what the user set.
+    #[cfg(unix)]
+    if let Ok(meta) = fs::metadata(path) {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(
+            &tmp_path,
+            fs::Permissions::from_mode(meta.permissions().mode()),
+        )?;
+    }
+
+    fs::rename(&tmp_path, path)?;
+    cleanup.armed = false;
     Ok(())
 }
 
@@ -516,6 +605,107 @@ api_token = \"old_token\"
             assert!(config.last_update_check.is_some());
             // Most importantly: the file is not corrupted
             assert!(config.check_for_updates); // default value should survive
+        });
+    }
+
+    /// Hammer concurrent readers against a writer. Pre-fix this race produced
+    /// "Failed to parse config" errors at ~0.005% per read because
+    /// `update_config` truncated the file in place; with the temp-file +
+    /// rename strategy readers should never see a partial file.
+    #[test]
+    fn concurrent_reads_during_writes_never_observe_partial_toml() {
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        use std::sync::Arc;
+        use std::thread;
+        use std::time::{Duration, Instant};
+
+        with_temp_config(|| {
+            // Seed with a sizeable, valid config. The padded token pushes the
+            // file across kernel page boundaries: pre-fix that's what makes
+            // the race window wide enough for a reader's `read_to_end` to
+            // observe a truncated file mid-rewrite within reasonable wall-
+            // clock time. With ~80 byte writes the failure window in the
+            // unfixed code was tight enough that a 30s test could miss it
+            // entirely; with a 16 KiB rewrite it reproduces in seconds.
+            let token_pad = "a".repeat(16 * 1024);
+            update_config(|cfg| {
+                cfg.api_token = Some(token_pad);
+                cfg.api_url = Some("https://api.example.com".into());
+            })
+            .unwrap();
+
+            let stop = Arc::new(AtomicBool::new(false));
+            let reads = Arc::new(AtomicUsize::new(0));
+            let writes = Arc::new(AtomicUsize::new(0));
+            let read_errors = Arc::new(AtomicUsize::new(0));
+
+            let mut readers = Vec::new();
+            for _ in 0..4 {
+                let stop = Arc::clone(&stop);
+                let reads = Arc::clone(&reads);
+                let read_errors = Arc::clone(&read_errors);
+                readers.push(thread::spawn(move || -> Vec<String> {
+                    let mut errs = Vec::new();
+                    while !stop.load(Ordering::Relaxed) {
+                        match load_config() {
+                            Ok(_) => {}
+                            Err(e) => {
+                                read_errors.fetch_add(1, Ordering::Relaxed);
+                                if errs.len() < 5 {
+                                    errs.push(format!("{e:#}"));
+                                }
+                            }
+                        }
+                        reads.fetch_add(1, Ordering::Relaxed);
+                    }
+                    errs
+                }));
+            }
+
+            let writer = {
+                let stop = Arc::clone(&stop);
+                let writes = Arc::clone(&writes);
+                thread::spawn(move || {
+                    let mut i: u64 = 0;
+                    while !stop.load(Ordering::Relaxed) {
+                        update_config(|cfg| {
+                            cfg.last_update_check = Some(i);
+                        })
+                        .unwrap();
+                        writes.fetch_add(1, Ordering::Relaxed);
+                        i = i.wrapping_add(1);
+                    }
+                })
+            };
+
+            // Locally the unfixed code reliably produces parse errors well
+            // before this budget is consumed. The 30s cap is a safety net
+            // for slow CI; with the fix we typically hit the write target
+            // in a few seconds and exit early.
+            let deadline = Instant::now() + Duration::from_secs(30);
+            loop {
+                if writes.load(Ordering::Relaxed) >= 3_000 {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(20));
+            }
+            stop.store(true, Ordering::Relaxed);
+            writer.join().unwrap();
+            let mut sample_errors: Vec<String> = Vec::new();
+            for h in readers {
+                sample_errors.extend(h.join().unwrap());
+            }
+
+            let total_reads = reads.load(Ordering::Relaxed);
+            let total_writes = writes.load(Ordering::Relaxed);
+            let errs = read_errors.load(Ordering::Relaxed);
+            assert_eq!(
+                errs, 0,
+                "saw {errs} read errors across {total_reads} reads / {total_writes} writes; first samples: {sample_errors:#?}",
+            );
         });
     }
 }
