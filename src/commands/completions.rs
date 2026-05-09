@@ -118,7 +118,7 @@ pub fn handle() -> Result<()> {
             join(&installed),
         ))?;
         if !already.is_empty() {
-            term.write_line(&format!("(already present in {})", join(&already),))?;
+            term.write_line(&format!("(already present in {})", join(&already)))?;
         }
     }
     Ok(())
