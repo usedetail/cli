@@ -1,9 +1,6 @@
 use ratatui::{style::Color, Frame};
 
-use super::logo_math::{
-    logo_region_at, shuffled_index_for_nominal, source_local_x_for_index, triangle_nominal_index,
-    LogoRegion,
-};
+use super::logo_math::{logo_region_at, triangle_nominal_index, LogoRegion};
 use super::numeric::{floor_f32_to_usize, round_f32_to_usize, usize_to_f32};
 use super::sort_state::{BandStyle, SortState};
 
@@ -203,13 +200,6 @@ fn pixel_style_at(ctx: &PixelQueryCtx<'_>, local_x: usize, local_y: usize) -> Pi
     if matches!(region, LogoRegion::TopTriangle | LogoRegion::BottomTriangle) {
         let nx = usize_to_f32(local_x) / ctx.x_den;
         let nominal_index = triangle_nominal_index(nx, ctx.n, region);
-        let shuffled_index = visual_source_index_for_nominal(ctx.state, nominal_index, ctx.n);
-        let source_x = source_local_x_for_index(shuffled_index, ctx.n, region, ctx.viewport_width);
-        let source_region =
-            logo_region_at(source_x, local_y, ctx.viewport_width, ctx.viewport_height);
-        if source_region != region {
-            return PixelStyle::Off;
-        }
         return match ctx
             .state
             .style_for_index_with_min_window(nominal_index, ctx.active_min_window)
@@ -221,21 +211,6 @@ fn pixel_style_at(ctx: &PixelQueryCtx<'_>, local_x: usize, local_y: usize) -> Pi
     }
 
     PixelStyle::Base
-}
-
-fn visual_source_index_for_nominal(state: &SortState, nominal_index: usize, n: usize) -> usize {
-    let n = n.max(1);
-    let nominal_index = nominal_index.min(n - 1);
-
-    if state.scan_complete()
-        || state
-            .current_scan_index()
-            .is_some_and(|scan| nominal_index <= scan)
-    {
-        return nominal_index;
-    }
-
-    shuffled_index_for_nominal(state.source_array(), nominal_index, n)
 }
 
 fn min_active_window_for_columns(n: usize, viewport_width: usize, target_columns: usize) -> usize {
@@ -343,6 +318,43 @@ mod tests {
     fn halfblocks_aspect_is_in_valid_range() {
         let aspect = halfblocks_cell_aspect_x();
         assert!((0.5..=4.0).contains(&aspect));
+    }
+
+    #[test]
+    fn idle_phase_populates_every_triangle_pixel() {
+        let mut rng = SmallRng::seed_from_u64(42);
+        let state = SortState::new(1000, &mut rng);
+        let viewport = compute_logo_viewport(140, 50, 1.0).expect("viewport");
+
+        let n = state.len().max(1);
+        let x_den = usize_to_f32(viewport.width.saturating_sub(1).max(1));
+        let active_min_window = min_active_window_for_columns(n, viewport.width, 2);
+        let ctx = PixelQueryCtx {
+            state: &state,
+            n,
+            viewport_width: viewport.width,
+            viewport_height: viewport.side,
+            x_den,
+            active_min_window,
+        };
+
+        let mut triangle_pixels = 0_usize;
+        for local_y in 0..viewport.side {
+            for local_x in 0..viewport.width {
+                let region =
+                    logo_region_at(local_x, local_y, ctx.viewport_width, ctx.viewport_height);
+                if matches!(region, LogoRegion::TopTriangle | LogoRegion::BottomTriangle) {
+                    triangle_pixels = triangle_pixels.saturating_add(1);
+                    let style = pixel_style_at(&ctx, local_x, local_y);
+                    assert_eq!(
+                        style,
+                        PixelStyle::Base,
+                        "triangle pixel at ({local_x}, {local_y}) should be Base during Idle"
+                    );
+                }
+            }
+        }
+        assert!(triangle_pixels > 0, "expected non-empty triangle region");
     }
 
     #[test]
