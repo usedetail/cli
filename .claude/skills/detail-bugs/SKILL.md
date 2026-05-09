@@ -1,15 +1,11 @@
 ---
 name: detail-bugs
-description: Fetch Detail bugs for a repository. List pending bugs, show details for each, fix the bugs, and mark them as resolved or dismissed.
+description: Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, and reopen previously closed bugs.
 ---
 
-# Fetch Detail Bugs
+# Detail Bugs
 
-Get bugs from Detail for a repository and help the user triage them.
-
-## Determining the Repository
-
-The Detail CLI infers the repository from the git remote; if the user specifies a different repo, pass it explicitly to the CLI commands.
+The Detail CLI exposes per-repository bugs through four subcommands: `list`, `show`, `close`, and `reopen`. This skill describes that surface so you can pick the right command for whatever the user is trying to do.
 
 ## Prerequisites
 
@@ -20,58 +16,40 @@ curl --proto '=https' --tlsv1.2 -LsSf https://cli.detail.dev | sh
 
 The user must be authenticated. Assume that the user is authed and run commands directly. If a command fails with an authentication error, run `detail auth login` and guide the user through the process.
 
-## Listing bugs for a specific scan
+## Repository Inference
 
-To scope bugs to a particular scan, first get the scan's workflow request ID:
+The Detail CLI infers the repository from the git remote; if the user specifies a different repo, pass it explicitly to the CLI commands.
 
-```bash
-detail scans list
-```
+## Subcommands
 
-The output includes a `Workflow ID` column (values like `wr_...`). Then pass
-that ID to `bugs list`:
+### `detail bugs list [REPO]`
 
-```bash
-detail bugs list --scan-id <workflow_request_id>
-```
+Lists bugs for the inferred or specified repository.
 
-This returns only bugs found in that scan, still filtered by `--status`
-(default: `pending`). Use `--status resolved`, `--status dismissed`, or combine
-multiple statuses (e.g. `--status resolved,dismissed`) to see closed bugs for
-the scan.
+- `--status pending|resolved|dismissed` — default `pending`; comma-separate or repeat the flag to combine (e.g. `--status resolved,dismissed`).
+- `--vulns` — only security vulnerabilities.
+- `--introduced-by <authors>` — filter by authors (comma-separated or repeated).
+- `--scan-id <wr_…>` — limit to a specific scan. Workflow IDs come from `detail scans list`.
+- `--since` / `--until` — accept a duration (`1d`, `24h`), an ISO date (`YYYY-MM-DD`), or an RFC3339 timestamp.
+- `--all` — auto-paginate across all matching bugs.
+- `--limit <1-100>` (default 50), `--page <N>` (default 1).
+- `--format table|json` (default `table`).
 
-## Step 1: List pending bugs
+### `detail bugs show <BUG_ID>`
 
-Run `detail bugs list` to fetch all pending bugs.
+Shows the full report for a single bug. Reports often include a suggested fix.
 
-Present the list to the user and ask which bug they want to look at first, or
-offer to go through them in order.
+- `--format table|json` — use `json` when parsing rather than displaying.
 
-## Step 2: Show bug details
+### `detail bugs close <BUG_ID>`
 
-For each bug the user wants to review, run `detail bugs show <bug_id>` to
-display the full report.
+Marks a bug as resolved or dismissed. The CLI prompts for `--state` interactively in a TTY; pass it explicitly when invoking non-interactively.
 
-## Step 3: Implement a fix
+- `--state resolved|dismissed`.
+- `--dismissal-reason not-a-bug|wont-fix|duplicate|other` — required when state is `dismissed`.
+- `--notes "..."` — optional free-form context.
+- `--format table|json`.
 
-After reviewing the bug report, implement a fix for the bug in the codebase.
-Many bugs will have a suggested fix as part of the report, which you may want
-to confirm with the user before implementing.
+### `detail bugs reopen <BUG_ID>`
 
-## Step 4: Review the changes
-
-Once you've implemented a fix, confirm with the user if any further changes are
-needed. This is an opportunity for the user review the change, make any tweaks
-and to create a PR.
-
-## Step 5: Resolve or dismiss
-
-After implementing the fix, mark the bug as resolved. If we are not going to
-fix the bug, mark it as dismissed.
-
-- **Resolve**: `detail bugs close <bug_id> --state resolved`
-- **Dismiss**: `detail bugs close <bug_id> --state dismissed --dismissal-reason <reason>`
-  - Valid dismiss reasons: `not-a-bug`, `wont-fix`, `duplicate`, `other`
-  - Add `--notes "..."` if the user provides context.
-
-Then move to the next bug and repeat.
+Flips a previously resolved or dismissed bug back to `pending`. Takes only the bug ID — useful when a fix is reverted or a dismissal is overturned.
