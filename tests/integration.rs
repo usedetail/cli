@@ -400,14 +400,20 @@ fn bugs_list_rejects_invalid_repo_format() {
 
 #[test]
 fn error_includes_status_code_for_auth_failures() {
+    // The token is well-formed (passes the local `dtl_` prefix check) so the
+    // CLI actually sends it to the API; we need a 401 from a real server to
+    // exercise the error-chain mapping. Gate on DETAIL_API_KEY like other
+    // live-API tests so this is skipped offline.
+    let _ = require_api_key!();
+
     let env = Env::new("error_status_code");
     env.write_config(r#"api_token = "dtl_live_invalid_token""#);
 
     let out = env.run(&["repos", "list"]);
     assert!(!out.success);
     assert!(
-        out.stderr.contains("401") || out.stderr.contains("Unauthorized"),
-        "Error should indicate auth failure:\nstderr: {}",
+        out.stderr.contains("401") && out.stderr.contains("Unauthorized"),
+        "Error should include both the 401 status code and \"Unauthorized\":\nstderr: {}",
         out.stderr,
     );
 }
