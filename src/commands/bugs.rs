@@ -403,6 +403,33 @@ async fn fetch_all_bugs_multi_status(
     Ok(combined)
 }
 
+/// Fetch a single page of bugs for each of `statuses`, concatenated in order.
+/// Unlike `fetch_all_bugs_multi_status` this does NOT exhaust every page —
+/// it issues one server-side paginated request per status and merges the
+/// results. This keeps multi-status queries without `--all` fast even on
+/// repos with thousands of bugs.
+async fn fetch_page_multi_status(
+    client: &ApiClient,
+    repo_id: &RepoId,
+    statuses: &[BugReviewState],
+    limit: u32,
+    page: u32,
+    scan_id: Option<&ListPublicBugsWorkflowRequestId>,
+) -> Result<(Vec<Bug>, usize)> {
+    let offset = page_to_offset(page, limit);
+    let mut combined = Vec::new();
+    let mut total: usize = 0;
+    for status in dedupe_statuses(statuses) {
+        let response = client
+            .list_bugs(repo_id, status, limit, offset, scan_id)
+            .await
+            .context("Failed to fetch bugs from repository")?;
+        total += usize::try_from(response.total.max(0)).unwrap_or(0);
+        combined.extend(response.bugs);
+    }
+    Ok((combined, total))
+}
+
 pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
     let client = cli.create_client()?;
 
@@ -439,16 +466,17 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             let since_ms = resolve_time_flag("--since", since.as_deref(), now)?;
             let until_ms = resolve_time_flag("--until", until.as_deref(), now)?;
 
-            // The bugs API takes a single status per request. When the user
-            // asks for several statuses (or `--all`, or any client-side
-            // filter), fan out and combine — that also forces the all-fetch
-            // path so client-side filters and pagination see the merged set.
+            // The bugs API takes a single status per request. When the
+            // user asks for client-side filters (`--all`, `--vulns`,
+            // `--introduced-by`, `--since`, `--until`) we must fetch every
+            // bug to apply them. Multi-status alone does NOT require a full
+            // fetch — we can issue one page-sized request per status.
             let needs_full_fetch = *all
                 || *vulns
                 || !introduced_by.is_empty()
                 || since_ms.is_some()
-                || until_ms.is_some()
-                || status.len() > 1;
+                || until_ms.is_some();
+            let multi_status = status.len() > 1;
 
             if needs_full_fetch {
                 let all_bugs = fetch_all_bugs_multi_status(
@@ -495,6 +523,19 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 }
                 let page_items = paginate_items(&filtered, *page, *limit);
                 output_list(&page_items, total, *page, *limit, format)
+            } else if multi_status {
+                // Multiple statuses but no client-side filters: fetch one
+                // page per status and merge, avoiding a full exhaust.
+                let (bugs, total) = fetch_page_multi_status(
+                    &client,
+                    &resolved_repo_id,
+                    status,
+                    *limit,
+                    *page,
+                    scan_id.as_ref(),
+                )
+                .await?;
+                output_list(&bugs, total, *page, *limit, format)
             } else {
                 // Single-status, no other filters: keep the original
                 // single-page server fetch — cheaper and lets the API drive
