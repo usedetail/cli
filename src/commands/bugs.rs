@@ -404,10 +404,13 @@ async fn fetch_all_bugs_multi_status(
 }
 
 /// Fetch a single page of bugs across multiple `statuses`, concatenated in
-/// order. The caller's `limit` is distributed evenly across statuses so the
-/// merged result never exceeds `limit` items, preserving the page-size
-/// contract. Each status gets its own proportional offset derived from
-/// `page` and its share of the limit.
+/// order and then truncated to `limit` items.
+///
+/// Each status is queried with the full `limit` and a shared `offset`
+/// derived from `page` so that every status gets a fair chance to
+/// contribute results regardless of how many bugs it contains. The merged
+/// list is then truncated to at most `limit` items, preserving the
+/// page-size contract.
 ///
 /// Unlike `fetch_all_bugs_multi_status` this does NOT exhaust every page —
 /// it issues one bounded request per status and merges the results, keeping
@@ -420,24 +423,19 @@ async fn fetch_page_multi_status(
     page: u32,
     scan_id: Option<&ListPublicBugsWorkflowRequestId>,
 ) -> Result<(Vec<Bug>, usize)> {
-    let unique = dedupe_statuses(statuses);
-    let n = u32::try_from(unique.len()).unwrap_or(1).max(1);
-    let per_status_limit = limit / n;
-    let remainder = limit % n;
-
+    let offset = page_to_offset(page, limit);
     let mut combined = Vec::new();
     let mut total: usize = 0;
-    for (i, status) in unique.into_iter().enumerate() {
-        let idx = u32::try_from(i).unwrap_or(0);
-        let sl = per_status_limit + u32::from(idx < remainder);
-        let offset = page_to_offset(page, sl);
+    for status in dedupe_statuses(statuses) {
         let response = client
-            .list_bugs(repo_id, status, sl, offset, scan_id)
+            .list_bugs(repo_id, status, limit, offset, scan_id)
             .await
             .context("Failed to fetch bugs from repository")?;
         total += usize::try_from(response.total.max(0)).unwrap_or(0);
         combined.extend(response.bugs);
     }
+    let limit_usize = usize::try_from(limit).unwrap_or(usize::MAX);
+    combined.truncate(limit_usize);
     Ok((combined, total))
 }
 
