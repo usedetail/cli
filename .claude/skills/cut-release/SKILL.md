@@ -17,13 +17,11 @@ The `release.yml` workflow triggers on pushes to `main` that change `Cargo.toml`
 
 ## Step 1: Decide the New Version
 
-Ask the user what kind of release this is:
+Always bump the **patch** version (the last number) unless the user explicitly requests otherwise:
 
-- **Patch** (bug fixes): `0.2.2` -> `0.2.3`
-- **Minor** (new features, backwards-compatible): `0.2.2` -> `0.3.0`
-- **Major** (breaking changes): `0.2.2` -> `1.0.0`
-
-If the user doesn't specify, default to a **patch** bump.
+- **Patch** (default): `0.2.2` -> `0.2.3`
+- **Minor** (only if requested): `0.2.2` -> `0.3.0`
+- **Major** (only if requested): `0.2.2` -> `1.0.0`
 
 ## Step 2: Bump the Version
 
