@@ -8,6 +8,14 @@ use serde::{Deserialize, Serialize};
 
 use progenitor::progenitor_client::{Error as ProgenitorError, ResponseValue};
 
+use super::generated::types::CreateRuleBody;
+use super::types::{
+    Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugsResponse,
+    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse,
+    ListPublicBugsWorkflowRequestId, RepoId, ReposResponse, Rule, RuleCreationRequestId, RuleId,
+    RuleRequestStatus, RuleRequestsResponse, RulesResponse, ScansResponse, UserInfo,
+};
+
 /// Convert a progenitor client error into a concise anyhow error.
 ///
 /// progenitor's own `Display` for `ErrorResponse` dumps headers and the typed
@@ -48,14 +56,6 @@ fn api_error<E: Debug + Serialize>(e: ProgenitorError<E>) -> anyhow::Error {
     }
     anyhow::anyhow!("API error: {e}")
 }
-
-use super::generated::types::CreateRuleBody;
-use super::types::{
-    Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugsResponse,
-    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse,
-    ListPublicBugsWorkflowRequestId, RepoId, ReposResponse, Rule, RuleCreationRequestId, RuleId,
-    RuleRequestStatus, RuleRequestsResponse, RulesResponse, ScansResponse, UserInfo,
-};
 
 fn base_http_client() -> reqwest::ClientBuilder {
     reqwest::Client::builder()
