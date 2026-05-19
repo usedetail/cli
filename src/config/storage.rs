@@ -172,6 +172,7 @@ pub fn acquire_update_lock() -> Result<File> {
 mod tests {
     use std::process;
     use std::sync::Mutex;
+    use std::thread;
 
     use super::*;
 
@@ -461,8 +462,6 @@ api_token = \"old_token\"
 
     #[test]
     fn concurrent_update_config_does_not_corrupt() {
-        use std::thread;
-
         with_temp_config(|| {
             // Initialize config
             update_config(|_| {}).unwrap();
