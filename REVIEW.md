@@ -5,6 +5,8 @@ Conventions that require human judgment during review. Lint-enforced rules
 
 ## Conventions
 
+- Place all `use` imports at the top of the file or module — never inside function
+  bodies. For test modules, place imports at the top of the `mod tests` block.
 - Do not use `pub(super)`. Use `pub(crate)` or `pub` instead.
 - Prefer the narrowest visibility that compiles — plain `fn` over `pub(crate)`
   when the function is only used within its own module.

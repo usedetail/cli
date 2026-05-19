@@ -223,6 +223,7 @@ enum Commands {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::types::BugReviewState;
 
     #[test]
     fn silent_when_bugs_list_json() {
@@ -460,7 +461,6 @@ mod tests {
 
     #[test]
     fn bugs_list_status_default_is_pending() {
-        use crate::api::types::BugReviewState;
         let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo"]).unwrap();
         if let Commands::Bugs {
             command: commands::bugs::BugCommands::List { status, .. },
@@ -475,7 +475,6 @@ mod tests {
 
     #[test]
     fn bugs_list_status_comma_separated_parses() {
-        use crate::api::types::BugReviewState;
         let cli = Cli::try_parse_from([
             "detail",
             "bugs",
@@ -499,7 +498,6 @@ mod tests {
 
     #[test]
     fn bugs_list_status_repeated_flag_parses() {
-        use crate::api::types::BugReviewState;
         let cli = Cli::try_parse_from([
             "detail",
             "bugs",

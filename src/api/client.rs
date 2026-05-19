@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::num::NonZeroU64;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -105,8 +106,6 @@ impl ApiClient {
         offset: u32,
         scan_id: Option<&ListPublicBugsWorkflowRequestId>,
     ) -> Result<BugsResponse> {
-        use std::num::NonZeroU64;
-
         self.inner
             .list_public_bugs(
                 NonZeroU64::new(limit.into()),
@@ -154,8 +153,6 @@ impl ApiClient {
         limit: u32,
         offset: u32,
     ) -> Result<ScansResponse> {
-        use std::num::NonZeroU64;
-
         self.inner
             .list_public_scans(NonZeroU64::new(limit.into()), Some(offset.into()), repo_id)
             .await
@@ -164,8 +161,6 @@ impl ApiClient {
     }
 
     pub async fn list_repos(&self, limit: u32, offset: u32) -> Result<ReposResponse> {
-        use std::num::NonZeroU64;
-
         self.inner
             .list_public_repos(NonZeroU64::new(limit.into()), Some(offset.into()))
             .await
