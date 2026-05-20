@@ -404,13 +404,12 @@ async fn fetch_all_bugs_multi_status(
 }
 
 /// Fetch a single page of bugs across multiple `statuses`, concatenated in
-/// order and then truncated to `limit` items.
+/// order and then paginated from the combined result.
 ///
-/// Each status is queried with the full `limit` and a shared `offset`
-/// derived from `page` so that every status gets a fair chance to
-/// contribute results regardless of how many bugs it contains. The merged
-/// list is then truncated to at most `limit` items, preserving the
-/// page-size contract.
+/// Each status is queried starting at offset 0 with a fetch limit of
+/// `offset + limit` so that the full combined window is available. The
+/// merged list is then advanced past `offset` items and truncated to at
+/// most `limit` items, ensuring every bug is reachable across pages.
 ///
 /// Unlike `fetch_all_bugs_multi_status` this does NOT exhaust every page —
 /// it issues one bounded request per status and merges the results, keeping
@@ -424,17 +423,20 @@ async fn fetch_page_multi_status(
     scan_id: Option<&ListPublicBugsWorkflowRequestId>,
 ) -> Result<(Vec<Bug>, usize)> {
     let offset = page_to_offset(page, limit);
+    let fetch_limit = offset.saturating_add(limit);
     let mut combined = Vec::new();
     let mut total: usize = 0;
     for status in dedupe_statuses(statuses) {
         let response = client
-            .list_bugs(repo_id, status, limit, offset, scan_id)
+            .list_bugs(repo_id, status, fetch_limit, 0, scan_id)
             .await
             .context("Failed to fetch bugs from repository")?;
         total += usize::try_from(response.total.max(0)).unwrap_or(0);
         combined.extend(response.bugs);
     }
+    let offset_usize = usize::try_from(offset).unwrap_or(usize::MAX);
     let limit_usize = usize::try_from(limit).unwrap_or(usize::MAX);
+    combined.drain(..offset_usize.min(combined.len()));
     combined.truncate(limit_usize);
     Ok((combined, total))
 }
