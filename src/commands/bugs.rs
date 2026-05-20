@@ -403,18 +403,57 @@ async fn fetch_all_bugs_multi_status(
     Ok(combined)
 }
 
-/// Fetch a single page of bugs across multiple `statuses`, concatenated in
-/// order and then truncated to `limit` items.
+/// Fetch up to `max_items` bugs for a single `status`, paginating through
+/// the API in `BUG_PAGE_SIZE` chunks so we never exceed the server limit.
 ///
-/// Each status is queried with the full `limit` and a shared `offset`
-/// derived from `page` so that every status gets a fair chance to
-/// contribute results regardless of how many bugs it contains. The merged
-/// list is then truncated to at most `limit` items, preserving the
-/// page-size contract.
+/// Returns the collected bugs and the total count reported by the API.
+async fn fetch_bugs_up_to(
+    client: &ApiClient,
+    repo_id: &RepoId,
+    status: BugReviewState,
+    max_items: u32,
+    scan_id: Option<&ListPublicBugsWorkflowRequestId>,
+) -> Result<(Vec<Bug>, usize)> {
+    let max_usize = usize::try_from(max_items).unwrap_or(usize::MAX);
+    let mut bugs = Vec::new();
+    let mut offset: u32 = 0;
+    let mut total: usize = 0;
+
+    loop {
+        let remaining = max_items.saturating_sub(offset);
+        if remaining == 0 {
+            break;
+        }
+        let page_size = BUG_PAGE_SIZE.min(remaining);
+        let response = client
+            .list_bugs(repo_id, status, page_size, offset, scan_id)
+            .await
+            .context("Failed to fetch bugs from repository")?;
+        total = usize::try_from(response.total.max(0)).unwrap_or(0);
+        let page_len = response.bugs.len();
+        bugs.extend(response.bugs);
+
+        if page_len == 0 || bugs.len() >= max_usize || bugs.len() >= total {
+            break;
+        }
+        offset = offset.saturating_add(u32::try_from(page_len).unwrap_or(u32::MAX));
+    }
+
+    bugs.truncate(max_usize);
+    Ok((bugs, total))
+}
+
+/// Fetch a single page of bugs across multiple `statuses`, concatenated in
+/// order and then paginated from the combined result.
+///
+/// Each status is fetched from offset 0 up to `offset + limit` items
+/// (paginating internally in `BUG_PAGE_SIZE` chunks to respect the API
+/// limit). The merged list is then advanced past `offset` items and
+/// truncated to at most `limit` items, ensuring every bug is reachable
+/// across pages.
 ///
 /// Unlike `fetch_all_bugs_multi_status` this does NOT exhaust every page —
-/// it issues one bounded request per status and merges the results, keeping
-/// multi-status queries fast even on repos with thousands of bugs.
+/// it fetches only enough items per status to fill the requested window.
 async fn fetch_page_multi_status(
     client: &ApiClient,
     repo_id: &RepoId,
@@ -424,17 +463,18 @@ async fn fetch_page_multi_status(
     scan_id: Option<&ListPublicBugsWorkflowRequestId>,
 ) -> Result<(Vec<Bug>, usize)> {
     let offset = page_to_offset(page, limit);
+    let fetch_limit = offset.saturating_add(limit);
     let mut combined = Vec::new();
     let mut total: usize = 0;
     for status in dedupe_statuses(statuses) {
-        let response = client
-            .list_bugs(repo_id, status, limit, offset, scan_id)
-            .await
-            .context("Failed to fetch bugs from repository")?;
-        total += usize::try_from(response.total.max(0)).unwrap_or(0);
-        combined.extend(response.bugs);
+        let (bugs, status_total) =
+            fetch_bugs_up_to(client, repo_id, status, fetch_limit, scan_id).await?;
+        total += status_total;
+        combined.extend(bugs);
     }
+    let offset_usize = usize::try_from(offset).unwrap_or(usize::MAX);
     let limit_usize = usize::try_from(limit).unwrap_or(usize::MAX);
+    combined.drain(..offset_usize.min(combined.len()));
     combined.truncate(limit_usize);
     Ok((combined, total))
 }
@@ -1103,6 +1143,189 @@ mod tests {
         let items = vec![1, 2, 3];
         let page = paginate_items(&items, 3, 2);
         assert!(page.is_empty());
+    }
+
+    // ── multi-status pagination ────────────────────────────────────
+
+    fn make_bugs(prefix: &str, count: usize) -> Vec<Bug> {
+        (0..count)
+            .map(|i| {
+                serde_json::from_value(serde_json::json!({
+                    "id": format!("bug_{prefix}_{i}"),
+                    "title": format!("{prefix} bug {i}"),
+                    "summary": "...",
+                    "createdAt": i,
+                    "repoId": "repo_1",
+                    "linkedIssues": []
+                }))
+                .unwrap()
+            })
+            .collect()
+    }
+
+    /// Simulate the API: given the full list of bugs for a status, return
+    /// at most `limit` items starting at `offset`.
+    fn simulate_api(all: &[Bug], limit: u32, offset: u32) -> Vec<Bug> {
+        let off = usize::try_from(offset).unwrap_or(usize::MAX);
+        let lim = usize::try_from(limit).unwrap_or(usize::MAX);
+        all.iter().skip(off).take(lim).cloned().collect()
+    }
+
+    /// Simulate the *old* `fetch_page_multi_status` approach: shared offset
+    /// per status, then concatenate and truncate.
+    fn simulate_old_pagination(per_status: &[&[Bug]], page: u32, limit: u32) -> Vec<Bug> {
+        let offset = page_to_offset(page, limit);
+        let mut combined = Vec::new();
+        for bugs in per_status {
+            combined.extend(simulate_api(bugs, limit, offset));
+        }
+        let lim = usize::try_from(limit).unwrap_or(usize::MAX);
+        combined.truncate(lim);
+        combined
+    }
+
+    /// Simulate the *new* `fetch_page_multi_status` approach: each status
+    /// fetched from offset 0 up to `offset + limit`, then drain + truncate
+    /// on the combined list.
+    fn simulate_new_pagination(per_status: &[&[Bug]], page: u32, limit: u32) -> Vec<Bug> {
+        let offset = page_to_offset(page, limit);
+        let fetch_limit = offset.saturating_add(limit);
+        let mut combined = Vec::new();
+        for bugs in per_status {
+            combined.extend(simulate_api(bugs, fetch_limit, 0));
+        }
+        let off = usize::try_from(offset).unwrap_or(usize::MAX);
+        let lim = usize::try_from(limit).unwrap_or(usize::MAX);
+        combined.drain(..off.min(combined.len()));
+        combined.truncate(lim);
+        combined
+    }
+
+    /// Collect all bug IDs across every page until empty.
+    fn collect_all_ids(
+        per_status: &[&[Bug]],
+        limit: u32,
+        paginate: fn(&[&[Bug]], u32, u32) -> Vec<Bug>,
+    ) -> Vec<String> {
+        let mut ids = Vec::new();
+        for page in 1_u32.. {
+            let bugs = paginate(per_status, page, limit);
+            if bugs.is_empty() {
+                break;
+            }
+            ids.extend(bugs.iter().map(|b| b.id.to_string()));
+        }
+        ids
+    }
+
+    #[test]
+    fn old_pagination_drops_resolved_bugs_issue_300() {
+        // Issue scenario: 50 pending + 40 resolved, limit=50.
+        // The old approach drops all 40 resolved bugs.
+        let pending = make_bugs("pending", 50);
+        let resolved = make_bugs("resolved", 40);
+        let per_status: Vec<&[Bug]> = vec![&pending, &resolved];
+
+        let all_ids = collect_all_ids(&per_status, 50, simulate_old_pagination);
+        // Old approach only finds the 50 pending bugs; the 40 resolved are lost.
+        assert_eq!(all_ids.len(), 50, "old approach should only find 50 of 90");
+        assert!(
+            !all_ids.iter().any(|id| id.starts_with("bug_resolved")),
+            "old approach should miss all resolved bugs"
+        );
+    }
+
+    #[test]
+    fn new_pagination_returns_all_bugs_issue_300() {
+        // Same scenario: 50 pending + 40 resolved, limit=50.
+        // The new approach returns all 90 bugs across 2 pages.
+        let pending = make_bugs("pending", 50);
+        let resolved = make_bugs("resolved", 40);
+        let per_status: Vec<&[Bug]> = vec![&pending, &resolved];
+
+        let all_ids = collect_all_ids(&per_status, 50, simulate_new_pagination);
+        assert_eq!(all_ids.len(), 90, "new approach should find all 90 bugs");
+        assert_eq!(
+            all_ids
+                .iter()
+                .filter(|id| id.starts_with("bug_pending"))
+                .count(),
+            50
+        );
+        assert_eq!(
+            all_ids
+                .iter()
+                .filter(|id| id.starts_with("bug_resolved"))
+                .count(),
+            40
+        );
+    }
+
+    #[test]
+    fn new_pagination_page1_returns_first_limit_bugs() {
+        let pending = make_bugs("pending", 50);
+        let resolved = make_bugs("resolved", 40);
+        let per_status: Vec<&[Bug]> = vec![&pending, &resolved];
+
+        let page1 = simulate_new_pagination(&per_status, 1, 50);
+        assert_eq!(page1.len(), 50);
+        assert!(page1
+            .iter()
+            .all(|b| b.id.to_string().starts_with("bug_pending")));
+    }
+
+    #[test]
+    fn new_pagination_page2_returns_remaining_bugs() {
+        let pending = make_bugs("pending", 50);
+        let resolved = make_bugs("resolved", 40);
+        let per_status: Vec<&[Bug]> = vec![&pending, &resolved];
+
+        let page2 = simulate_new_pagination(&per_status, 2, 50);
+        assert_eq!(page2.len(), 40);
+        assert!(page2
+            .iter()
+            .all(|b| b.id.to_string().starts_with("bug_resolved")));
+    }
+
+    #[test]
+    fn new_pagination_even_split_across_pages() {
+        // 30 pending + 30 resolved, limit=50 → page 1 has 50, page 2 has 10.
+        let pending = make_bugs("pending", 30);
+        let resolved = make_bugs("resolved", 30);
+        let per_status: Vec<&[Bug]> = vec![&pending, &resolved];
+
+        let page1 = simulate_new_pagination(&per_status, 1, 50);
+        assert_eq!(page1.len(), 50);
+        // First 30 are pending, next 20 are resolved.
+        assert_eq!(
+            page1
+                .iter()
+                .filter(|b| b.id.to_string().starts_with("bug_pending"))
+                .count(),
+            30
+        );
+        assert_eq!(
+            page1
+                .iter()
+                .filter(|b| b.id.to_string().starts_with("bug_resolved"))
+                .count(),
+            20
+        );
+
+        let page2 = simulate_new_pagination(&per_status, 2, 50);
+        assert_eq!(page2.len(), 10);
+        assert!(page2
+            .iter()
+            .all(|b| b.id.to_string().starts_with("bug_resolved")));
+    }
+
+    #[test]
+    fn new_pagination_past_last_page_is_empty() {
+        let pending = make_bugs("pending", 10);
+        let per_status: Vec<&[Bug]> = vec![&pending];
+
+        let page2 = simulate_new_pagination(&per_status, 2, 50);
+        assert!(page2.is_empty());
     }
 
     // `format_introduced_in` moved to `crate::api::types`; tests now live
