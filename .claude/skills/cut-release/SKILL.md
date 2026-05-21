@@ -19,9 +19,9 @@ The `release.yml` workflow triggers on pushes to `main` that change `Cargo.toml`
 
 Always bump the **patch** version (the last number) unless the user explicitly requests otherwise:
 
-- **Patch** (default): `0.2.2` -> `0.2.3`
-- **Minor** (only if requested): `0.2.2` -> `0.3.0`
-- **Major** (only if requested): `0.2.2` -> `1.0.0`
+- **Patch** (default): `0.2.4` -> `0.2.5`
+- **Minor** (only if requested): `0.2.4` -> `0.3.0`
+- **Major** (only if requested): `0.2.4` -> `1.0.0`
 
 ## Step 2: Bump the Version
 
