@@ -130,6 +130,9 @@
       },
       "BugReview": {
         "properties": {
+          "asanaStateName": {
+            "type": "string"
+          },
           "createdAt": {
             "type": "integer"
           },
@@ -179,6 +182,7 @@
           "review",
           "linear",
           "jira",
+          "asana",
           "github_issue",
           "bug_fix_check"
         ],
