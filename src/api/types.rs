@@ -72,12 +72,13 @@ pub fn format_linked_issue(issue: &LinkedIssue) -> String {
             .url
             .as_deref()
             .map_or_else(|| tracker.clone(), |url| format!("{tracker}: {url}")),
-        LinkedIssueTracker::Linear | LinkedIssueTracker::Jira | LinkedIssueTracker::Github => {
-            issue.url.as_ref().map_or_else(
-                || format!("{tracker}: {}", issue.issue_id),
-                |url| format!("{tracker}: {} \u{2014} {url}", issue.issue_id),
-            )
-        }
+        LinkedIssueTracker::Linear
+        | LinkedIssueTracker::Jira
+        | LinkedIssueTracker::Github
+        | LinkedIssueTracker::Asana => issue.url.as_ref().map_or_else(
+            || format!("{tracker}: {}", issue.issue_id),
+            |url| format!("{tracker}: {} \u{2014} {url}", issue.issue_id),
+        ),
     }
 }
 
@@ -169,7 +170,8 @@ impl Formattable for Bug {
                     LinkedIssueTracker::Slack => i.tracker.to_string(),
                     LinkedIssueTracker::Linear
                     | LinkedIssueTracker::Jira
-                    | LinkedIssueTracker::Github => format!("{}: {}", i.tracker, i.issue_id),
+                    | LinkedIssueTracker::Github
+                    | LinkedIssueTracker::Asana => format!("{}: {}", i.tracker, i.issue_id),
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
