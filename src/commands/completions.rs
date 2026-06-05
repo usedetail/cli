@@ -101,6 +101,8 @@ mod tests {
 
         if let Some(val) = original {
             env::set_var("SHELL", val);
+        } else {
+            env::remove_var("SHELL");
         }
     }
 
@@ -130,6 +132,8 @@ mod tests {
 
         if let Some(val) = original {
             env::set_var("SHELL", val);
+        } else {
+            env::remove_var("SHELL");
         }
     }
 
@@ -144,6 +148,8 @@ mod tests {
 
         if let Some(val) = original {
             env::set_var("SHELL", val);
+        } else {
+            env::remove_var("SHELL");
         }
     }
 
@@ -159,6 +165,8 @@ mod tests {
 
         if let Some(val) = original {
             env::set_var("SHELL", val);
+        } else {
+            env::remove_var("SHELL");
         }
     }
 }
