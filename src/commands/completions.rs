@@ -5,8 +5,16 @@ use anyhow::{bail, Context, Result};
 
 fn detect_shell() -> Result<String> {
     let shell = env::var("SHELL").context("could not detect shell from $SHELL")?;
+    let shell = shell.trim();
+    if shell.is_empty() {
+        bail!("$SHELL is empty");
+    }
+    let shell = shell.trim_end_matches('/');
     // $SHELL is e.g. "/bin/zsh" — take the basename
-    let name = shell.rsplit('/').next().unwrap_or(&shell);
+    let name = shell.rsplit('/').next().unwrap_or(shell);
+    if name.is_empty() {
+        bail!("could not extract shell name from $SHELL: {shell}");
+    }
     Ok(name.to_lowercase())
 }
 
@@ -108,5 +116,49 @@ mod tests {
     fn print_snippet_unsupported_shell_errors() {
         let mut out = Vec::new();
         assert!(print_snippet("tcsh", &mut out).is_err());
+    }
+
+    #[test]
+    fn detect_shell_empty_errors() {
+        let original = env::var("SHELL").ok();
+        env::set_var("SHELL", "");
+        let err = detect_shell().unwrap_err();
+        assert!(
+            err.to_string().contains("$SHELL is empty"),
+            "unexpected error: {err}"
+        );
+
+        if let Some(val) = original {
+            env::set_var("SHELL", val);
+        }
+    }
+
+    #[test]
+    fn detect_shell_trailing_slashes() {
+        let original = env::var("SHELL").ok();
+        env::set_var("SHELL", "/usr/bin/zsh/");
+        assert_eq!(detect_shell().unwrap(), "zsh");
+
+        env::set_var("SHELL", "/usr/bin/bash///");
+        assert_eq!(detect_shell().unwrap(), "bash");
+
+        if let Some(val) = original {
+            env::set_var("SHELL", val);
+        }
+    }
+
+    #[test]
+    fn detect_shell_whitespace_only_errors() {
+        let original = env::var("SHELL").ok();
+        env::set_var("SHELL", "   ");
+        let err = detect_shell().unwrap_err();
+        assert!(
+            err.to_string().contains("$SHELL is empty"),
+            "unexpected error: {err}"
+        );
+
+        if let Some(val) = original {
+            env::set_var("SHELL", val);
+        }
     }
 }
