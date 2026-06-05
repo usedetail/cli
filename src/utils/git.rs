@@ -43,7 +43,12 @@ fn strip_ssh_port(url: &str) -> Option<String> {
         None => (String::new(), authority),
     };
     // Only normalize when there's actually a port to strip.
-    let (host, _port) = host_port.split_once(':')?;
+    let host = if host_port.starts_with('[') {
+        // IPv6 bracketed host, e.g. `[::1]:22` — split on `]:`.
+        host_port.split_once("]:").map(|(h, _)| format!("{h}]"))?
+    } else {
+        host_port.rsplit_once(':').map(|(h, _)| h.to_string())?
+    };
     Some(format!("ssh://{user_at}{host}/{path}"))
 }
 
@@ -283,6 +288,12 @@ mod tests {
             parse_github_remote_url("ssh://git@github.com:22/owner/repo.git/"),
             Some("owner/repo".to_string()),
         );
+    }
+
+    #[test]
+    fn strip_ssh_port_handles_ipv6() {
+        let result = strip_ssh_port("ssh://git@[::1]:22/owner/repo.git");
+        assert_eq!(result, Some("ssh://git@[::1]/owner/repo.git".to_string()),);
     }
 
     #[test]
