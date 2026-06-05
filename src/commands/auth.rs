@@ -39,7 +39,13 @@ pub enum AuthCommands {
 pub async fn handle(command: &AuthCommands, cli: &crate::Cli) -> Result<()> {
     match command {
         AuthCommands::Login { token } => {
-            let config = storage::load_config().unwrap_or_default();
+            let config = storage::load_config()
+                .inspect_err(|e| {
+                    let _ = Term::stderr().write_line(&format!(
+                        "Warning: Config file has errors, using default settings: {e}"
+                    ));
+                })
+                .unwrap_or_default();
             let api_url = config
                 .api_url
                 .as_deref()
