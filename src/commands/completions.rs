@@ -51,6 +51,21 @@ pub fn handle(shell: Option<&str>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static SHELL_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_shell_var(value: &str, f: impl FnOnce()) {
+        let _guard = SHELL_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let original = env::var("SHELL").ok();
+        env::set_var("SHELL", value);
+        f();
+        if let Some(val) = original {
+            env::set_var("SHELL", val);
+        } else {
+            env::remove_var("SHELL");
+        }
+    }
 
     #[test]
     fn snippet_bash() {
@@ -89,21 +104,15 @@ mod tests {
 
     #[test]
     fn detect_shell_from_env() {
-        let original = env::var("SHELL").ok();
-        env::set_var("SHELL", "/usr/bin/zsh");
-        assert_eq!(detect_shell().unwrap(), "zsh");
-
-        env::set_var("SHELL", "/bin/bash");
-        assert_eq!(detect_shell().unwrap(), "bash");
-
-        env::set_var("SHELL", "fish");
-        assert_eq!(detect_shell().unwrap(), "fish");
-
-        if let Some(val) = original {
-            env::set_var("SHELL", val);
-        } else {
-            env::remove_var("SHELL");
-        }
+        with_shell_var("/usr/bin/zsh", || {
+            assert_eq!(detect_shell().unwrap(), "zsh");
+        });
+        with_shell_var("/bin/bash", || {
+            assert_eq!(detect_shell().unwrap(), "bash");
+        });
+        with_shell_var("fish", || {
+            assert_eq!(detect_shell().unwrap(), "fish");
+        });
     }
 
     #[test]
@@ -122,51 +131,33 @@ mod tests {
 
     #[test]
     fn detect_shell_empty_errors() {
-        let original = env::var("SHELL").ok();
-        env::set_var("SHELL", "");
-        let err = detect_shell().unwrap_err();
-        assert!(
-            err.to_string().contains("$SHELL is empty"),
-            "unexpected error: {err}"
-        );
-
-        if let Some(val) = original {
-            env::set_var("SHELL", val);
-        } else {
-            env::remove_var("SHELL");
-        }
+        with_shell_var("", || {
+            let err = detect_shell().unwrap_err();
+            assert!(
+                err.to_string().contains("$SHELL is empty"),
+                "unexpected error: {err}"
+            );
+        });
     }
 
     #[test]
     fn detect_shell_trailing_slashes() {
-        let original = env::var("SHELL").ok();
-        env::set_var("SHELL", "/usr/bin/zsh/");
-        assert_eq!(detect_shell().unwrap(), "zsh");
-
-        env::set_var("SHELL", "/usr/bin/bash///");
-        assert_eq!(detect_shell().unwrap(), "bash");
-
-        if let Some(val) = original {
-            env::set_var("SHELL", val);
-        } else {
-            env::remove_var("SHELL");
-        }
+        with_shell_var("/usr/bin/zsh/", || {
+            assert_eq!(detect_shell().unwrap(), "zsh");
+        });
+        with_shell_var("/usr/bin/bash///", || {
+            assert_eq!(detect_shell().unwrap(), "bash");
+        });
     }
 
     #[test]
     fn detect_shell_whitespace_only_errors() {
-        let original = env::var("SHELL").ok();
-        env::set_var("SHELL", "   ");
-        let err = detect_shell().unwrap_err();
-        assert!(
-            err.to_string().contains("$SHELL is empty"),
-            "unexpected error: {err}"
-        );
-
-        if let Some(val) = original {
-            env::set_var("SHELL", val);
-        } else {
-            env::remove_var("SHELL");
-        }
+        with_shell_var("   ", || {
+            let err = detect_shell().unwrap_err();
+            assert!(
+                err.to_string().contains("$SHELL is empty"),
+                "unexpected error: {err}"
+            );
+        });
     }
 }
