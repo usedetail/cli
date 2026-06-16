@@ -210,7 +210,7 @@ enum Commands {
     /// Install Detail skills (default: detail-bugs)
     Skill {
         /// Install to user-level ~/.claude/skills instead of the current repo
-        #[arg(long)]
+        #[arg(long, global = true)]
         user: bool,
 
         #[command(subcommand)]
