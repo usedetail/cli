@@ -148,7 +148,7 @@ impl Cli {
             Commands::SatisfyingSort => commands::satisfying_sort::handle().await,
             Commands::Repos { command } => commands::repos::handle(command, &self).await,
             Commands::Scans { command } => commands::scans::handle(command, &self).await,
-            Commands::Skill { command } => commands::skill::handle(command.as_ref()),
+            Commands::Skill { user, command } => commands::skill::handle(command.as_ref(), *user),
             Commands::Update => commands::update::handle().await,
             Commands::Version => {
                 console::Term::stdout().write_line(&format!("detail-cli v{VERSION}"))?;
@@ -209,6 +209,10 @@ enum Commands {
 
     /// Install Detail skills (default: detail-bugs)
     Skill {
+        /// Install to user-level ~/.claude/skills instead of the current repo
+        #[arg(long)]
+        user: bool,
+
         #[command(subcommand)]
         command: Option<commands::skill::SkillCommands>,
     },

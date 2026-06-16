@@ -5,6 +5,7 @@ use std::str;
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
+use homedir::my_home;
 
 const BUGS_SKILL_CONTENT: &str = include_str!("../../.claude/skills/detail-bugs/SKILL.md");
 const RULES_SKILL_CONTENT: &str = include_str!("../../.claude/skills/detail-create-rules/SKILL.md");
@@ -22,12 +23,17 @@ fn parse_git_root_output(success: bool, stdout: &[u8]) -> Result<PathBuf> {
     Ok(PathBuf::from(root.trim()))
 }
 
-fn skill_install_path(repo_root: &Path, skill_name: &str) -> PathBuf {
-    repo_root
-        .join(".claude")
+fn skill_install_path(base: &Path, skill_name: &str) -> PathBuf {
+    base.join(".claude")
         .join("skills")
         .join(skill_name)
         .join("SKILL.md")
+}
+
+fn user_home() -> Result<PathBuf> {
+    my_home()
+        .context("failed to determine home directory")?
+        .context("home directory not found")
 }
 
 fn git_root() -> Result<PathBuf> {
@@ -52,12 +58,12 @@ fn install_skill(repo_root: &Path, skill_name: &str, content: &str) -> Result<()
     Ok(())
 }
 
-pub fn handle(command: Option<&SkillCommands>) -> Result<()> {
-    let root = git_root()?;
+pub fn handle(command: Option<&SkillCommands>, user: bool) -> Result<()> {
+    let base = if user { user_home()? } else { git_root()? };
     match command {
-        None => install_skill(&root, "detail-bugs", BUGS_SKILL_CONTENT),
+        None => install_skill(&base, "detail-bugs", BUGS_SKILL_CONTENT),
         Some(SkillCommands::Rules) => {
-            install_skill(&root, "detail-create-rules", RULES_SKILL_CONTENT)
+            install_skill(&base, "detail-create-rules", RULES_SKILL_CONTENT)
         }
     }
 }
@@ -99,6 +105,15 @@ mod tests {
         assert_eq!(
             path,
             PathBuf::from("/work/repo/.claude/skills/detail-create-rules/SKILL.md")
+        );
+    }
+
+    #[test]
+    fn skill_install_path_user_level() {
+        let path = skill_install_path(Path::new("/home/alice"), "detail-bugs");
+        assert_eq!(
+            path,
+            PathBuf::from("/home/alice/.claude/skills/detail-bugs/SKILL.md")
         );
     }
 }
