@@ -487,11 +487,15 @@ List recent scans for a repository
 
 Install Detail skills (default: detail-bugs)
 
-**Usage:** `detail skill [COMMAND]`
+**Usage:** `detail skill [OPTIONS] [COMMAND]`
 
 ###### **Subcommands:**
 
 * `rules` — Install the detail-create-rules skill
+
+###### **Options:**
+
+* `--user` — Install to user-level ~/.claude/skills instead of the current repo
 
 
 
