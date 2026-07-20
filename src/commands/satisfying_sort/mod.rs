@@ -25,7 +25,7 @@ use render::{compute_logo_viewport, halfblocks_cell_aspect_x, render_halfblocks_
 use sort_state::{sort_delay_ms, SortState};
 
 const ARRAY_SIZE: usize = 1000;
-const SPEED: u8 = 20;
+const SPEED: u8 = 82;
 const NOISE: u8 = 100;
 const GREEN_SPEED: u8 = 50;
 const LOOP_DELAY_MS: u64 = 2000;
