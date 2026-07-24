@@ -53,6 +53,9 @@
             "nullable": true,
             "type": "string"
           },
+          "fixPr": {
+            "$ref": "#/components/schemas/FixPr"
+          },
           "id": {
             "$ref": "#/components/schemas/BugId"
           },
@@ -184,7 +187,8 @@
           "jira",
           "asana",
           "github_issue",
-          "bug_fix_check"
+          "bug_fix_check",
+          "detail_fix_pr"
         ],
         "type": "string"
       },
@@ -207,6 +211,30 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "FixPr": {
+        "properties": {
+          "prNumber": {
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "merged",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prNumber",
+          "url",
+          "state"
+        ],
         "type": "object"
       },
       "IntroducedIn": {
