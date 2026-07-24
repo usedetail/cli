@@ -7,8 +7,9 @@ use dialoguer::{Input, Select};
 
 use crate::api::client::ApiClient;
 use crate::api::types::{
-    dismissal_reason_label, format_introduced_in, format_linked_issue, review_state_label, Bug,
-    BugDismissalReason, BugId, BugReviewState, ListPublicBugsWorkflowRequestId, RepoId,
+    dismissal_reason_label, format_fix_pr, format_introduced_in, format_linked_issue,
+    review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
+    ListPublicBugsWorkflowRequestId, RepoId,
 };
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::datetime::{format_datetime, parse_time_spec};
@@ -332,6 +333,9 @@ fn render_bug_show(bug: &Bug) -> Result<()> {
     }
     for issue in &bug.linked_issues {
         pairs.push(("Issue", format_linked_issue(issue)));
+    }
+    if let Some(fix_pr) = &bug.fix_pr {
+        pairs.push(("Fix PR", format_fix_pr(fix_pr)));
     }
     SectionRenderer::new()
         .key_value("", &pairs)

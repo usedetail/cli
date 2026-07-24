@@ -6,10 +6,10 @@ use crate::utils::datetime::{format_date, format_datetime};
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
     Bug, BugCounts, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
-    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, IntroducedIn, LinkedIssue,
-    LinkedIssueTracker, ListPublicBugsWorkflowRequestId, Org, OrgId, Repo, RepoId, Rule,
-    RuleCreationRequestId, RuleId, RuleListItem, RuleRequestResult, RuleRequestStatus, RuleStatus,
-    Scan, ScanInitiator, ScanType, WorkflowStatus,
+    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, FixPr, IntroducedIn,
+    LinkedIssue, LinkedIssueTracker, ListPublicBugsWorkflowRequestId, Org, OrgId, Repo, RepoId,
+    Rule, RuleCreationRequestId, RuleId, RuleListItem, RuleRequestResult, RuleRequestStatus,
+    RuleStatus, Scan, ScanInitiator, ScanType, WorkflowStatus,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
@@ -80,6 +80,15 @@ pub fn format_linked_issue(issue: &LinkedIssue) -> String {
             |url| format!("{tracker}: {} \u{2014} {url}", issue.issue_id),
         ),
     }
+}
+
+/// Format the Detail-generated fix PR (number, state, and URL) for the
+/// detail/show view, rendered as `#<number> (<state>) — <url>`.
+pub fn format_fix_pr(fix_pr: &FixPr) -> String {
+    format!(
+        "#{} ({}) \u{2014} {}",
+        fix_pr.pr_number, fix_pr.state, fix_pr.url
+    )
 }
 
 // ── clap::ValueEnum ──────────────────────────────────────────────────
@@ -176,6 +185,12 @@ impl Formattable for Bug {
                 .collect::<Vec<_>>()
                 .join(", ");
             pairs.push(("Linked Issues", formatted));
+        }
+        if let Some(fix_pr) = &self.fix_pr {
+            pairs.push((
+                "Fix PR",
+                format!("#{} ({})", fix_pr.pr_number, fix_pr.state),
+            ));
         }
         (self.title.clone(), pairs)
     }
@@ -449,6 +464,41 @@ mod tests {
         assert_eq!(
             v,
             Some(&"PR #42 (abc1234) on 2024-12-23 by alice".to_string())
+        );
+    }
+
+    // ── fix PR ───────────────────────────────────────────────────────
+
+    #[test]
+    fn bug_card_includes_fix_pr_when_present() {
+        let bug: Bug = serde_json::from_value(serde_json::json!({
+            "id": "bug_fixed", "title": "...", "summary": "...",
+            "createdAt": 1, "repoId": "repo_1", "linkedIssues": [],
+            "fixPr": { "prNumber": 42, "url": "https://x/pull/42", "state": "merged" }
+        }))
+        .expect("valid Bug JSON");
+        let (_, pairs) = bug.to_card();
+        let v = pairs.iter().find(|(k, _)| *k == "Fix PR").map(|(_, v)| v);
+        assert_eq!(v, Some(&"#42 (merged)".to_string()));
+    }
+
+    #[test]
+    fn bug_card_omits_fix_pr_when_absent() {
+        let (_, pairs) = sample_bug().to_card();
+        assert!(!pairs.iter().any(|(k, _)| *k == "Fix PR"));
+    }
+
+    #[test]
+    fn format_fix_pr_includes_number_state_and_url() {
+        let fix_pr: FixPr = serde_json::from_value(serde_json::json!({
+            "prNumber": 42,
+            "url": "https://github.com/acme/repo/pull/42",
+            "state": "open"
+        }))
+        .expect("valid FixPr JSON");
+        assert_eq!(
+            format_fix_pr(&fix_pr),
+            "#42 (open) \u{2014} https://github.com/acme/repo/pull/42"
         );
     }
 
