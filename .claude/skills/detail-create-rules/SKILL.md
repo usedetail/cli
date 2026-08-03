@@ -9,7 +9,7 @@ Guide the user through creating one or more new rules for their repository.
 
 ## Determining the Repository
 
-The Detail CLI infers the repository from the git remote; if the user specifies a different repo, pass it explicitly to the CLI commands.
+The Detail CLI infers the repository from the git or jj remote; if the user specifies a different repo, pass it explicitly to the CLI commands.
 
 ## Prerequisites
 

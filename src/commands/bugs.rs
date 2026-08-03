@@ -13,9 +13,9 @@ use crate::api::types::{
 };
 use crate::output::{output_list, SectionRenderer};
 use crate::utils::datetime::{format_datetime, parse_time_spec};
-use crate::utils::git::resolve_repo_arg;
 use crate::utils::pagination::page_to_offset;
 use crate::utils::repos::resolve_repo_id;
+use crate::utils::vcs::resolve_repo_arg;
 
 /// Return only bugs where `isSecurityVulnerability` is `true`.
 fn filter_vulns_only(bugs: &[Bug]) -> Vec<Bug> {
@@ -116,7 +116,7 @@ pub enum BugCommands {
     /// List bugs for a given repository
     List {
         /// Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli).
-        /// If omitted, inferred from the git remote (origin).
+        /// If omitted, inferred from the git or jj remote (origin).
         repo: Option<String>,
 
         /// Status filter — repeat the flag or comma-separate values to

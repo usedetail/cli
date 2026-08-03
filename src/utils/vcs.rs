@@ -1,5 +1,37 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
+use std::path::PathBuf;
 use std::process::Command;
+
+/// Run `program` with `args`, returning trimmed stdout when the command
+/// spawns, exits successfully, and prints valid UTF-8.
+fn run_capture(program: &str, args: &[&str]) -> Option<String> {
+    let output = Command::new(program).args(args).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    Some(stdout.trim().to_string())
+}
+
+/// Find the root of the enclosing repository.
+///
+/// Tries git first (which also covers colocated jj repos, since those have
+/// a real `.git` directory), then falls back to jj for non-colocated jj
+/// workspaces.
+pub fn repo_root() -> Result<PathBuf> {
+    run_capture("git", &["rev-parse", "--show-toplevel"])
+        .or_else(|| run_capture("jj", &["root"]))
+        .map(PathBuf::from)
+        .context("not inside a git or jj repository")
+}
+
+/// Extract the `origin` remote's URL from `jj git remote list` output,
+/// which prints one `name url` pair per line.
+fn parse_jj_remote_list(list: &str) -> Option<String> {
+    list.lines()
+        .find_map(|line| line.strip_prefix("origin "))
+        .map(|url| url.trim().to_string())
+}
 
 /// Extract `owner/repo` from a GitHub remote URL.
 ///
@@ -70,40 +102,108 @@ fn strip_http_credentials(url: &str) -> Option<String> {
     None
 }
 
-/// Infer the `owner/repo` identifier from the current git repository by
-/// checking the `origin` remote.
+/// Infer the `owner/repo` identifier from the current repository by checking
+/// the `origin` remote — via git first, then jj for non-colocated jj
+/// workspaces.
 ///
 /// Returns `Ok(owner/repo)` on success, or an error if we are not inside a
-/// git repository or the `origin` remote is not a recognisable GitHub URL.
-pub fn infer_repo_from_git_remote() -> Result<String> {
-    let output = Command::new("git")
-        .args(["remote", "get-url", "origin"])
-        .output();
+/// git or jj repository or the `origin` remote is not a recognisable GitHub
+/// URL.
+pub fn infer_repo_from_remote() -> Result<String> {
+    let url = run_capture("git", &["remote", "get-url", "origin"]).or_else(|| {
+        run_capture("jj", &["git", "remote", "list"])
+            .as_deref()
+            .and_then(parse_jj_remote_list)
+    });
 
-    if let Ok(output) = output {
-        if output.status.success() {
-            let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if let Some(owner_repo) = parse_github_remote_url(&url) {
-                return Ok(owner_repo);
-            }
-        }
+    if let Some(owner_repo) = url.as_deref().and_then(parse_github_remote_url) {
+        return Ok(owner_repo);
     }
 
     bail!(
-        "Could not infer repository from git remotes. \
+        "Could not infer repository from git or jj remotes. \
          Please pass a repo argument explicitly (e.g. owner/repo)."
     )
 }
 
-/// If `explicit` is `Some`, return it. Otherwise try to infer from the git
-/// remote. Wraps the inference error to tell the user to supply the argument.
+/// If `explicit` is `Some`, return it. Otherwise try to infer from the
+/// repository remote. Wraps the inference error to tell the user to supply
+/// the argument.
 pub fn resolve_repo_arg(explicit: Option<&str>) -> Result<String> {
-    explicit.map_or_else(infer_repo_from_git_remote, |r| Ok(r.to_string()))
+    explicit.map_or_else(infer_repo_from_remote, |r| Ok(r.to_string()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── run_capture ─────────────────────────────────────────────────
+
+    #[test]
+    #[cfg(unix)]
+    fn run_capture_trims_trailing_newline() {
+        assert_eq!(
+            run_capture("echo", &["/tmp/repo"]),
+            Some("/tmp/repo".to_string()),
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn run_capture_returns_none_on_failure_status() {
+        assert_eq!(run_capture("false", &[]), None);
+    }
+
+    #[test]
+    fn run_capture_returns_none_for_missing_program() {
+        assert_eq!(
+            run_capture("definitely-not-a-real-program-detail", &[]),
+            None
+        );
+    }
+
+    // ── parse_jj_remote_list ────────────────────────────────────────
+
+    #[test]
+    fn jj_remote_list_single_origin() {
+        assert_eq!(
+            parse_jj_remote_list("origin https://github.com/usedetail/cli.git"),
+            Some("https://github.com/usedetail/cli.git".to_string()),
+        );
+    }
+
+    #[test]
+    fn jj_remote_list_origin_among_multiple_remotes() {
+        let list = "fork git@github.com:someone/cli.git\n\
+                    origin git@github.com:usedetail/cli.git\n\
+                    upstream https://github.com/other/cli.git";
+        assert_eq!(
+            parse_jj_remote_list(list),
+            Some("git@github.com:usedetail/cli.git".to_string()),
+        );
+    }
+
+    #[test]
+    fn jj_remote_list_without_origin() {
+        assert_eq!(
+            parse_jj_remote_list("upstream https://github.com/other/cli.git"),
+            None,
+        );
+    }
+
+    #[test]
+    fn jj_remote_list_empty() {
+        assert_eq!(parse_jj_remote_list(""), None);
+    }
+
+    #[test]
+    fn jj_remote_list_prefix_name_does_not_match() {
+        // A remote named `originx` must not be mistaken for `origin`.
+        assert_eq!(
+            parse_jj_remote_list("originx https://github.com/other/cli.git"),
+            None,
+        );
+    }
 
     // ── parse_github_remote_url ─────────────────────────────────────
 

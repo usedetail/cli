@@ -5,16 +5,16 @@ use crate::api::client::ApiClient;
 use crate::api::types::{RepoId, Scan, ScanType, ScansResponse, WorkflowStatus};
 use crate::output::output_list;
 use crate::utils::datetime::parse_time_spec;
-use crate::utils::git::resolve_repo_arg;
 use crate::utils::pagination::page_to_offset;
 use crate::utils::repos::resolve_repo_id;
+use crate::utils::vcs::resolve_repo_arg;
 
 #[derive(Subcommand)]
 pub enum ScanCommands {
     /// List recent scans for a repository
     List {
         /// Repository in owner/repo format or just repo name.
-        /// If omitted, inferred from the git remote (origin).
+        /// If omitted, inferred from the git or jj remote (origin).
         repo: Option<String>,
 
         /// Filter by workflow status (e.g. failed scans in the last day).
