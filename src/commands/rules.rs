@@ -12,15 +12,15 @@ use crate::api::types::{
 };
 use crate::output::{output_list, Formattable, SectionRenderer};
 use crate::utils::datetime::{format_date, format_datetime};
-use crate::utils::git::resolve_repo_arg;
 use crate::utils::repos::resolve_repo_id;
+use crate::utils::vcs::resolve_repo_arg;
 
 #[derive(Subcommand)]
 pub enum RuleCommands {
     /// Submit a rule creation request for a repository
     Create {
         /// Repository by owner/repo (e.g., usedetail/cli) or repo name.
-        /// If omitted, inferred from the git remote (origin).
+        /// If omitted, inferred from the git or jj remote (origin).
         repo: Option<String>,
 
         /// Description of the rule to create
@@ -39,7 +39,7 @@ pub enum RuleCommands {
     /// Ask Detail to propose rules for a repository
     Propose {
         /// Repository by owner/repo (e.g., usedetail/cli) or repo name.
-        /// If omitted, inferred from the git remote (origin).
+        /// If omitted, inferred from the git or jj remote (origin).
         repo: Option<String>,
     },
 
@@ -50,7 +50,7 @@ pub enum RuleCommands {
     /// List completed rules for a repository
     List {
         /// Repository by owner/repo (e.g., usedetail/cli) or repo name.
-        /// If omitted, inferred from the git remote (origin).
+        /// If omitted, inferred from the git or jj remote (origin).
         repo: Option<String>,
 
         /// Output format
@@ -80,7 +80,7 @@ pub enum RuleRequestCommands {
     /// List rule creation requests for a repository
     List {
         /// Repository by owner/repo (e.g., usedetail/cli) or repo name.
-        /// If omitted, inferred from the git remote (origin).
+        /// If omitted, inferred from the git or jj remote (origin).
         repo: Option<String>,
 
         /// Output format

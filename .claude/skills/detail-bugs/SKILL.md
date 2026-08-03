@@ -18,7 +18,7 @@ The user must be authenticated. Assume that the user is authed and run commands 
 
 ## Repository Inference
 
-The Detail CLI infers the repository from the git remote; if the user specifies a different repo, pass it explicitly to the CLI commands.
+The Detail CLI infers the repository from the git or jj remote; if the user specifies a different repo, pass it explicitly to the CLI commands.
 
 ## Subcommands
 
