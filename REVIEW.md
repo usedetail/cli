@@ -15,7 +15,8 @@ Conventions that require human judgment during review. Lint-enforced rules
 - `--format json` must produce valid JSON. Never mix human-readable text (hints,
   update notices) into JSON output — guard behind a format check.
 - New commands that accept a `repo` positional should make it optional and fall
-  back to inferring `owner/repo` from the git remote.
+  back to inferring `owner/repo` from the git or jj remote (see
+  `src/utils/vcs.rs`).
 
 ## Generated code
 
