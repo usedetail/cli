@@ -118,6 +118,14 @@ fn total_pages(total: usize, limit: u32) -> u32 {
         .max(1)
 }
 
+/// Clamp a page number to the last page that exists.
+///
+/// Client-side filtering can shrink a result set below the requested page,
+/// which would otherwise render an impossible `Page: 2 of 1`.
+pub fn clamp_page(page: u32, total: usize, limit: u32) -> u32 {
+    page.clamp(1, total_pages(total, limit))
+}
+
 /// Generic helper to output a list of items in the requested format
 pub fn output_list<T: Formattable + Serialize>(
     items: &[T],
@@ -195,6 +203,28 @@ mod tests {
     fn total_pages_limit_zero_returns_one() {
         // limit=0 is prevented by clap, but the function should not panic
         assert_eq!(total_pages(10, 0), 1);
+    }
+
+    // ── clamp_page ───────────────────────────────────────────────────
+
+    #[test]
+    fn clamp_page_keeps_valid_page() {
+        assert_eq!(clamp_page(2, 100, 50), 2);
+    }
+
+    #[test]
+    fn clamp_page_lowers_page_beyond_last() {
+        assert_eq!(clamp_page(5, 10, 50), 1);
+    }
+
+    #[test]
+    fn clamp_page_empty_results_is_first_page() {
+        assert_eq!(clamp_page(3, 0, 50), 1);
+    }
+
+    #[test]
+    fn clamp_page_raises_zero_to_first_page() {
+        assert_eq!(clamp_page(0, 100, 50), 1);
     }
 
     // ── SectionRenderer builder ──────────────────────────────────────
