@@ -26,11 +26,18 @@ pub fn repo_root() -> Result<PathBuf> {
 }
 
 /// Extract the `origin` remote's URL from `jj git remote list` output,
-/// which prints one `name url` pair per line.
+/// which prints one `name url` pair per line. When a remote's fetch and push
+/// URLs differ, jj appends a ` (push: <url>)` annotation that is dropped here
+/// so only the fetch URL is returned.
 fn parse_jj_remote_list(list: &str) -> Option<String> {
     list.lines()
         .find_map(|line| line.strip_prefix("origin "))
-        .map(|url| url.trim().to_string())
+        .map(|url| {
+            url.split_once(" (push:")
+                .map_or(url, |(fetch, _)| fetch)
+                .trim()
+                .to_string()
+        })
 }
 
 /// Extract `owner/repo` from a GitHub remote URL.
@@ -94,7 +101,9 @@ fn strip_http_credentials(url: &str) -> Option<String> {
             // (or end of string). Anything after the authority — including a
             // `@` in the path — stays untouched.
             let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
-            if let Some((_, host)) = authority.split_once('@') {
+            // The credentials/host separator is the *last* `@`, since a
+            // password or token may itself contain `@`.
+            if let Some((_, host)) = authority.rsplit_once('@') {
                 return Some(format!("{scheme}{host}/{path}"));
             }
         }
@@ -202,6 +211,17 @@ mod tests {
         assert_eq!(
             parse_jj_remote_list("originx https://github.com/other/cli.git"),
             None,
+        );
+    }
+
+    #[test]
+    fn jj_remote_list_strips_push_url_annotation() {
+        // jj appends `(push: <url>)` when fetch and push URLs differ.
+        assert_eq!(
+            parse_jj_remote_list(
+                "origin https://github.com/usedetail/cli.git (push: https://other.com/cli.git)"
+            ),
+            Some("https://github.com/usedetail/cli.git".to_string()),
         );
     }
 
@@ -326,6 +346,15 @@ mod tests {
     fn parses_https_with_user_pass_credentials() {
         assert_eq!(
             parse_github_remote_url("https://user:pass@github.com/usedetail/cli.git"),
+            Some("usedetail/cli".to_string()),
+        );
+    }
+
+    #[test]
+    fn parses_https_with_at_sign_in_password() {
+        // The credentials/host separator is the last `@`, not the first.
+        assert_eq!(
+            parse_github_remote_url("https://user:p@ss@github.com/usedetail/cli.git"),
             Some("usedetail/cli".to_string()),
         );
     }
