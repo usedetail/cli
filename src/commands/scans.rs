@@ -3,7 +3,7 @@ use clap::Subcommand;
 
 use crate::api::client::ApiClient;
 use crate::api::types::{RepoId, Scan, ScanType, ScansResponse, WorkflowStatus};
-use crate::output::output_list;
+use crate::output::{clamp_page, output_list};
 use crate::utils::datetime::parse_time_spec;
 use crate::utils::pagination::page_to_offset;
 use crate::utils::repos::resolve_repo_id;
@@ -157,8 +157,9 @@ pub async fn handle(command: &ScanCommands, cli: &crate::Cli) -> Result<()> {
                     until_ms,
                 );
                 let total = filtered.len();
-                let page_items = paginate_items(&filtered, *page, *limit);
-                output_list(&page_items, total, *page, *limit, format)
+                let page = clamp_page(*page, total, *limit);
+                let page_items = paginate_items(&filtered, page, *limit);
+                output_list(&page_items, total, page, *limit, format)
             } else {
                 let offset = page_to_offset(*page, *limit);
                 let scans = client

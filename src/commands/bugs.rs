@@ -11,7 +11,7 @@ use crate::api::types::{
     review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
     ListPublicBugsWorkflowRequestId, RepoId,
 };
-use crate::output::{output_list, SectionRenderer};
+use crate::output::{clamp_page, output_list, SectionRenderer};
 use crate::utils::datetime::{format_datetime, parse_time_spec};
 use crate::utils::pagination::page_to_offset;
 use crate::utils::repos::resolve_repo_id;
@@ -574,8 +574,9 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     let effective_limit = u32::try_from(total.max(1)).unwrap_or(u32::MAX);
                     return output_list(&filtered, total, 1, effective_limit, format);
                 }
-                let page_items = paginate_items(&filtered, *page, *limit);
-                output_list(&page_items, total, *page, *limit, format)
+                let page = clamp_page(*page, total, *limit);
+                let page_items = paginate_items(&filtered, page, *limit);
+                output_list(&page_items, total, page, *limit, format)
             } else if multi_status {
                 // Multiple statuses but no client-side filters: fetch one
                 // page per status and merge, avoiding a full exhaust.

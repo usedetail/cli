@@ -82,13 +82,19 @@ pub fn format_linked_issue(issue: &LinkedIssue) -> String {
     }
 }
 
-/// Format the Detail-generated fix PR (number, state, and URL) for the
-/// detail/show view, rendered as `#<number> (<state>) — <url>`.
+/// Format the Detail-generated fix PR for the detail/show view.
+///
+/// Rendered as `#<number> (<state>) — <url>`. The URL and its separator are
+/// omitted when the API returns an empty URL.
 pub fn format_fix_pr(fix_pr: &FixPr) -> String {
-    format!(
-        "#{} ({}) \u{2014} {}",
-        fix_pr.pr_number, fix_pr.state, fix_pr.url
-    )
+    if fix_pr.url.is_empty() {
+        format!("#{} ({})", fix_pr.pr_number, fix_pr.state)
+    } else {
+        format!(
+            "#{} ({}) \u{2014} {}",
+            fix_pr.pr_number, fix_pr.state, fix_pr.url
+        )
+    }
 }
 
 // ── clap::ValueEnum ──────────────────────────────────────────────────
@@ -500,6 +506,17 @@ mod tests {
             format_fix_pr(&fix_pr),
             "#42 (open) \u{2014} https://github.com/acme/repo/pull/42"
         );
+    }
+
+    #[test]
+    fn format_fix_pr_omits_separator_when_url_empty() {
+        let fix_pr: FixPr = serde_json::from_value(serde_json::json!({
+            "prNumber": 42,
+            "url": "",
+            "state": "merged"
+        }))
+        .expect("valid FixPr JSON");
+        assert_eq!(format_fix_pr(&fix_pr), "#42 (merged)");
     }
 
     // ── format_introduced_in ─────────────────────────────────────────
