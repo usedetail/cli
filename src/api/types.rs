@@ -6,10 +6,11 @@ use crate::utils::datetime::{format_date, format_datetime};
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
     Bug, BugCounts, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
-    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, FixPr, IntroducedIn,
-    LinkedIssue, LinkedIssueTracker, ListPublicBugsWorkflowRequestId, Org, OrgId, Repo, RepoId,
-    Rule, RuleCreationRequestId, RuleId, RuleListItem, RuleRequestResult, RuleRequestStatus,
-    RuleStatus, Scan, ScanInitiator, ScanType, WorkflowStatus,
+    BugSortOrder, CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, FixPr,
+    IntroducedIn, LinkedIssue, LinkedIssueTracker, ListPublicBugsWorkflowRequestId, Org, OrgId,
+    Priority, PriorityReason, Repo, RepoId, Rule, RuleCreationRequestId, RuleId, RuleListItem,
+    RuleRequestResult, RuleRequestStatus, RuleStatus, Scan, ScanInitiator, ScanType,
+    UpdatePublicBugPriorityBody, WorkflowStatus,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
@@ -19,6 +20,7 @@ pub type ReposResponse = super::generated::types::ListPublicReposResponse;
 pub type ScansResponse = super::generated::types::ListPublicScansResponse;
 pub type RulesResponse = super::generated::types::ListRulesResponse;
 pub type RuleRequestsResponse = super::generated::types::ListRuleRequestsResponse;
+pub type PriorityUpdate = super::generated::types::UpdatePublicBugPriorityResponse;
 
 // ── Display helpers ──────────────────────────────────────────────────
 // progenitor already implements Display for the generated enums, so we
@@ -38,6 +40,16 @@ pub const fn dismissal_reason_label(r: &BugDismissalReason) -> &'static str {
         BugDismissalReason::WontFix => "Won't Fix",
         BugDismissalReason::Duplicate => "Duplicate",
         BugDismissalReason::Other => "Other",
+    }
+}
+
+/// Priority with its severity word, for detail views. List views use the bare
+/// `P1`/`P2`/`P3` from `Display` to keep columns narrow.
+pub const fn priority_label(p: &Priority) -> &'static str {
+    match p {
+        Priority::P1 => "P1 (High)",
+        Priority::P2 => "P2 (Medium)",
+        Priority::P3 => "P3 (Low)",
     }
 }
 
@@ -128,6 +140,34 @@ impl clap::ValueEnum for BugDismissalReason {
     }
 }
 
+impl clap::ValueEnum for Priority {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::P1, Self::P2, Self::P3]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::P1 => Some(PossibleValue::new("p1")),
+            Self::P2 => Some(PossibleValue::new("p2")),
+            Self::P3 => Some(PossibleValue::new("p3")),
+        }
+    }
+}
+
+impl clap::ValueEnum for BugSortOrder {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Newest, Self::Oldest, Self::Priority]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::Newest => Some(PossibleValue::new("newest")),
+            Self::Oldest => Some(PossibleValue::new("oldest")),
+            Self::Priority => Some(PossibleValue::new("priority")),
+        }
+    }
+}
+
 impl clap::ValueEnum for WorkflowStatus {
     fn value_variants<'a>() -> &'a [Self] {
         &[Self::InProgress, Self::Complete, Self::Failed, Self::Dlq]
@@ -160,10 +200,13 @@ impl clap::ValueEnum for ScanType {
 
 impl Formattable for Bug {
     fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
-        let mut pairs = vec![
-            ("Bug ID", self.id.to_string()),
-            ("Created", format_date(self.created_at)),
-        ];
+        let mut pairs = vec![("Bug ID", self.id.to_string())];
+        // Priority leads: it is the field triage sorts and filters on, and a
+        // bare `P1` keeps the column narrow. Absent for bugs never scored.
+        if let Some(priority) = &self.priority {
+            pairs.push(("Priority", priority.to_string()));
+        }
+        pairs.push(("Created", format_date(self.created_at)));
         // Each remaining field is conditional so non-applicable bugs don't
         // get a forest of "-" rows. Triage threads regularly need file path
         // and introducing PR — pulling them straight from `--format json`

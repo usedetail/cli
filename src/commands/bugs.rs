@@ -1,21 +1,91 @@
 use std::convert::TryInto;
+use std::fmt::Write as _;
 
 use anyhow::{bail, Context, Result};
+use clap::builder::PossibleValue;
 use clap::Subcommand;
 use console::{style, Term};
 use dialoguer::{Input, Select};
 
-use crate::api::client::ApiClient;
+use crate::api::client::{ApiClient, BugListQuery};
 use crate::api::types::{
     dismissal_reason_label, format_fix_pr, format_introduced_in, format_linked_issue,
-    review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
-    ListPublicBugsWorkflowRequestId, RepoId,
+    priority_label, review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
+    BugSortOrder, ListPublicBugsWorkflowRequestId, Priority, RepoId,
 };
 use crate::output::{clamp_page, output_list, SectionRenderer};
 use crate::utils::datetime::{format_datetime, parse_time_spec};
 use crate::utils::pagination::page_to_offset;
 use crate::utils::repos::resolve_repo_id;
 use crate::utils::vcs::resolve_repo_arg;
+
+/// A `--priority` selection: one of the three levels, or `none` for bugs
+/// Detail never scored.
+///
+/// `none` has to be expressible. Priorities are assigned at scan time, so a
+/// bug found before scoring existed carries none and matches no level — this
+/// is the only way to ask for those bugs rather than have a filter drop them.
+// `pub` because it is a field type on `BugCommands`, which xtask reaches
+// through `detail_cli::Cli` to generate docs/HELP.md; narrowing it trips
+// `private_interfaces`. The helpers below have no such constraint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PriorityFilter {
+    P1,
+    P2,
+    P3,
+    None,
+}
+
+impl PriorityFilter {
+    /// The wire value the API expects for this entry.
+    const fn as_query_value(self) -> &'static str {
+        match self {
+            Self::P1 => "P1",
+            Self::P2 => "P2",
+            Self::P3 => "P3",
+            Self::None => "none",
+        }
+    }
+}
+
+/// Join `--priority` values into the comma-separated form the API takes.
+///
+/// Preserves first-seen order and drops repeats. Returns `None` for an empty
+/// selection so the query param is omitted rather than sent empty — the API
+/// rejects an empty value rather than reading it as "no filter".
+fn priority_query(filters: &[PriorityFilter]) -> Option<String> {
+    if filters.is_empty() {
+        return None;
+    }
+    let mut deduped: Vec<PriorityFilter> = Vec::with_capacity(filters.len());
+    for filter in filters {
+        if !deduped.contains(filter) {
+            deduped.push(*filter);
+        }
+    }
+    Some(
+        deduped
+            .iter()
+            .map(|f| f.as_query_value())
+            .collect::<Vec<_>>()
+            .join(","),
+    )
+}
+
+impl clap::ValueEnum for PriorityFilter {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::P1, Self::P2, Self::P3, Self::None]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::P1 => Some(PossibleValue::new("p1")),
+            Self::P2 => Some(PossibleValue::new("p2")),
+            Self::P3 => Some(PossibleValue::new("p3")),
+            Self::None => Some(PossibleValue::new("none")),
+        }
+    }
+}
 
 /// Return only bugs where `isSecurityVulnerability` is `true`.
 fn filter_vulns_only(bugs: &[Bug]) -> Vec<Bug> {
@@ -101,6 +171,46 @@ fn empty_filter_hint(pre_filter: &[Bug], vulns: bool) -> String {
     }
 }
 
+/// Severity rank for `--sort priority`: most severe first, unscored last.
+/// Mirrors the ordering the API applies, so a merged multi-status result reads
+/// the same as a single-status one; keep the two in step.
+const fn priority_rank(bug: &Bug) -> u8 {
+    match bug.priority {
+        Some(Priority::P1) => 0,
+        Some(Priority::P2) => 1,
+        Some(Priority::P3) => 2,
+        None => 3,
+    }
+}
+
+/// Re-apply `sort` across bugs merged from several single-status requests.
+///
+/// The API takes one status per call, so `--status pending,resolved` is two
+/// calls whose results get concatenated: each block is ordered, the whole is
+/// not. Without this, `--sort priority` over two statuses would show every
+/// pending bug (P1 first) and only then start over at P1 for the resolved
+/// ones. Single-status queries are already ordered by the server and skip it.
+fn sort_bugs(bugs: &mut [Bug], sort: BugSortOrder) {
+    match sort {
+        BugSortOrder::Newest => bugs.sort_by(|a, b| {
+            b.created_at
+                .cmp(&a.created_at)
+                .then_with(|| b.id.as_str().cmp(a.id.as_str()))
+        }),
+        BugSortOrder::Oldest => bugs.sort_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+        }),
+        BugSortOrder::Priority => bugs.sort_by(|a, b| {
+            priority_rank(a)
+                .cmp(&priority_rank(b))
+                .then_with(|| b.created_at.cmp(&a.created_at))
+                .then_with(|| b.id.as_str().cmp(a.id.as_str()))
+        }),
+    }
+}
+
 fn paginate_items<T: Clone>(items: &[T], page: u32, limit: u32) -> Vec<T> {
     let offset = usize::try_from(page_to_offset(page, limit)).unwrap_or(0);
     items
@@ -127,6 +237,17 @@ pub enum BugCommands {
         /// Only show security vulnerabilities
         #[arg(long)]
         vulns: bool,
+
+        /// Only show bugs at these priorities — repeat the flag or
+        /// comma-separate values (e.g. `--priority p1,p2`). Use `none` for
+        /// bugs Detail never assigned a priority. Default: all priorities.
+        #[arg(long, value_enum, value_delimiter = ',')]
+        priority: Vec<PriorityFilter>,
+
+        /// Result ordering. `priority` puts the most severe bugs first and
+        /// unprioritized bugs last.
+        #[arg(long, value_enum, default_value = "newest")]
+        sort: BugSortOrder,
 
         /// Only show bugs introduced by these authors (comma-separated or repeat flag)
         #[arg(long, value_delimiter = ',')]
@@ -202,6 +323,24 @@ pub enum BugCommands {
         /// Bug ID
         bug_id: String,
     },
+
+    /// Set a bug's priority, overriding Detail's own assessment
+    Prioritize {
+        /// Bug ID
+        bug_id: String,
+
+        /// Priority to set (prompted interactively if omitted in a TTY)
+        #[arg(long, value_enum)]
+        priority: Option<Priority>,
+
+        /// Why the priority is changing — recorded on the bug's timeline
+        #[arg(long)]
+        comment: Option<String>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value = "table")]
+        format: crate::OutputFormat,
+    },
 }
 
 // ── Interactive prompt helpers ──────────────────────────────────────
@@ -235,6 +374,22 @@ fn prompt_dismissal_reason() -> Result<BugDismissalReason> {
         1 => Ok(BugDismissalReason::WontFix),
         2 => Ok(BugDismissalReason::Duplicate),
         _ => Ok(BugDismissalReason::Other),
+    }
+}
+
+/// Prompt for priority via arrow-key selection.
+fn prompt_priority() -> Result<Priority> {
+    let items = ["P1 (High)", "P2 (Medium)", "P3 (Low)"];
+    let selection = Select::new()
+        .with_prompt("Priority")
+        .items(items)
+        .default(0)
+        .interact()
+        .context("Failed to read priority selection")?;
+    match selection {
+        0 => Ok(Priority::P1),
+        1 => Ok(Priority::P2),
+        _ => Ok(Priority::P3),
     }
 }
 
@@ -306,9 +461,24 @@ fn validate_close_flags(
 
 /// Render a single bug as the human-readable `bugs show` view.
 fn render_bug_show(bug: &Bug) -> Result<()> {
-    let mut pairs: Vec<(&str, String)> = vec![
-        ("ID", bug.id.to_string()),
-        ("Title", bug.title.clone()),
+    let mut pairs: Vec<(&str, String)> =
+        vec![("ID", bug.id.to_string()), ("Title", bug.title.clone())];
+    if let Some(priority) = &bug.priority {
+        pairs.push(("Priority", priority_label(priority).to_string()));
+    }
+    // Only the single-bug route returns a rationale, so this is the one view
+    // that can answer "why is this a P1?".
+    if let Some(reason) = &bug.priority_reason {
+        pairs.push(("Rationale", reason.text.clone()));
+        if !reason.is_current {
+            let mut overridden = format!("Detail assigned {}", reason.generated_priority);
+            if let Some(note) = &reason.override_comment {
+                let _ = write!(overridden, "; changed because: {note}");
+            }
+            pairs.push(("Override", overridden));
+        }
+    }
+    pairs.extend([
         ("File", bug.file_path.as_deref().unwrap_or("-").to_string()),
         ("Created", format_datetime(bug.created_at)),
         (
@@ -317,7 +487,7 @@ fn render_bug_show(bug: &Bug) -> Result<()> {
                 .map_or("-", |v| if v { "Yes" } else { "No" })
                 .to_string(),
         ),
-    ];
+    ]);
     if let Some(intro) = &bug.introduced_in {
         pairs.push(("Introduced", format_introduced_in(intro)));
     }
@@ -351,14 +521,14 @@ async fn fetch_all_bugs(
     client: &ApiClient,
     repo_id: &RepoId,
     status: BugReviewState,
-    scan_id: Option<&ListPublicBugsWorkflowRequestId>,
+    query: BugListQuery<'_>,
 ) -> Result<Vec<Bug>> {
     let mut all_bugs = Vec::new();
     let mut offset = 0;
 
     loop {
         let response = client
-            .list_bugs(repo_id, status, BUG_PAGE_SIZE, offset, scan_id)
+            .list_bugs(repo_id, status, BUG_PAGE_SIZE, offset, query)
             .await
             .context("Failed to fetch bugs from repository")?;
 
@@ -397,12 +567,18 @@ async fn fetch_all_bugs_multi_status(
     client: &ApiClient,
     repo_id: &RepoId,
     statuses: &[BugReviewState],
-    scan_id: Option<&ListPublicBugsWorkflowRequestId>,
+    query: BugListQuery<'_>,
 ) -> Result<Vec<Bug>> {
+    let deduped = dedupe_statuses(statuses);
     let mut combined = Vec::new();
-    for status in dedupe_statuses(statuses) {
-        let bugs = fetch_all_bugs(client, repo_id, status, scan_id).await?;
+    for status in &deduped {
+        let bugs = fetch_all_bugs(client, repo_id, *status, query).await?;
         combined.extend(bugs);
+    }
+    // Concatenating per-status blocks loses the global ordering the server
+    // applied within each one.
+    if deduped.len() > 1 {
+        sort_bugs(&mut combined, query.sort.unwrap_or(BugSortOrder::Newest));
     }
     Ok(combined)
 }
@@ -416,7 +592,7 @@ async fn fetch_bugs_up_to(
     repo_id: &RepoId,
     status: BugReviewState,
     max_items: u32,
-    scan_id: Option<&ListPublicBugsWorkflowRequestId>,
+    query: BugListQuery<'_>,
 ) -> Result<(Vec<Bug>, usize)> {
     let max_usize = usize::try_from(max_items).unwrap_or(usize::MAX);
     let mut bugs = Vec::new();
@@ -430,7 +606,7 @@ async fn fetch_bugs_up_to(
         }
         let page_size = BUG_PAGE_SIZE.min(remaining);
         let response = client
-            .list_bugs(repo_id, status, page_size, offset, scan_id)
+            .list_bugs(repo_id, status, page_size, offset, query)
             .await
             .context("Failed to fetch bugs from repository")?;
         total = usize::try_from(response.total.max(0)).unwrap_or(0);
@@ -464,17 +640,23 @@ async fn fetch_page_multi_status(
     statuses: &[BugReviewState],
     limit: u32,
     page: u32,
-    scan_id: Option<&ListPublicBugsWorkflowRequestId>,
+    query: BugListQuery<'_>,
 ) -> Result<(Vec<Bug>, usize)> {
     let offset = page_to_offset(page, limit);
     let fetch_limit = offset.saturating_add(limit);
+    let deduped = dedupe_statuses(statuses);
     let mut combined = Vec::new();
     let mut total: usize = 0;
-    for status in dedupe_statuses(statuses) {
+    for status in &deduped {
         let (bugs, status_total) =
-            fetch_bugs_up_to(client, repo_id, status, fetch_limit, scan_id).await?;
+            fetch_bugs_up_to(client, repo_id, *status, fetch_limit, query).await?;
         total += status_total;
         combined.extend(bugs);
+    }
+    // Order the merged window before slicing it, so the page the user asked
+    // for holds the bugs that ordering actually puts there.
+    if deduped.len() > 1 {
+        sort_bugs(&mut combined, query.sort.unwrap_or(BugSortOrder::Newest));
     }
     let offset_usize = usize::try_from(offset).unwrap_or(usize::MAX);
     let limit_usize = usize::try_from(limit).unwrap_or(usize::MAX);
@@ -491,6 +673,8 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             repo,
             status,
             vulns,
+            priority,
+            sort,
             introduced_by,
             scan_id,
             since,
@@ -519,6 +703,16 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             let since_ms = resolve_time_flag("--since", since.as_deref(), now)?;
             let until_ms = resolve_time_flag("--until", until.as_deref(), now)?;
 
+            // `--priority` and `--sort` are applied by the API, so they do
+            // not join the list below: they shrink the fetch rather than
+            // forcing one.
+            let priority_filter = priority_query(priority);
+            let query = BugListQuery {
+                priority: priority_filter.as_deref(),
+                sort: Some(*sort),
+                scan_id: scan_id.as_ref(),
+            };
+
             // The bugs API takes a single status per request. When the
             // user asks for client-side filters (`--all`, `--vulns`,
             // `--introduced-by`, `--since`, `--until`) we must fetch every
@@ -532,13 +726,8 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             let multi_status = status.len() > 1;
 
             if needs_full_fetch {
-                let all_bugs = fetch_all_bugs_multi_status(
-                    &client,
-                    &resolved_repo_id,
-                    status,
-                    scan_id.as_ref(),
-                )
-                .await?;
+                let all_bugs =
+                    fetch_all_bugs_multi_status(&client, &resolved_repo_id, status, query).await?;
                 let mut filtered = all_bugs;
                 if since_ms.is_some() || until_ms.is_some() {
                     filtered = filter_by_time_range(&filtered, since_ms, until_ms);
@@ -586,7 +775,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                     status,
                     *limit,
                     *page,
-                    scan_id.as_ref(),
+                    query,
                 )
                 .await?;
                 output_list(&bugs, total, *page, *limit, format)
@@ -597,13 +786,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 let single_status = status.first().copied().unwrap_or(BugReviewState::Pending);
                 let offset = page_to_offset(*page, *limit);
                 let bugs = client
-                    .list_bugs(
-                        &resolved_repo_id,
-                        single_status,
-                        *limit,
-                        offset,
-                        scan_id.as_ref(),
-                    )
+                    .list_bugs(&resolved_repo_id, single_status, *limit, offset, query)
                     .await
                     .context("Failed to fetch bugs from repository")?;
 
@@ -711,6 +894,50 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             Term::stdout()
                 .write_line(&format!("{}", style("✓ Bug reopened (pending)").green()))
                 .ok();
+            Ok(())
+        }
+
+        BugCommands::Prioritize {
+            bug_id,
+            priority,
+            comment,
+            format,
+        } => {
+            let bug_id: BugId = bug_id
+                .as_str()
+                .try_into()
+                .context("Invalid bug ID format (expected bug_...)")?;
+
+            let priority = match priority {
+                Some(p) => *p,
+                None if Term::stdout().is_term() => prompt_priority()?,
+                None => bail!(
+                    "--priority is required in non-interactive mode. Use --priority p1, p2, or p3."
+                ),
+            };
+
+            let result = client
+                .set_bug_priority(&bug_id, priority, comment.as_deref())
+                .await
+                .context("Failed to set bug priority")?;
+
+            if matches!(format, crate::OutputFormat::Json) {
+                Term::stdout().write_line(&serde_json::to_string_pretty(&result)?)?;
+                return Ok(());
+            }
+
+            // No change id means the bug already carried this priority and
+            // nothing was written — say so rather than implying an edit.
+            let label = priority_label(&result.priority);
+            let line = if result.priority_change_id.is_some() {
+                format!("{}", style(format!("✓ Priority set to {label}")).green())
+            } else {
+                format!(
+                    "{}",
+                    style(format!("Priority already {label} — no change")).dim()
+                )
+            };
+            Term::stdout().write_line(&line).ok();
             Ok(())
         }
     }
@@ -1335,4 +1562,122 @@ mod tests {
 
     // `format_introduced_in` moved to `crate::api::types`; tests now live
     // alongside the function in `src/api/types.rs`.
+
+    // ── priority filter / sort ───────────────────────────────────────
+
+    fn make_bug(id: &str, created_at: i64, priority: Option<&str>) -> Bug {
+        let mut value = serde_json::json!({
+            "id": format!("bug_{id}"),
+            "title": id,
+            "summary": "...",
+            "createdAt": created_at,
+            "repoId": "repo_1",
+            "linkedIssues": []
+        });
+        if let Some(p) = priority {
+            value["priority"] = serde_json::json!(p);
+        }
+        serde_json::from_value(value).unwrap()
+    }
+
+    fn ids(bugs: &[Bug]) -> Vec<String> {
+        bugs.iter().map(|b| b.id.to_string()).collect()
+    }
+
+    #[test]
+    fn priority_query_omits_empty_selection() {
+        assert!(priority_query(&[]).is_none());
+    }
+
+    #[test]
+    fn priority_query_joins_levels() {
+        assert_eq!(
+            priority_query(&[PriorityFilter::P1, PriorityFilter::P3]).as_deref(),
+            Some("P1,P3")
+        );
+    }
+
+    #[test]
+    fn priority_query_uses_api_casing() {
+        assert_eq!(priority_query(&[PriorityFilter::P2]).as_deref(), Some("P2"));
+    }
+
+    #[test]
+    fn priority_query_renders_none_sentinel() {
+        assert_eq!(
+            priority_query(&[PriorityFilter::P1, PriorityFilter::None]).as_deref(),
+            Some("P1,none")
+        );
+    }
+
+    #[test]
+    fn priority_query_dedupes_preserving_order() {
+        assert_eq!(
+            priority_query(&[PriorityFilter::P3, PriorityFilter::P1, PriorityFilter::P3])
+                .as_deref(),
+            Some("P3,P1")
+        );
+    }
+
+    #[test]
+    fn sort_priority_orders_severe_first_unscored_last() {
+        let mut bugs = vec![
+            make_bug("none", 5, None),
+            make_bug("p3", 4, Some("P3")),
+            make_bug("p1", 3, Some("P1")),
+            make_bug("p2", 2, Some("P2")),
+        ];
+        sort_bugs(&mut bugs, BugSortOrder::Priority);
+        assert_eq!(ids(&bugs), ["bug_p1", "bug_p2", "bug_p3", "bug_none"]);
+    }
+
+    #[test]
+    fn sort_priority_breaks_ties_by_newest() {
+        let mut bugs = vec![
+            make_bug("old", 1, Some("P1")),
+            make_bug("new", 9, Some("P1")),
+        ];
+        sort_bugs(&mut bugs, BugSortOrder::Priority);
+        assert_eq!(ids(&bugs), ["bug_new", "bug_old"]);
+    }
+
+    #[test]
+    fn sort_newest_and_oldest_are_opposites() {
+        let build = || {
+            vec![
+                make_bug("b", 2, None),
+                make_bug("c", 3, None),
+                make_bug("a", 1, None),
+            ]
+        };
+        let mut newest = build();
+        sort_bugs(&mut newest, BugSortOrder::Newest);
+        let mut oldest = build();
+        sort_bugs(&mut oldest, BugSortOrder::Oldest);
+
+        assert_eq!(ids(&newest), ["bug_c", "bug_b", "bug_a"]);
+        let mut reversed = ids(&oldest);
+        reversed.reverse();
+        assert_eq!(ids(&newest), reversed);
+    }
+
+    #[test]
+    fn sort_is_stable_across_equal_timestamps() {
+        // Bugs found in the same scan can share a createdAt; the id
+        // tiebreaker keeps a merged multi-status page from reshuffling
+        // between runs.
+        let build = || {
+            vec![
+                make_bug("b", 1, Some("P1")),
+                make_bug("a", 1, Some("P1")),
+                make_bug("c", 1, Some("P1")),
+            ]
+        };
+        let mut first = build();
+        sort_bugs(&mut first, BugSortOrder::Priority);
+        let mut second = build();
+        second.reverse();
+        sort_bugs(&mut second, BugSortOrder::Priority);
+        assert_eq!(ids(&first), ids(&second));
+    }
 }

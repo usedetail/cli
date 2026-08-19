@@ -90,7 +90,8 @@ impl Cli {
             Commands::Bugs { command } => match command {
                 commands::bugs::BugCommands::List { format, .. }
                 | commands::bugs::BugCommands::Show { format, .. }
-                | commands::bugs::BugCommands::Close { format, .. } => Self::is_json(format),
+                | commands::bugs::BugCommands::Close { format, .. }
+                | commands::bugs::BugCommands::Prioritize { format, .. } => Self::is_json(format),
                 commands::bugs::BugCommands::Reopen { .. } => false,
             },
             Commands::Repos { command } => match command {

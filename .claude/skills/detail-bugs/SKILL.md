@@ -1,11 +1,11 @@
 ---
 name: detail-bugs
-description: Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, and reopen previously closed bugs.
+description: Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, reopen previously closed bugs, and override a bug's priority.
 ---
 
 # Detail Bugs
 
-The Detail CLI exposes per-repository bugs through four subcommands: `list`, `show`, `close`, and `reopen`. This skill describes that surface so you can pick the right command for whatever the user is trying to do.
+The Detail CLI exposes per-repository bugs through five subcommands: `list`, `show`, `close`, `reopen`, and `prioritize`. This skill describes that surface so you can pick the right command for whatever the user is trying to do.
 
 ## Prerequisites
 
@@ -28,6 +28,8 @@ Lists bugs for the inferred or specified repository.
 
 - `--status pending|resolved|dismissed` — default `pending`; comma-separate or repeat the flag to combine (e.g. `--status resolved,dismissed`).
 - `--vulns` — only security vulnerabilities.
+- `--priority p1|p2|p3|none` — only bugs at these priorities; comma-separate or repeat the flag (e.g. `--priority p1,p2`). `none` selects bugs Detail never scored — most bugs found before priority scoring shipped, so prefer `--priority p1,p2,p3` over `--priority p1` when the user asks for "prioritized" bugs. Default: every priority.
+- `--sort newest|oldest|priority` — default `newest`. `priority` puts the most severe first and unscored last.
 - `--introduced-by <authors>` — filter by authors (comma-separated or repeated).
 - `--scan-id <wr_…>` — limit to a specific scan. Workflow IDs come from `detail scans list`.
 - `--since` / `--until` — accept a duration (`1d`, `24h`), an ISO date (`YYYY-MM-DD`), or an RFC3339 timestamp.
@@ -38,6 +40,8 @@ Lists bugs for the inferred or specified repository.
 ### `detail bugs show <BUG_ID>`
 
 Shows the full report for a single bug. Reports often include a suggested fix.
+
+Also shows `Priority` and, when Detail scored the bug, a `Rationale` explaining why. If someone has since overridden that score, an `Override` line reports what Detail originally assigned and why it was changed.
 
 - `--format table|json` — use `json` when parsing rather than displaying.
 
@@ -53,3 +57,13 @@ Marks a bug as resolved or dismissed. The CLI prompts for `--state` interactivel
 ### `detail bugs reopen <BUG_ID>`
 
 Flips a previously resolved or dismissed bug back to `pending`. Takes only the bug ID — useful when a fix is reverted or a dismissal is overturned.
+
+### `detail bugs prioritize <BUG_ID>`
+
+Overrides Detail's priority for a bug and records the change on its timeline. The CLI prompts for `--priority` interactively in a TTY; pass it explicitly when invoking non-interactively.
+
+- `--priority p1|p2|p3`.
+- `--comment "..."` — why the priority is changing. Worth passing: it is what a later `detail bugs show` reports as the override reason.
+- `--format table|json`.
+
+Setting the priority a bug already has is a no-op — the CLI reports "no change" rather than recording a second identical entry.

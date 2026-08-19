@@ -72,6 +72,12 @@
             },
             "type": "array"
           },
+          "priority": {
+            "$ref": "#/components/schemas/Priority"
+          },
+          "priorityReason": {
+            "$ref": "#/components/schemas/PriorityReason"
+          },
           "repoId": {
             "$ref": "#/components/schemas/RepoId"
           },
@@ -177,6 +183,14 @@
           "resolved",
           "dismissed",
           "pending"
+        ],
+        "type": "string"
+      },
+      "BugSortOrder": {
+        "enum": [
+          "newest",
+          "oldest",
+          "priority"
         ],
         "type": "string"
       },
@@ -303,6 +317,37 @@
       "OrgId": {
         "pattern": "^org_.*",
         "type": "string"
+      },
+      "Priority": {
+        "description": "Detail's severity assessment, most severe first: P1 (High), P2 (Medium), P3 (Low).",
+        "enum": [
+          "P1",
+          "P2",
+          "P3"
+        ],
+        "type": "string"
+      },
+      "PriorityReason": {
+        "properties": {
+          "generatedPriority": {
+            "$ref": "#/components/schemas/Priority"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "overrideComment": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "generatedPriority",
+          "isCurrent"
+        ],
+        "type": "object"
       },
       "Repo": {
         "properties": {
@@ -571,6 +616,26 @@
             }
           },
           {
+            "description": "Comma-separated priorities to include, e.g. \"P1,P2\". Use \"none\" to include bugs that were never assigned a priority. Omit to include every priority.",
+            "example": "P1,none",
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Result ordering. `priority` puts the most severe bugs first and unprioritized bugs last.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/BugSortOrder",
+              "default": "newest"
+            }
+          },
+          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -708,6 +773,95 @@
           }
         ],
         "summary": "Get a bug"
+      }
+    },
+    "/public/v1/bugs/{bug_id}/priority": {
+      "post": {
+        "description": "Overrides Detail's priority for a bug and records the change on the bug's timeline. Setting the priority the bug already has is a no-op and returns no priorityChangeId.",
+        "operationId": "updatePublicBugPriority",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bug_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BugId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "comment": {
+                    "description": "Why the priority is being changed.",
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "priority": {
+                    "$ref": "#/components/schemas/Priority"
+                  }
+                },
+                "required": [
+                  "priority"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "priority": {
+                      "$ref": "#/components/schemas/Priority"
+                    },
+                    "priorityChangeId": {
+                      "pattern": "^bfrpc_.*",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "priority"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Set a bug's priority"
       }
     },
     "/public/v1/bugs/{bug_id}/review": {

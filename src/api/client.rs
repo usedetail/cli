@@ -10,11 +10,23 @@ use progenitor::progenitor_client::{Error as ProgenitorError, ResponseValue};
 
 use super::generated::types::CreateRuleBody;
 use super::types::{
-    Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugsResponse,
+    Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugSortOrder, BugsResponse,
     CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse,
-    ListPublicBugsWorkflowRequestId, RepoId, ReposResponse, Rule, RuleCreationRequestId, RuleId,
-    RuleRequestStatus, RuleRequestsResponse, RulesResponse, ScansResponse, UserInfo,
+    ListPublicBugsWorkflowRequestId, Priority, PriorityUpdate, RepoId, ReposResponse, Rule,
+    RuleCreationRequestId, RuleId, RuleRequestStatus, RuleRequestsResponse, RulesResponse,
+    ScansResponse, UpdatePublicBugPriorityBody, UserInfo,
 };
+
+/// Server-side knobs for `GET /public/v1/bugs` beyond repo, status, and paging.
+/// Bundled so the fetch helpers can thread them through without growing a long
+/// positional tail.
+#[derive(Clone, Copy, Default)]
+pub struct BugListQuery<'a> {
+    /// Comma-separated priority filter, already in the API's wire form.
+    pub priority: Option<&'a str>,
+    pub sort: Option<BugSortOrder>,
+    pub scan_id: Option<&'a ListPublicBugsWorkflowRequestId>,
+}
 
 /// Convert a progenitor client error into a concise anyhow error.
 ///
@@ -104,15 +116,17 @@ impl ApiClient {
         status: BugReviewState,
         limit: u32,
         offset: u32,
-        scan_id: Option<&ListPublicBugsWorkflowRequestId>,
+        query: BugListQuery<'_>,
     ) -> Result<BugsResponse> {
         self.inner
             .list_public_bugs(
                 NonZeroU64::new(limit.into()),
                 Some(offset.into()),
+                query.priority,
                 repo_id,
+                query.sort,
                 status,
-                scan_id,
+                query.scan_id,
             )
             .await
             .map(ResponseValue::into_inner)
@@ -142,6 +156,31 @@ impl ApiClient {
 
         self.inner
             .create_public_bug_review(bug_id, &body)
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(api_error)
+    }
+
+    /// Override Detail's priority for a bug.
+    ///
+    /// A response with no `priority_change_id` means the bug already carried
+    /// this priority and nothing was written.
+    pub async fn set_bug_priority(
+        &self,
+        bug_id: &BugId,
+        priority: Priority,
+        comment: Option<&str>,
+    ) -> Result<PriorityUpdate> {
+        // The spec caps the comment at 2000 chars, so progenitor wraps it in a
+        // validating newtype — reject an over-long comment here rather than
+        // letting the API do it in a round trip.
+        let comment = comment
+            .map(TryInto::try_into)
+            .transpose()
+            .map_err(|e| anyhow::anyhow!("Invalid comment: {e}"))?;
+        let body = UpdatePublicBugPriorityBody { comment, priority };
+        self.inner
+            .update_public_bug_priority(bug_id, &body)
             .await
             .map(ResponseValue::into_inner)
             .map_err(api_error)
