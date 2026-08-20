@@ -14,6 +14,7 @@ This document contains the help content for the `detail` command-line program.
 * [`detail bugs show`↴](#detail-bugs-show)
 * [`detail bugs close`↴](#detail-bugs-close)
 * [`detail bugs reopen`↴](#detail-bugs-reopen)
+* [`detail bugs prioritize`↴](#detail-bugs-prioritize)
 * [`detail completions`↴](#detail-completions)
 * [`detail rules`↴](#detail-rules)
 * [`detail rules create`↴](#detail-rules-create)
@@ -115,6 +116,7 @@ List, show, and close bugs
 * `show` — Show the report for a bug
 * `close` — Close a bug as resolved or dismissed
 * `reopen` — Reopen a previously resolved or dismissed bug — flips it back to pending. Useful when a "fix" PR is reverted or a "won't fix" decision is overturned
+* `prioritize` — Set a bug's priority, overriding Detail's own assessment
 
 
 
@@ -137,6 +139,16 @@ List bugs for a given repository
   Possible values: `pending`, `resolved`, `dismissed`
 
 * `--vulns` — Only show security vulnerabilities
+* `--priority <PRIORITY>` — Only show bugs at these priorities — repeat the flag or comma-separate values (e.g. `--priority p1,p2`). Use `none` for bugs Detail never assigned a priority. Default: all priorities
+
+  Possible values: `p1`, `p2`, `p3`, `none`
+
+* `--sort <SORT>` — Result ordering. `priority` puts the most severe bugs first and unprioritized bugs last
+
+  Default value: `newest`
+
+  Possible values: `newest`, `oldest`, `priority`
+
 * `--introduced-by <INTRODUCED_BY>` — Only show bugs introduced by these authors (comma-separated or repeat flag)
 * `--scan-id <SCAN_ID>` — Filter bugs to a specific scan by workflow request ID
 * `--since <SINCE>` — Only show bugs created at or after this point. Accepts a duration (e.g. 1d, 24h, 30m) interpreted as "now minus this", an ISO date (YYYY-MM-DD), or an RFC3339 timestamp
@@ -217,6 +229,32 @@ Reopen a previously resolved or dismissed bug — flips it back to pending. Usef
 ###### **Arguments:**
 
 * `<BUG_ID>` — Bug ID
+
+
+
+## `detail bugs prioritize`
+
+Set a bug's priority, overriding Detail's own assessment
+
+**Usage:** `detail bugs prioritize [OPTIONS] <BUG_ID>`
+
+###### **Arguments:**
+
+* `<BUG_ID>` — Bug ID
+
+###### **Options:**
+
+* `--priority <PRIORITY>` — Priority to set (prompted interactively if omitted in a TTY)
+
+  Possible values: `p1`, `p2`, `p3`
+
+* `--comment <COMMENT>` — Why the priority is changing — recorded on the bug's timeline
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
 
 
 
