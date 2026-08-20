@@ -738,22 +738,16 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 if !introduced_by.is_empty() {
                     let pre_filter = filtered;
                     filtered = filter_by_introduced_by(&pre_filter, introduced_by);
-                    if filtered.is_empty() {
-                        if matches!(format, crate::OutputFormat::Table) {
-                            let hint = empty_filter_hint(&pre_filter, *vulns);
-                            Term::stdout().write_line(&hint)?;
-                        }
-                        return output_list(&filtered, 0, *page, *limit, format);
+                    if filtered.is_empty() && matches!(format, crate::OutputFormat::Table) {
+                        let hint = empty_filter_hint(&pre_filter, *vulns);
+                        Term::stdout().write_line(&hint)?;
                     }
-                } else if filtered.is_empty() {
+                } else if filtered.is_empty() && matches!(format, crate::OutputFormat::Table) {
                     // Filters (or `--all` against an empty repo) removed
                     // everything. Print the hint so the user gets context
                     // beyond an empty table.
-                    if matches!(format, crate::OutputFormat::Table) {
-                        let hint = empty_filter_hint(&filtered, *vulns);
-                        Term::stdout().write_line(&hint)?;
-                    }
-                    return output_list(&filtered, 0, *page, *limit, format);
+                    let hint = empty_filter_hint(&filtered, *vulns);
+                    Term::stdout().write_line(&hint)?;
                 }
                 let total = filtered.len();
                 if *all {
