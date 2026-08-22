@@ -123,13 +123,6 @@ pub fn store_token(token: &str) -> Result<()> {
     })
 }
 
-pub fn load_token() -> Result<String> {
-    let config = load_config()?;
-    config
-        .api_token
-        .context("No token found. Run `detail auth login`")
-}
-
 pub fn clear_credentials() -> Result<()> {
     update_config(|config| {
         config.api_token = None;
@@ -292,17 +285,11 @@ mod tests {
     // ── token helpers ────────────────────────────────────────────────
 
     #[test]
-    fn store_and_load_token() {
+    fn store_token_roundtrip() {
         with_temp_config(|| {
             store_token("dtl_live_secret").unwrap();
-            assert_eq!(load_token().unwrap(), "dtl_live_secret");
-        });
-    }
-
-    #[test]
-    fn load_token_errors_when_absent() {
-        with_temp_config(|| {
-            assert!(load_token().is_err());
+            let config = load_config().unwrap();
+            assert_eq!(config.api_token.as_deref(), Some("dtl_live_secret"));
         });
     }
 
@@ -311,7 +298,7 @@ mod tests {
         with_temp_config(|| {
             store_token("dtl_live_secret").unwrap();
             clear_credentials().unwrap();
-            assert!(load_token().is_err());
+            assert!(load_config().unwrap().api_token.is_none());
         });
     }
 
