@@ -235,34 +235,10 @@ fn min_active_window_for_columns(n: usize, viewport_width: usize, target_columns
 }
 
 #[cfg(test)]
-fn half_block_cell(top: PixelStyle, bottom: PixelStyle) -> (PixelStyle, char) {
-    if top == PixelStyle::Off && bottom == PixelStyle::Off {
-        return (PixelStyle::Off, ' ');
-    }
-
-    match (top, bottom) {
-        (PixelStyle::Off, style) => (style, '▄'),
-        (style, PixelStyle::Off) => (style, '▀'),
-        (a, b) if a == b => (a, '█'),
-        (top_style, _) => (top_style, '▀'),
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use rand::{rngs::SmallRng, SeedableRng};
 
     use super::*;
-
-    #[test]
-    fn half_block_cells_use_block_glyphs_without_color() {
-        let (_, up) = half_block_cell(PixelStyle::Base, PixelStyle::Off);
-        let (_, down) = half_block_cell(PixelStyle::Off, PixelStyle::Base);
-        let (_, full) = half_block_cell(PixelStyle::Base, PixelStyle::Base);
-        assert_eq!(up, '▀');
-        assert_eq!(down, '▄');
-        assert_eq!(full, '█');
-    }
 
     #[test]
     fn compute_logo_viewport_is_square_in_unit_space() {
