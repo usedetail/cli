@@ -1397,19 +1397,6 @@ mod tests {
         all.iter().skip(off).take(lim).cloned().collect()
     }
 
-    /// Simulate the *old* `fetch_page_multi_status` approach: shared offset
-    /// per status, then concatenate and truncate.
-    fn simulate_old_pagination(per_status: &[&[Bug]], page: u32, limit: u32) -> Vec<Bug> {
-        let offset = page_to_offset(page, limit);
-        let mut combined = Vec::new();
-        for bugs in per_status {
-            combined.extend(simulate_api(bugs, limit, offset));
-        }
-        let lim = usize::try_from(limit).unwrap_or(usize::MAX);
-        combined.truncate(lim);
-        combined
-    }
-
     /// Simulate the *new* `fetch_page_multi_status` approach: each status
     /// fetched from offset 0 up to `offset + limit`, then drain + truncate
     /// on the combined list.
@@ -1442,23 +1429,6 @@ mod tests {
             ids.extend(bugs.iter().map(|b| b.id.to_string()));
         }
         ids
-    }
-
-    #[test]
-    fn old_pagination_drops_resolved_bugs_issue_300() {
-        // Issue scenario: 50 pending + 40 resolved, limit=50.
-        // The old approach drops all 40 resolved bugs.
-        let pending = make_bugs("pending", 50);
-        let resolved = make_bugs("resolved", 40);
-        let per_status: Vec<&[Bug]> = vec![&pending, &resolved];
-
-        let all_ids = collect_all_ids(&per_status, 50, simulate_old_pagination);
-        // Old approach only finds the 50 pending bugs; the 40 resolved are lost.
-        assert_eq!(all_ids.len(), 50, "old approach should only find 50 of 90");
-        assert!(
-            !all_ids.iter().any(|id| id.starts_with("bug_resolved")),
-            "old approach should miss all resolved bugs"
-        );
     }
 
     #[test]
