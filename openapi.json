@@ -569,6 +569,189 @@
         ],
         "type": "string"
       },
+      "Vuln": {
+        "description": "A vulnerability found by a Detail security scan.",
+        "properties": {
+          "commitSha": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "description": {
+            "description": "Markdown: the flaw, how an attacker reaches it, and the fix.",
+            "type": "string"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "fixPr": {
+            "$ref": "#/components/schemas/FixPr"
+          },
+          "id": {
+            "$ref": "#/components/schemas/VulnId"
+          },
+          "linkedIssues": {
+            "items": {
+              "$ref": "#/components/schemas/VulnLinkedIssue"
+            },
+            "type": "array"
+          },
+          "repoId": {
+            "$ref": "#/components/schemas/RepoId"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/VulnSeverity"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workflowRequestId": {
+            "nullable": true,
+            "pattern": "^wr_.*",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "severity",
+          "filePath",
+          "createdAt",
+          "repoId",
+          "commitSha",
+          "workflowRequestId",
+          "linkedIssues"
+        ],
+        "type": "object"
+      },
+      "VulnCounts": {
+        "properties": {
+          "critical": {
+            "type": "integer"
+          },
+          "high": {
+            "type": "integer"
+          },
+          "low": {
+            "type": "integer"
+          },
+          "medium": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "total"
+        ],
+        "type": "object"
+      },
+      "VulnId": {
+        "pattern": "^ssf_.*",
+        "type": "string"
+      },
+      "VulnLinkedIssue": {
+        "properties": {
+          "issueId": {
+            "type": "string"
+          },
+          "tracker": {
+            "enum": [
+              "linear",
+              "jira",
+              "github",
+              "asana"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracker",
+          "issueId",
+          "url"
+        ],
+        "type": "object"
+      },
+      "VulnScan": {
+        "properties": {
+          "commitSha": {
+            "nullable": true,
+            "type": "string"
+          },
+          "completedAt": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "initiator": {
+            "$ref": "#/components/schemas/ScanInitiator"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "repoId": {
+            "$ref": "#/components/schemas/RepoId"
+          },
+          "repoName": {
+            "type": "string"
+          },
+          "vulnCounts": {
+            "$ref": "#/components/schemas/VulnCounts"
+          },
+          "workflowRequestId": {
+            "pattern": "^wr_.*",
+            "type": "string"
+          },
+          "workflowStatus": {
+            "$ref": "#/components/schemas/WorkflowStatus",
+            "nullable": true
+          }
+        },
+        "required": [
+          "repoId",
+          "repoName",
+          "ownerName",
+          "createdAt",
+          "completedAt",
+          "initiator",
+          "workflowRequestId",
+          "commitSha",
+          "vulnCounts"
+        ],
+        "type": "object"
+      },
+      "VulnSeverity": {
+        "description": "Severity of a security scan finding, most severe first.",
+        "enum": [
+          "critical",
+          "high",
+          "medium",
+          "low"
+        ],
+        "type": "string"
+      },
+      "VulnSortOrder": {
+        "enum": [
+          "newest",
+          "oldest",
+          "severity"
+        ],
+        "type": "string"
+      },
       "WorkflowStatus": {
         "enum": [
           "in_progress",
@@ -588,7 +771,7 @@
     }
   },
   "info": {
-    "description": "Public API for programmatic access to Detail bug findings.",
+    "description": "Public API for programmatic access to Detail bug and vulnerability findings.",
     "title": "Detail Public API",
     "version": "1.0.0"
   },
@@ -1481,6 +1664,269 @@
           }
         ],
         "summary": "Get current user"
+      }
+    },
+    "/public/v1/vuln-scans": {
+      "get": {
+        "description": "Returns a paginated list of security scans for a given repository.",
+        "operationId": "listPublicVulnScans",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "repo_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RepoId"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "scans": {
+                      "items": {
+                        "$ref": "#/components/schemas/VulnScan"
+                      },
+                      "type": "array"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "scans",
+                    "total"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List security scans"
+      }
+    },
+    "/public/v1/vulns": {
+      "get": {
+        "description": "Returns a paginated list of vulnerabilities that Detail security scans found in a given repository.",
+        "operationId": "listPublicVulns",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "repo_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RepoId"
+            }
+          },
+          {
+            "description": "Comma-separated severities to include, e.g. \"critical,high\". Omit to include every severity.",
+            "example": "critical,high",
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Result ordering. `severity` puts the most severe vulnerabilities first.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/VulnSortOrder",
+              "default": "newest"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workflow_request_id",
+            "required": false,
+            "schema": {
+              "pattern": "^wr_.*",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "total": {
+                      "type": "integer"
+                    },
+                    "vulns": {
+                      "items": {
+                        "$ref": "#/components/schemas/Vuln"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "vulns",
+                    "total"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List vulnerabilities"
+      }
+    },
+    "/public/v1/vulns/{vuln_id}": {
+      "get": {
+        "description": "Returns a single vulnerability by its ID.",
+        "operationId": "getPublicVuln",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vuln_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/VulnId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vuln"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get a vulnerability"
       }
     }
   },

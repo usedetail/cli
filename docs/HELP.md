@@ -34,6 +34,10 @@ This document contains the help content for the `detail` command-line program.
 * [`detail skill rules`↴](#detail-skill-rules)
 * [`detail update`↴](#detail-update)
 * [`detail version`↴](#detail-version)
+* [`detail vulns`↴](#detail-vulns)
+* [`detail vulns list`↴](#detail-vulns-list)
+* [`detail vulns show`↴](#detail-vulns-show)
+* [`detail vulns scans`↴](#detail-vulns-scans)
 
 ## `detail`
 
@@ -56,9 +60,10 @@ Common workflow:
 * `satisfying-sort` — Run a fun animation. Humans only
 * `repos` — Manage repos tracked with Detail
 * `scans` — List and inspect scans
-* `skill` — Install Detail skills (default: detail-bugs)
+* `skill` — Install Detail skills (default: detail-bugs, which also covers vulns)
 * `update` — Update immediately (auto-update also runs in the background)
 * `version` — Show version information
+* `vulns` — List and inspect findings from security scans
 
 
 
@@ -138,7 +143,7 @@ List bugs for a given repository
 
   Possible values: `pending`, `resolved`, `dismissed`
 
-* `--vulns` — Only show security vulnerabilities
+* `--vulns` — Only show bugs that Detail's bug finder flagged as security vulnerabilities. For findings from security scans, use `detail vulns list`
 * `--priority <PRIORITY>` — Only show bugs at these priorities — repeat the flag or comma-separate values (e.g. `--priority p1,p2`). Use `none` for bugs Detail never assigned a priority. Default: all priorities
 
   Possible values: `p1`, `p2`, `p3`, `none`
@@ -523,7 +528,7 @@ List recent scans for a repository
 
 ## `detail skill`
 
-Install Detail skills (default: detail-bugs)
+Install Detail skills (default: detail-bugs, which also covers vulns)
 
 **Usage:** `detail skill [OPTIONS] [COMMAND]`
 
@@ -558,6 +563,115 @@ Update immediately (auto-update also runs in the background)
 Show version information
 
 **Usage:** `detail version`
+
+
+
+## `detail vulns`
+
+List and inspect findings from security scans
+
+**Usage:** `detail vulns <COMMAND>`
+
+###### **Subcommands:**
+
+* `list` — List security scan findings for a given repository
+* `show` — Show the report for a security scan finding
+* `scans` — List recent security scans for a repository
+
+
+
+## `detail vulns list`
+
+List security scan findings for a given repository
+
+**Usage:** `detail vulns list [OPTIONS] [REPO]`
+
+###### **Arguments:**
+
+* `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli). If omitted, inferred from the git or jj remote (origin)
+
+###### **Options:**
+
+* `--severity <SEVERITY>` — Only show findings at these severities — repeat the flag or comma-separate values (e.g. `--severity critical,high`). Default: all severities
+
+  Possible values: `critical`, `high`, `medium`, `low`
+
+* `--sort <SORT>` — Result ordering. `severity` puts the most severe findings first
+
+  Default value: `newest`
+
+  Possible values: `newest`, `oldest`, `severity`
+
+* `--scan-id <SCAN_ID>` — Filter findings to a specific security scan by workflow request ID
+* `--since <SINCE>` — Only show findings created at or after this point. Accepts a duration (e.g. 1d, 24h, 30m) interpreted as "now minus this", an ISO date (YYYY-MM-DD), or an RFC3339 timestamp
+* `--until <UNTIL>` — Only show findings created at or before this point. Same forms as --since
+* `--all` — Auto-paginate: fetch every matching finding instead of a single page
+* `--limit <LIMIT>` — Maximum number of results per page
+
+  Default value: `50`
+* `--page <PAGE>` — Page number (starts at 1)
+
+  Default value: `1`
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
+
+
+
+## `detail vulns show`
+
+Show the report for a security scan finding
+
+**Usage:** `detail vulns show [OPTIONS] <VULN_ID>`
+
+###### **Arguments:**
+
+* `<VULN_ID>` — Vuln ID
+
+###### **Options:**
+
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
+
+
+
+## `detail vulns scans`
+
+List recent security scans for a repository
+
+**Usage:** `detail vulns scans [OPTIONS] [REPO]`
+
+###### **Arguments:**
+
+* `<REPO>` — Repository in owner/repo format or just repo name. If omitted, inferred from the git or jj remote (origin)
+
+###### **Options:**
+
+* `--status <STATUS>` — Filter by workflow status (e.g. failed scans in the last day)
+
+  Possible values: `in-progress`, `complete`, `failed`, `dlq`
+
+* `--since <SINCE>` — Only show scans created at or after this point. Accepts a duration (e.g. 1d, 24h, 30m), an ISO date (YYYY-MM-DD), or an RFC3339 timestamp
+* `--until <UNTIL>` — Only show scans created at or before this point. Same forms as --since
+* `--limit <LIMIT>` — Maximum number of results per page
+
+  Default value: `50`
+* `--page <PAGE>` — Page number (starts at 1)
+
+  Default value: `1`
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
 
 
 

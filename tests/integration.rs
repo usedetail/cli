@@ -366,6 +366,7 @@ fn subcommand_help_succeeds() {
         "skill",
         "update",
         "version",
+        "vulns",
     ] {
         let out = env.run(&[subcmd, "--help"]);
         // Some subcommands may not support --help directly if they require subcommands,
@@ -391,6 +392,9 @@ fn commands_fail_without_auth() {
 
     let out = env.run(&["scans", "list", REPO, "--format", "json"]);
     assert!(!out.success, "scans list should fail without auth");
+
+    let out = env.run(&["vulns", "list", REPO, "--format", "json"]);
+    assert!(!out.success, "vulns list should fail without auth");
 }
 
 #[test]
