@@ -6,8 +6,8 @@ use console::Term;
 
 use crate::api::client::{ApiClient, VulnListQuery};
 use crate::api::types::{
-    format_fix_pr, format_vuln_linked_issue, severity_label, ListPublicVulnsWorkflowRequestId,
-    RepoId, Vuln, VulnId, VulnScan, VulnSeverity, VulnSortOrder, WorkflowStatus,
+    format_fix_pr, format_linked_issue, severity_label, ListPublicVulnsWorkflowRequestId, RepoId,
+    Vuln, VulnId, VulnScan, VulnSeverity, VulnSortOrder, WorkflowStatus,
 };
 use crate::output::{clamp_page, output_list, SectionRenderer};
 use crate::utils::datetime::{format_datetime, parse_time_spec};
@@ -206,7 +206,7 @@ fn vuln_show_pairs(vuln: &Vuln) -> Vec<(&'static str, String)> {
         pairs.push(("Scan", wr.to_string()));
     }
     for issue in &vuln.linked_issues {
-        pairs.push(("Issue", format_vuln_linked_issue(issue)));
+        pairs.push(("Issue", format_linked_issue(&issue.into())));
     }
     if let Some(fix_pr) = &vuln.fix_pr {
         pairs.push(("Fix PR", format_fix_pr(fix_pr)));
