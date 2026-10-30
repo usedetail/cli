@@ -7,3 +7,4 @@ pub mod satisfying_sort;
 pub mod scans;
 pub mod skill;
 pub mod update;
+pub mod vulns;

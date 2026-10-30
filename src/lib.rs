@@ -100,6 +100,11 @@ impl Cli {
             Commands::Scans { command } => match command {
                 commands::scans::ScanCommands::List { format, .. } => Self::is_json(format),
             },
+            Commands::Vulns { command } => match command {
+                commands::vulns::VulnCommands::List { format, .. }
+                | commands::vulns::VulnCommands::Show { format, .. }
+                | commands::vulns::VulnCommands::Scans { format, .. } => Self::is_json(format),
+            },
             Commands::Rules { command } => match command {
                 commands::rules::RuleCommands::List { format, .. }
                 | commands::rules::RuleCommands::Requests(
@@ -151,6 +156,7 @@ impl Cli {
             Commands::Scans { command } => commands::scans::handle(command, &self).await,
             Commands::Skill { user, command } => commands::skill::handle(command.as_ref(), *user),
             Commands::Update => commands::update::handle().await,
+            Commands::Vulns { command } => commands::vulns::handle(command, &self).await,
             Commands::Version => {
                 console::Term::stdout().write_line(&format!("detail-cli v{VERSION}"))?;
                 Ok(())
@@ -208,7 +214,7 @@ enum Commands {
         command: commands::scans::ScanCommands,
     },
 
-    /// Install Detail skills (default: detail-bugs)
+    /// Install Detail skills (default: detail-bugs, which also covers vulns)
     Skill {
         /// Install to user-level ~/.claude/skills instead of the current repo
         #[arg(long, global = true)]
@@ -223,12 +229,18 @@ enum Commands {
 
     /// Show version information
     Version,
+
+    /// List and inspect findings from security scans
+    Vulns {
+        #[command(subcommand)]
+        command: commands::vulns::VulnCommands,
+    },
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::types::BugReviewState;
+    use crate::api::types::{BugReviewState, VulnSeverity, VulnSortOrder};
 
     #[test]
     fn silent_when_bugs_list_json() {
@@ -368,6 +380,89 @@ mod tests {
         ])
         .unwrap();
         assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn silent_when_vulns_json() {
+        for args in [
+            &["detail", "vulns", "list", "owner/repo", "--format", "json"][..],
+            &["detail", "vulns", "show", "ssf_1", "--format", "json"],
+            &["detail", "vulns", "scans", "owner/repo", "--format", "json"],
+        ] {
+            assert!(Cli::try_parse_from(args).unwrap().is_silent(), "{args:?}");
+        }
+    }
+
+    #[test]
+    fn not_silent_when_vulns_table() {
+        let cli = Cli::try_parse_from(["detail", "vulns", "list"]).unwrap();
+        assert!(!cli.is_silent());
+    }
+
+    #[test]
+    fn vulns_list_parses_filters() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "vulns",
+            "list",
+            "--severity",
+            "critical,high",
+            "--severity",
+            "low",
+            "--sort",
+            "severity",
+            "--scan-id",
+            "wr_1",
+        ])
+        .unwrap();
+        if let Commands::Vulns {
+            command:
+                commands::vulns::VulnCommands::List {
+                    repo,
+                    severity,
+                    sort,
+                    scan_id,
+                    ..
+                },
+        } = &cli.command
+        {
+            assert!(repo.is_none());
+            assert_eq!(
+                severity,
+                &[
+                    VulnSeverity::Critical,
+                    VulnSeverity::High,
+                    VulnSeverity::Low
+                ]
+            );
+            assert_eq!(*sort, VulnSortOrder::Severity);
+            assert_eq!(scan_id.as_deref(), Some("wr_1"));
+        } else {
+            panic!("expected vulns list command");
+        }
+    }
+
+    #[test]
+    fn vulns_list_rejects_unknown_severity() {
+        assert!(Cli::try_parse_from(["detail", "vulns", "list", "--severity", "p1"]).is_err());
+    }
+
+    #[test]
+    fn vulns_list_all_conflicts_with_page() {
+        assert!(Cli::try_parse_from(["detail", "vulns", "list", "--all", "--page", "2"]).is_err());
+    }
+
+    #[test]
+    fn vulns_list_limit_bounds() {
+        assert!(Cli::try_parse_from(["detail", "vulns", "list", "--limit", "0"]).is_err());
+        assert!(Cli::try_parse_from(["detail", "vulns", "list", "--limit", "101"]).is_err());
+    }
+
+    #[test]
+    fn vulns_has_no_mutating_subcommands() {
+        for sub in ["close", "reopen", "prioritize"] {
+            assert!(Cli::try_parse_from(["detail", "vulns", sub, "ssf_1"]).is_err());
+        }
     }
 
     #[test]

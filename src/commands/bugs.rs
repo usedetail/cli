@@ -234,7 +234,9 @@ pub enum BugCommands {
         #[arg(long, value_enum, value_delimiter = ',', default_value = "pending")]
         status: Vec<BugReviewState>,
 
-        /// Only show security vulnerabilities
+        /// Only show bugs that Detail's bug finder flagged as security
+        /// vulnerabilities. For findings from security scans, use
+        /// `detail vulns list`.
         #[arg(long)]
         vulns: bool,
 

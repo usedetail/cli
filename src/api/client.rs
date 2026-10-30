@@ -12,9 +12,10 @@ use super::generated::types::CreateRuleBody;
 use super::types::{
     Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugSortOrder, BugsResponse,
     CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse,
-    ListPublicBugsWorkflowRequestId, Priority, PriorityUpdate, RepoId, ReposResponse, Rule,
-    RuleCreationRequestId, RuleId, RuleRequestStatus, RuleRequestsResponse, RulesResponse,
-    ScansResponse, UpdatePublicBugPriorityBody, UserInfo,
+    ListPublicBugsWorkflowRequestId, ListPublicVulnsWorkflowRequestId, Priority, PriorityUpdate,
+    RepoId, ReposResponse, Rule, RuleCreationRequestId, RuleId, RuleRequestStatus,
+    RuleRequestsResponse, RulesResponse, ScansResponse, UpdatePublicBugPriorityBody, UserInfo,
+    Vuln, VulnId, VulnScansResponse, VulnSortOrder, VulnsResponse,
 };
 
 /// Server-side knobs for `GET /public/v1/bugs` beyond repo, status, and paging.
@@ -26,6 +27,15 @@ pub struct BugListQuery<'a> {
     pub priority: Option<&'a str>,
     pub sort: Option<BugSortOrder>,
     pub scan_id: Option<&'a ListPublicBugsWorkflowRequestId>,
+}
+
+/// Server-side knobs for `GET /public/v1/vulns` beyond repo and paging.
+#[derive(Clone, Copy, Default)]
+pub struct VulnListQuery<'a> {
+    /// Comma-separated severity filter, already in the API's wire form.
+    pub severity: Option<&'a str>,
+    pub sort: Option<VulnSortOrder>,
+    pub scan_id: Option<&'a ListPublicVulnsWorkflowRequestId>,
 }
 
 /// Convert a progenitor client error into a concise anyhow error.
@@ -194,6 +204,48 @@ impl ApiClient {
     ) -> Result<ScansResponse> {
         self.inner
             .list_public_scans(NonZeroU64::new(limit.into()), Some(offset.into()), repo_id)
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(api_error)
+    }
+
+    pub async fn list_vulns(
+        &self,
+        repo_id: &RepoId,
+        limit: u32,
+        offset: u32,
+        query: VulnListQuery<'_>,
+    ) -> Result<VulnsResponse> {
+        self.inner
+            .list_public_vulns(
+                NonZeroU64::new(limit.into()),
+                Some(offset.into()),
+                repo_id,
+                query.severity,
+                query.sort,
+                query.scan_id,
+            )
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(api_error)
+    }
+
+    pub async fn get_vuln(&self, vuln_id: &VulnId) -> Result<Vuln> {
+        self.inner
+            .get_public_vuln(vuln_id)
+            .await
+            .map(ResponseValue::into_inner)
+            .map_err(api_error)
+    }
+
+    pub async fn list_vuln_scans(
+        &self,
+        repo_id: &RepoId,
+        limit: u32,
+        offset: u32,
+    ) -> Result<VulnScansResponse> {
+        self.inner
+            .list_public_vuln_scans(NonZeroU64::new(limit.into()), Some(offset.into()), repo_id)
             .await
             .map(ResponseValue::into_inner)
             .map_err(api_error)

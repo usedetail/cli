@@ -12,6 +12,10 @@ pub use super::generated::types::{
     RuleRequestResult, RuleRequestStatus, RuleStatus, Scan, ScanInitiator, ScanType,
     UpdatePublicBugPriorityBody, WorkflowStatus,
 };
+pub use super::generated::types::{
+    ListPublicVulnsWorkflowRequestId, Vuln, VulnCounts, VulnId, VulnLinkedIssue,
+    VulnLinkedIssueTracker, VulnScan, VulnSeverity, VulnSortOrder,
+};
 
 // Friendlier aliases for the generated response-wrapper names.
 pub type UserInfo = super::generated::types::GetPublicUserResponse;
@@ -21,6 +25,8 @@ pub type ScansResponse = super::generated::types::ListPublicScansResponse;
 pub type RulesResponse = super::generated::types::ListRulesResponse;
 pub type RuleRequestsResponse = super::generated::types::ListRuleRequestsResponse;
 pub type PriorityUpdate = super::generated::types::UpdatePublicBugPriorityResponse;
+pub type VulnsResponse = super::generated::types::ListPublicVulnsResponse;
+pub type VulnScansResponse = super::generated::types::ListPublicVulnScansResponse;
 
 // ── Display helpers ──────────────────────────────────────────────────
 // progenitor already implements Display for the generated enums, so we
@@ -50,6 +56,15 @@ pub const fn priority_label(p: &Priority) -> &'static str {
         Priority::P1 => "P1 (High)",
         Priority::P2 => "P2 (Medium)",
         Priority::P3 => "P3 (Low)",
+    }
+}
+
+pub const fn severity_label(s: &VulnSeverity) -> &'static str {
+    match s {
+        VulnSeverity::Critical => "Critical",
+        VulnSeverity::High => "High",
+        VulnSeverity::Medium => "Medium",
+        VulnSeverity::Low => "Low",
     }
 }
 
@@ -92,6 +107,44 @@ pub fn format_linked_issue(issue: &LinkedIssue) -> String {
             |url| format!("{tracker}: {} \u{2014} {url}", issue.issue_id),
         ),
     }
+}
+
+/// Format linked issues compactly for list cards, e.g. "linear: ENG-42, jira: PROJ-9".
+/// URLs are left to the show view.
+fn format_linked_issues_short<'a>(issues: impl IntoIterator<Item = &'a LinkedIssue>) -> String {
+    issues
+        .into_iter()
+        .map(|i| match i.tracker {
+            LinkedIssueTracker::Slack => i.tracker.to_string(),
+            LinkedIssueTracker::Linear
+            | LinkedIssueTracker::Jira
+            | LinkedIssueTracker::Github
+            | LinkedIssueTracker::Asana => format!("{}: {}", i.tracker, i.issue_id),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Vuln linked issues are a Slack-less subset of bug linked issues, so they
+/// convert losslessly and share the bug formatters.
+impl From<&VulnLinkedIssue> for LinkedIssue {
+    fn from(issue: &VulnLinkedIssue) -> Self {
+        Self {
+            tracker: match issue.tracker {
+                VulnLinkedIssueTracker::Linear => LinkedIssueTracker::Linear,
+                VulnLinkedIssueTracker::Jira => LinkedIssueTracker::Jira,
+                VulnLinkedIssueTracker::Github => LinkedIssueTracker::Github,
+                VulnLinkedIssueTracker::Asana => LinkedIssueTracker::Asana,
+            },
+            issue_id: issue.issue_id.clone(),
+            url: issue.url.clone(),
+        }
+    }
+}
+
+/// Format a fix PR compactly for list cards, e.g. "#42 (open)".
+fn format_fix_pr_short(fix_pr: &FixPr) -> String {
+    format!("#{} ({})", fix_pr.pr_number, fix_pr.state)
 }
 
 /// Format the Detail-generated fix PR for the detail/show view.
@@ -168,6 +221,35 @@ impl clap::ValueEnum for BugSortOrder {
     }
 }
 
+impl clap::ValueEnum for VulnSeverity {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Critical, Self::High, Self::Medium, Self::Low]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::Critical => Some(PossibleValue::new("critical")),
+            Self::High => Some(PossibleValue::new("high")),
+            Self::Medium => Some(PossibleValue::new("medium")),
+            Self::Low => Some(PossibleValue::new("low")),
+        }
+    }
+}
+
+impl clap::ValueEnum for VulnSortOrder {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Newest, Self::Oldest, Self::Severity]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::Newest => Some(PossibleValue::new("newest")),
+            Self::Oldest => Some(PossibleValue::new("oldest")),
+            Self::Severity => Some(PossibleValue::new("severity")),
+        }
+    }
+}
+
 impl clap::ValueEnum for WorkflowStatus {
     fn value_variants<'a>() -> &'a [Self] {
         &[Self::InProgress, Self::Complete, Self::Failed, Self::Dlq]
@@ -221,25 +303,13 @@ impl Formattable for Bug {
             pairs.push(("Introduced", format_introduced_in(intro)));
         }
         if !self.linked_issues.is_empty() {
-            let formatted = self
-                .linked_issues
-                .iter()
-                .map(|i| match i.tracker {
-                    LinkedIssueTracker::Slack => i.tracker.to_string(),
-                    LinkedIssueTracker::Linear
-                    | LinkedIssueTracker::Jira
-                    | LinkedIssueTracker::Github
-                    | LinkedIssueTracker::Asana => format!("{}: {}", i.tracker, i.issue_id),
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            pairs.push(("Linked Issues", formatted));
+            pairs.push((
+                "Linked Issues",
+                format_linked_issues_short(&self.linked_issues),
+            ));
         }
         if let Some(fix_pr) = &self.fix_pr {
-            pairs.push((
-                "Fix PR",
-                format!("#{} ({})", fix_pr.pr_number, fix_pr.state),
-            ));
+            pairs.push(("Fix PR", format_fix_pr_short(fix_pr)));
         }
         (self.title.clone(), pairs)
     }
@@ -286,6 +356,78 @@ impl Formattable for Scan {
                 .clone()
                 .unwrap_or_else(|| "-".to_string()),
         ));
+        pairs.push(("Created", format_datetime(self.created_at)));
+        (header, pairs)
+    }
+}
+
+impl Formattable for Vuln {
+    fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
+        let mut pairs = vec![
+            ("Vuln ID", self.id.to_string()),
+            ("Severity", severity_label(&self.severity).to_string()),
+            ("Created", format_date(self.created_at)),
+        ];
+        if !self.file_path.is_empty() {
+            pairs.push(("File", self.file_path.clone()));
+        }
+        if !self.linked_issues.is_empty() {
+            let issues: Vec<LinkedIssue> = self.linked_issues.iter().map(Into::into).collect();
+            pairs.push(("Linked Issues", format_linked_issues_short(&issues)));
+        }
+        if let Some(fix_pr) = &self.fix_pr {
+            pairs.push(("Fix PR", format_fix_pr_short(fix_pr)));
+        }
+        (self.title.clone(), pairs)
+    }
+}
+
+/// Per-severity breakdown for a scan card, most severe first, skipping
+/// severities with no findings, e.g. "1 Critical, 3 Low".
+fn format_vuln_counts(counts: &VulnCounts) -> String {
+    [
+        (counts.critical, VulnSeverity::Critical),
+        (counts.high, VulnSeverity::High),
+        (counts.medium, VulnSeverity::Medium),
+        (counts.low, VulnSeverity::Low),
+    ]
+    .iter()
+    .filter(|(n, _)| *n > 0)
+    .map(|(n, severity)| format!("{n} {}", severity_label(severity)))
+    .collect::<Vec<_>>()
+    .join(", ")
+}
+
+impl Formattable for VulnScan {
+    fn to_card(&self) -> (String, Vec<(&'static str, String)>) {
+        let repo = format!("{}/{}", self.owner_name, self.repo_name);
+        // `vulnCounts` is always present, but until a scan completes its
+        // zeros mean "not counted", not "clean". Like the bugs Scan card with
+        // no counts, fall back to the bare repo — unless findings were
+        // already recorded, which are worth surfacing even on a failed scan.
+        let total = self.vuln_counts.total;
+        let header = if total > 0 || self.workflow_status == Some(WorkflowStatus::Complete) {
+            format!("{repo} {total} Vulns Found")
+        } else {
+            repo
+        };
+        let mut pairs = Vec::new();
+        // Only a non-empty breakdown says anything the header doesn't.
+        if total > 0 {
+            pairs.push(("Severity", format_vuln_counts(&self.vuln_counts)));
+        }
+        pairs.push((
+            "Status",
+            self.workflow_status
+                .as_ref()
+                .map_or_else(|| "-".to_string(), ToString::to_string),
+        ));
+        pairs.push(("Initiator", self.initiator.to_string()));
+        if let Some(sha) = self.commit_sha.as_deref() {
+            let short = sha.get(..7).unwrap_or(sha);
+            pairs.push(("Commit", short.to_string()));
+        }
+        pairs.push(("Workflow ID", self.workflow_request_id.to_string()));
         pairs.push(("Created", format_datetime(self.created_at)));
         (header, pairs)
     }
@@ -890,5 +1032,128 @@ mod tests {
             scan_pair(&pairs, "Workflow ID"),
             Some(&"wr_abc123".to_string())
         );
+    }
+
+    // ── Vuln / VulnScan Formattable ──────────────────────────────────
+
+    fn sample_vuln() -> Vuln {
+        serde_json::from_value(serde_json::json!({
+            "id": "ssf_abc", "title": "SQL injection in search",
+            "description": "...", "severity": "critical",
+            "filePath": "src/search.rs", "createdAt": 1_736_899_200_000_i64,
+            "repoId": "repo_xyz", "commitSha": null, "workflowRequestId": null,
+            "linkedIssues": []
+        }))
+        .expect("valid Vuln JSON")
+    }
+
+    fn sample_vuln_scan(status: &str, counts: &serde_json::Value) -> VulnScan {
+        serde_json::from_value(serde_json::json!({
+            "repoId": "repo_xyz", "repoName": "cli", "ownerName": "usedetail",
+            "workflowStatus": status, "createdAt": 1_736_899_200_000_i64,
+            "completedAt": null, "initiator": "scheduler",
+            "workflowRequestId": "wr_1", "commitSha": "abcdef1234567",
+            "vulnCounts": counts
+        }))
+        .expect("valid VulnScan JSON")
+    }
+
+    fn zero_counts() -> serde_json::Value {
+        serde_json::json!({ "critical": 0, "high": 0, "medium": 0, "low": 0, "total": 0 })
+    }
+
+    #[test]
+    fn severity_labels() {
+        assert_eq!(severity_label(&VulnSeverity::Critical), "Critical");
+        assert_eq!(severity_label(&VulnSeverity::Low), "Low");
+    }
+
+    #[test]
+    fn severity_possible_values() {
+        let values: Vec<String> = VulnSeverity::value_variants()
+            .iter()
+            .map(|v| v.to_possible_value().unwrap().get_name().to_string())
+            .collect();
+        assert_eq!(values, ["critical", "high", "medium", "low"]);
+    }
+
+    #[test]
+    fn vuln_card_minimal() {
+        let (header, pairs) = sample_vuln().to_card();
+        assert_eq!(header, "SQL injection in search");
+        let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
+        assert_eq!(keys, ["Vuln ID", "Severity", "Created", "File"]);
+        assert_eq!(pairs[1].1, "Critical");
+    }
+
+    #[test]
+    fn vuln_card_shows_issues_and_fix_pr() {
+        let mut vuln = sample_vuln();
+        vuln.linked_issues = vec![serde_json::from_value(
+            serde_json::json!({ "tracker": "jira", "issueId": "SEC-9", "url": null }),
+        )
+        .unwrap()];
+        vuln.fix_pr = Some(
+            serde_json::from_value(
+                serde_json::json!({ "prNumber": 12, "url": "https://x", "state": "merged" }),
+            )
+            .unwrap(),
+        );
+        let (_, pairs) = vuln.to_card();
+        let get = |k: &str| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(get("Linked Issues"), Some("jira: SEC-9"));
+        assert_eq!(get("Fix PR"), Some("#12 (merged)"));
+    }
+
+    #[test]
+    fn vuln_scan_card_shows_nonzero_severities() {
+        let scan = sample_vuln_scan(
+            "complete",
+            &serde_json::json!({ "critical": 1, "high": 0, "medium": 2, "low": 0, "total": 3 }),
+        );
+        let (header, pairs) = scan.to_card();
+        assert_eq!(header, "usedetail/cli 3 Vulns Found");
+        assert_eq!(pairs[0], ("Severity", "1 Critical, 2 Medium".to_string()));
+        assert!(pairs.contains(&("Commit", "abcdef1".to_string())));
+        assert!(pairs.contains(&("Workflow ID", "wr_1".to_string())));
+    }
+
+    #[test]
+    fn vuln_scan_card_complete_with_zero_is_clean() {
+        let (header, pairs) = sample_vuln_scan("complete", &zero_counts()).to_card();
+        assert_eq!(header, "usedetail/cli 0 Vulns Found");
+        assert!(!pairs.iter().any(|(k, _)| *k == "Severity"));
+    }
+
+    #[test]
+    fn vuln_scan_card_in_progress_omits_counts() {
+        let (header, pairs) = sample_vuln_scan("in_progress", &zero_counts()).to_card();
+        assert_eq!(header, "usedetail/cli");
+        assert!(!pairs.iter().any(|(k, _)| *k == "Severity"));
+    }
+
+    #[test]
+    fn vuln_scan_card_failed_omits_counts() {
+        for status in ["failed", "dlq"] {
+            let (header, pairs) = sample_vuln_scan(status, &zero_counts()).to_card();
+            assert_eq!(header, "usedetail/cli", "{status}");
+            assert!(!pairs.iter().any(|(k, _)| *k == "Severity"), "{status}");
+        }
+    }
+
+    #[test]
+    fn vuln_scan_card_failed_with_findings_still_shows_counts() {
+        let scan = sample_vuln_scan(
+            "dlq",
+            &serde_json::json!({ "critical": 0, "high": 2, "medium": 0, "low": 1, "total": 3 }),
+        );
+        let (header, pairs) = scan.to_card();
+        assert_eq!(header, "usedetail/cli 3 Vulns Found");
+        assert_eq!(pairs[0], ("Severity", "2 High, 1 Low".to_string()));
     }
 }

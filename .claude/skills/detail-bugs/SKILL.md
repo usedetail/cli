@@ -1,11 +1,11 @@
 ---
 name: detail-bugs
-description: Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, reopen previously closed bugs, and override a bug's priority.
+description: Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, reopen previously closed bugs, and override a bug's priority. Also covers read-only access to security scan findings (`detail vulns`).
 ---
 
 # Detail Bugs
 
-The Detail CLI exposes per-repository bugs through five subcommands: `list`, `show`, `close`, `reopen`, and `prioritize`. This skill describes that surface so you can pick the right command for whatever the user is trying to do.
+The Detail CLI exposes per-repository bugs through five subcommands: `list`, `show`, `close`, `reopen`, and `prioritize`. Findings from Detail's security scans live separately under `detail vulns` (read-only). This skill describes both surfaces so you can pick the right command for whatever the user is trying to do.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ The Detail CLI infers the repository from the git or jj remote; if the user spec
 Lists bugs for the inferred or specified repository.
 
 - `--status pending|resolved|dismissed` — default `pending`; comma-separate or repeat the flag to combine (e.g. `--status resolved,dismissed`).
-- `--vulns` — only security vulnerabilities.
+- `--vulns` — only bugs the bug finder flagged as security vulnerabilities. For findings from security scans, use `detail vulns list` instead.
 - `--priority p1|p2|p3|none` — only bugs at these priorities; comma-separate or repeat the flag (e.g. `--priority p1,p2`). `none` selects bugs Detail never scored — most bugs found before priority scoring shipped, so prefer `--priority p1,p2,p3` over `--priority p1` when the user asks for "prioritized" bugs. Default: every priority.
 - `--sort newest|oldest|priority` — default `newest`. `priority` puts the most severe first and unscored last.
 - `--introduced-by <authors>` — filter by authors (comma-separated or repeated).
@@ -67,3 +67,26 @@ Overrides Detail's priority for a bug and records the change on its timeline. Th
 - `--format table|json`.
 
 Setting the priority a bug already has is a no-op — the CLI reports "no change" rather than recording a second identical entry.
+
+## Security scan findings (`detail vulns`)
+
+Security scans produce findings ("vulns") that are separate from bugs: they have a severity (`critical`, `high`, `medium`, `low`) instead of a priority, and no review state — there is no close, reopen, or prioritize for them. Vuln IDs look like `ssf_…`. When the user asks about security scan results or vulnerabilities from a security scan, use these commands rather than `detail bugs list --vulns`.
+
+### `detail vulns list [REPO]`
+
+- `--severity critical|high|medium|low` — comma-separate or repeat the flag (e.g. `--severity critical,high`). Default: every severity.
+- `--sort newest|oldest|severity` — default `newest`. `severity` puts the most severe first.
+- `--scan-id <wr_…>` — limit to a specific security scan. Workflow IDs come from `detail vulns scans`.
+- `--since` / `--until`, `--all`, `--limit <1-100>` (default 50), `--page <N>`, `--format table|json` — same as `detail bugs list`.
+
+### `detail vulns show <VULN_ID>`
+
+Shows the full finding: severity, file, commit, scan, linked issues, the fix PR if any, and a markdown description of the flaw, how it is reached, and the fix.
+
+- `--format table|json`.
+
+### `detail vulns scans [REPO]`
+
+Lists recent security scans with per-severity finding counts.
+
+- `--status in-progress|complete|failed|dlq`, `--since` / `--until`, `--limit`, `--page`, `--format table|json`.
