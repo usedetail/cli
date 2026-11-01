@@ -17,3 +17,7 @@ install-path = "CARGO_HOME"
 install-updater = true
 # Allow our customized CI workflow without dist overwriting it
 allow-dirty = ["ci"]
+
+# Avoid the retired macOS 14 runner for Apple Silicon release builds.
+[dist.github-custom-runners]
+aarch64-apple-darwin = "macos-15"
