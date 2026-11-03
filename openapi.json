@@ -583,6 +583,9 @@
             "description": "Markdown: the flaw, how an attacker reaches it, and the fix.",
             "type": "string"
           },
+          "dismissalReason": {
+            "$ref": "#/components/schemas/VulnDismissalReason"
+          },
           "filePath": {
             "type": "string"
           },
@@ -598,13 +601,30 @@
             },
             "type": "array"
           },
+          "notes": {
+            "type": "string"
+          },
           "repoId": {
             "$ref": "#/components/schemas/RepoId"
           },
           "severity": {
             "$ref": "#/components/schemas/VulnSeverity"
           },
+          "state": {
+            "$ref": "#/components/schemas/VulnReviewState",
+            "description": "`pending` until something resolves or dismisses it."
+          },
+          "stateSource": {
+            "$ref": "#/components/schemas/VulnStateSource"
+          },
+          "stateUpdatedAt": {
+            "type": "integer"
+          },
           "title": {
+            "type": "string"
+          },
+          "trackerStateName": {
+            "description": "The tracker's own name for the state.",
             "type": "string"
           },
           "workflowRequestId": {
@@ -614,6 +634,7 @@
           }
         },
         "required": [
+          "state",
           "id",
           "title",
           "description",
@@ -654,6 +675,15 @@
         ],
         "type": "object"
       },
+      "VulnDismissalReason": {
+        "enum": [
+          "not_exploitable",
+          "wont_fix",
+          "duplicate",
+          "other"
+        ],
+        "type": "string"
+      },
       "VulnId": {
         "pattern": "^ssf_.*",
         "type": "string"
@@ -683,6 +713,40 @@
           "url"
         ],
         "type": "object"
+      },
+      "VulnReview": {
+        "properties": {
+          "createdAt": {
+            "type": "integer"
+          },
+          "dismissalReason": {
+            "$ref": "#/components/schemas/VulnDismissalReason"
+          },
+          "id": {
+            "pattern": "^ssfrv_.*",
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/VulnReviewState"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "VulnReviewState": {
+        "enum": [
+          "resolved",
+          "dismissed",
+          "pending"
+        ],
+        "type": "string"
       },
       "VulnScan": {
         "properties": {
@@ -749,6 +813,18 @@
           "newest",
           "oldest",
           "severity"
+        ],
+        "type": "string"
+      },
+      "VulnStateSource": {
+        "description": "What set the vulnerability's current state.",
+        "enum": [
+          "review",
+          "linear",
+          "jira",
+          "asana",
+          "github_issue",
+          "detail_fix_pr"
         ],
         "type": "string"
       },
@@ -1770,6 +1846,16 @@
             }
           },
           {
+            "description": "Only vulnerabilities currently in this state.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/VulnReviewState",
+              "default": "pending"
+            }
+          },
+          {
             "description": "Comma-separated severities to include, e.g. \"critical,high\". Omit to include every severity.",
             "example": "critical,high",
             "in": "query",
@@ -1927,6 +2013,85 @@
           }
         ],
         "summary": "Get a vulnerability"
+      }
+    },
+    "/public/v1/vulns/{vuln_id}/review": {
+      "post": {
+        "description": "Records a review on a vulnerability: resolve, dismiss, or reopen (state `pending`). `dismissalReason` is kept only when dismissing.",
+        "operationId": "createPublicVulnReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vuln_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/VulnId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "dismissalReason": {
+                    "$ref": "#/components/schemas/VulnDismissalReason"
+                  },
+                  "notes": {
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "state": {
+                    "$ref": "#/components/schemas/VulnReviewState"
+                  }
+                },
+                "required": [
+                  "state"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VulnReview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Review a vulnerability"
       }
     }
   },

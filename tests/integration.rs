@@ -395,6 +395,12 @@ fn commands_fail_without_auth() {
 
     let out = env.run(&["vulns", "list", REPO, "--format", "json"]);
     assert!(!out.success, "vulns list should fail without auth");
+
+    let out = env.run(&["vulns", "close", "ssf_1", "--state", "resolved"]);
+    assert!(!out.success, "vulns close should fail without auth");
+
+    let out = env.run(&["vulns", "reopen", "ssf_1"]);
+    assert!(!out.success, "vulns reopen should fail without auth");
 }
 
 #[test]

@@ -1,11 +1,11 @@
 ---
 name: detail-bugs
-description: Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, reopen previously closed bugs, and override a bug's priority. Also covers read-only access to security scan findings (`detail vulns`).
+description: Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, reopen previously closed bugs, and override a bug's priority. Also covers security scan findings (`detail vulns`): list, show, close, and reopen.
 ---
 
 # Detail Bugs
 
-The Detail CLI exposes per-repository bugs through five subcommands: `list`, `show`, `close`, `reopen`, and `prioritize`. Findings from Detail's security scans live separately under `detail vulns` (read-only). This skill describes both surfaces so you can pick the right command for whatever the user is trying to do.
+The Detail CLI exposes per-repository bugs through five subcommands: `list`, `show`, `close`, `reopen`, and `prioritize`. Findings from Detail's security scans live separately under `detail vulns`. This skill describes both surfaces so you can pick the right command for whatever the user is trying to do.
 
 ## Prerequisites
 
@@ -70,10 +70,11 @@ Setting the priority a bug already has is a no-op — the CLI reports "no change
 
 ## Security scan findings (`detail vulns`)
 
-Security scans produce findings ("vulns") that are separate from bugs: they have a severity (`critical`, `high`, `medium`, `low`) instead of a priority, and no review state — there is no close, reopen, or prioritize for them. Vuln IDs look like `ssf_…`. When the user asks about security scan results or vulnerabilities from a security scan, use these commands rather than `detail bugs list --vulns`.
+Security scans produce findings ("vulns") that are separate from bugs: they have a severity (`critical`, `high`, `medium`, `low`) instead of a priority, so there is no prioritize for them. They can be closed and reopened like bugs. A finding's state can also change without a review: a merged Detail fix PR or a closed tracker issue sets it, and the latest event wins. Vuln IDs look like `ssf_…`. When the user asks about security scan results or vulnerabilities from a security scan, use these commands rather than `detail bugs list --vulns`.
 
 ### `detail vulns list [REPO]`
 
+- `--status pending|resolved|dismissed` — one value; default `pending`, so closed findings are hidden unless asked for. To see every state, run it once per state.
 - `--severity critical|high|medium|low` — comma-separate or repeat the flag (e.g. `--severity critical,high`). Default: every severity.
 - `--sort newest|oldest|severity` — default `newest`. `severity` puts the most severe first.
 - `--scan-id <wr_…>` — limit to a specific security scan. Workflow IDs come from `detail vulns scans`.
@@ -81,9 +82,22 @@ Security scans produce findings ("vulns") that are separate from bugs: they have
 
 ### `detail vulns show <VULN_ID>`
 
-Shows the full finding: severity, file, commit, scan, linked issues, the fix PR if any, and a markdown description of the flaw, how it is reached, and the fix.
+Shows the full finding: severity, state (with dismissal reason, notes, and what set it, when present), file, commit, scan, linked issues, the fix PR if any, and a markdown description of the flaw, how it is reached, and the fix.
 
 - `--format table|json`.
+
+### `detail vulns close <VULN_ID>`
+
+Marks a finding as resolved or dismissed. The CLI prompts for `--state` interactively in a TTY; pass it explicitly when invoking non-interactively.
+
+- `--state resolved|dismissed`.
+- `--dismissal-reason not-exploitable|wont-fix|duplicate|other` — required when state is `dismissed`.
+- `--notes "..."` — optional free-form context, up to 2000 characters.
+- `--format table|json`.
+
+### `detail vulns reopen <VULN_ID>`
+
+Flips a previously resolved or dismissed finding back to `pending`. Takes only the vuln ID. The earlier reason and notes do not carry over.
 
 ### `detail vulns scans [REPO]`
 

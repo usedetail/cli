@@ -396,7 +396,7 @@ fn prompt_priority() -> Result<Priority> {
 }
 
 /// Prompt for optional notes via text input.
-fn prompt_notes() -> Result<Option<String>> {
+pub(crate) fn prompt_notes() -> Result<Option<String>> {
     let input: String = Input::new()
         .with_prompt("Notes (optional)")
         .allow_empty(true)

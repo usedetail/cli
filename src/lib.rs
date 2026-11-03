@@ -103,7 +103,9 @@ impl Cli {
             Commands::Vulns { command } => match command {
                 commands::vulns::VulnCommands::List { format, .. }
                 | commands::vulns::VulnCommands::Show { format, .. }
+                | commands::vulns::VulnCommands::Close { format, .. }
                 | commands::vulns::VulnCommands::Scans { format, .. } => Self::is_json(format),
+                commands::vulns::VulnCommands::Reopen { .. } => false,
             },
             Commands::Rules { command } => match command {
                 commands::rules::RuleCommands::List { format, .. }
@@ -230,7 +232,7 @@ enum Commands {
     /// Show version information
     Version,
 
-    /// List and inspect findings from security scans
+    /// List, show, and close findings from security scans
     Vulns {
         #[command(subcommand)]
         command: commands::vulns::VulnCommands,
@@ -240,7 +242,9 @@ enum Commands {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::types::{BugReviewState, VulnSeverity, VulnSortOrder};
+    use crate::api::types::{
+        BugReviewState, VulnDismissalReason, VulnReviewState, VulnSeverity, VulnSortOrder,
+    };
 
     #[test]
     fn silent_when_bugs_list_json() {
@@ -459,10 +463,120 @@ mod tests {
     }
 
     #[test]
-    fn vulns_has_no_mutating_subcommands() {
-        for sub in ["close", "reopen", "prioritize"] {
-            assert!(Cli::try_parse_from(["detail", "vulns", sub, "ssf_1"]).is_err());
+    fn vulns_has_no_prioritize_subcommand() {
+        assert!(Cli::try_parse_from(["detail", "vulns", "prioritize", "ssf_1"]).is_err());
+    }
+
+    #[test]
+    fn vulns_list_status_defaults_to_unset() {
+        // Left unset so the API's own default (pending) applies.
+        let cli = Cli::try_parse_from(["detail", "vulns", "list"]).unwrap();
+        if let Commands::Vulns {
+            command: commands::vulns::VulnCommands::List { status, .. },
+        } = cli.command
+        {
+            assert!(status.is_none());
+        } else {
+            panic!("expected vulns list command");
         }
+    }
+
+    #[test]
+    fn vulns_list_parses_status() {
+        let cli =
+            Cli::try_parse_from(["detail", "vulns", "list", "--status", "dismissed"]).unwrap();
+        if let Commands::Vulns {
+            command: commands::vulns::VulnCommands::List { status, .. },
+        } = cli.command
+        {
+            assert_eq!(status, Some(VulnReviewState::Dismissed));
+        } else {
+            panic!("expected vulns list command");
+        }
+    }
+
+    #[test]
+    fn vulns_list_status_takes_one_value() {
+        assert!(
+            Cli::try_parse_from(["detail", "vulns", "list", "--status", "resolved,dismissed"])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn vulns_close_parses_flags() {
+        let cli = Cli::try_parse_from([
+            "detail",
+            "vulns",
+            "close",
+            "ssf_1",
+            "--state",
+            "dismissed",
+            "--dismissal-reason",
+            "not-exploitable",
+            "--notes",
+            "behind auth",
+        ])
+        .unwrap();
+        if let Commands::Vulns {
+            command:
+                commands::vulns::VulnCommands::Close {
+                    vuln_id,
+                    state,
+                    dismissal_reason,
+                    notes,
+                    ..
+                },
+        } = cli.command
+        {
+            assert_eq!(vuln_id, "ssf_1");
+            assert_eq!(state, Some(VulnReviewState::Dismissed));
+            assert_eq!(dismissal_reason, Some(VulnDismissalReason::NotExploitable));
+            assert_eq!(notes.as_deref(), Some("behind auth"));
+        } else {
+            panic!("expected vulns close command");
+        }
+    }
+
+    #[test]
+    fn vulns_close_rejects_bug_only_reason() {
+        assert!(Cli::try_parse_from([
+            "detail",
+            "vulns",
+            "close",
+            "ssf_1",
+            "--state",
+            "dismissed",
+            "--dismissal-reason",
+            "not-a-bug",
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn vulns_reopen_rejects_notes_flag() {
+        assert!(
+            Cli::try_parse_from(["detail", "vulns", "reopen", "ssf_1", "--notes", "x"]).is_err()
+        );
+    }
+
+    #[test]
+    fn silent_when_vulns_close_json() {
+        let cli = Cli::try_parse_from([
+            "detail", "vulns", "close", "ssf_1", "--state", "resolved", "--format", "json",
+        ])
+        .unwrap();
+        assert!(cli.is_silent());
+    }
+
+    #[test]
+    fn not_silent_for_vulns_close_table_or_reopen() {
+        let close =
+            Cli::try_parse_from(["detail", "vulns", "close", "ssf_1", "--state", "resolved"])
+                .unwrap();
+        assert!(!close.is_silent());
+        let reopen = Cli::try_parse_from(["detail", "vulns", "reopen", "ssf_1"]).unwrap();
+        assert!(!reopen.is_silent());
     }
 
     #[test]
