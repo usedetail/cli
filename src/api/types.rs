@@ -13,8 +13,9 @@ pub use super::generated::types::{
     UpdatePublicBugPriorityBody, WorkflowStatus,
 };
 pub use super::generated::types::{
-    ListPublicVulnsWorkflowRequestId, Vuln, VulnCounts, VulnId, VulnLinkedIssue,
-    VulnLinkedIssueTracker, VulnScan, VulnSeverity, VulnSortOrder,
+    CreatePublicVulnReviewBody, ListPublicVulnsWorkflowRequestId, Vuln, VulnCounts,
+    VulnDismissalReason, VulnId, VulnLinkedIssue, VulnLinkedIssueTracker, VulnReview,
+    VulnReviewState, VulnScan, VulnSeverity, VulnSortOrder, VulnStateSource,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
@@ -65,6 +66,34 @@ pub const fn severity_label(s: &VulnSeverity) -> &'static str {
         VulnSeverity::High => "High",
         VulnSeverity::Medium => "Medium",
         VulnSeverity::Low => "Low",
+    }
+}
+
+pub const fn vuln_state_label(s: &VulnReviewState) -> &'static str {
+    match s {
+        VulnReviewState::Pending => "Pending",
+        VulnReviewState::Resolved => "Resolved",
+        VulnReviewState::Dismissed => "Dismissed",
+    }
+}
+
+pub const fn vuln_dismissal_reason_label(r: &VulnDismissalReason) -> &'static str {
+    match r {
+        VulnDismissalReason::NotExploitable => "Not Exploitable",
+        VulnDismissalReason::WontFix => "Won't Fix",
+        VulnDismissalReason::Duplicate => "Duplicate",
+        VulnDismissalReason::Other => "Other",
+    }
+}
+
+pub const fn vuln_state_source_label(s: &VulnStateSource) -> &'static str {
+    match s {
+        VulnStateSource::Review => "Review",
+        VulnStateSource::Linear => "Linear",
+        VulnStateSource::Jira => "Jira",
+        VulnStateSource::Asana => "Asana",
+        VulnStateSource::GithubIssue => "GitHub Issue",
+        VulnStateSource::DetailFixPr => "Detail Fix PR",
     }
 }
 
@@ -236,6 +265,40 @@ impl clap::ValueEnum for VulnSeverity {
     }
 }
 
+impl clap::ValueEnum for VulnReviewState {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Pending, Self::Resolved, Self::Dismissed]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::Pending => Some(PossibleValue::new("pending")),
+            Self::Resolved => Some(PossibleValue::new("resolved")),
+            Self::Dismissed => Some(PossibleValue::new("dismissed")),
+        }
+    }
+}
+
+impl clap::ValueEnum for VulnDismissalReason {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            Self::NotExploitable,
+            Self::WontFix,
+            Self::Duplicate,
+            Self::Other,
+        ]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        match self {
+            Self::NotExploitable => Some(PossibleValue::new("not-exploitable")),
+            Self::WontFix => Some(PossibleValue::new("wont-fix")),
+            Self::Duplicate => Some(PossibleValue::new("duplicate")),
+            Self::Other => Some(PossibleValue::new("other")),
+        }
+    }
+}
+
 impl clap::ValueEnum for VulnSortOrder {
     fn value_variants<'a>() -> &'a [Self] {
         &[Self::Newest, Self::Oldest, Self::Severity]
@@ -366,8 +429,12 @@ impl Formattable for Vuln {
         let mut pairs = vec![
             ("Vuln ID", self.id.to_string()),
             ("Severity", severity_label(&self.severity).to_string()),
-            ("Created", format_date(self.created_at)),
+            ("State", vuln_state_label(&self.state).to_string()),
         ];
+        if let Some(reason) = &self.dismissal_reason {
+            pairs.push(("Dismissal", vuln_dismissal_reason_label(reason).to_string()));
+        }
+        pairs.push(("Created", format_date(self.created_at)));
         if !self.file_path.is_empty() {
             pairs.push(("File", self.file_path.clone()));
         }
@@ -1042,7 +1109,7 @@ mod tests {
             "description": "...", "severity": "critical",
             "filePath": "src/search.rs", "createdAt": 1_736_899_200_000_i64,
             "repoId": "repo_xyz", "commitSha": null, "workflowRequestId": null,
-            "linkedIssues": []
+            "linkedIssues": [], "state": "pending"
         }))
         .expect("valid Vuln JSON")
     }
@@ -1082,8 +1149,63 @@ mod tests {
         let (header, pairs) = sample_vuln().to_card();
         assert_eq!(header, "SQL injection in search");
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, ["Vuln ID", "Severity", "Created", "File"]);
+        assert_eq!(keys, ["Vuln ID", "Severity", "State", "Created", "File"]);
         assert_eq!(pairs[1].1, "Critical");
+        assert_eq!(pairs[2].1, "Pending");
+    }
+
+    #[test]
+    fn vuln_card_shows_dismissal_reason_when_dismissed() {
+        let mut vuln = sample_vuln();
+        vuln.state = VulnReviewState::Dismissed;
+        vuln.dismissal_reason = Some(VulnDismissalReason::NotExploitable);
+        let (_, pairs) = vuln.to_card();
+        assert!(pairs.contains(&("State", "Dismissed".to_string())));
+        assert!(pairs.contains(&("Dismissal", "Not Exploitable".to_string())));
+    }
+
+    #[test]
+    fn vuln_card_handles_dismissal_without_reason() {
+        // A tracker can dismiss a finding without giving a reason.
+        let mut vuln = sample_vuln();
+        vuln.state = VulnReviewState::Dismissed;
+        let (_, pairs) = vuln.to_card();
+        assert!(pairs.contains(&("State", "Dismissed".to_string())));
+        assert!(!pairs.iter().any(|(k, _)| *k == "Dismissal"));
+    }
+
+    #[test]
+    fn vuln_state_possible_values() {
+        let values: Vec<String> = VulnReviewState::value_variants()
+            .iter()
+            .map(|v| v.to_possible_value().unwrap().get_name().to_string())
+            .collect();
+        assert_eq!(values, ["pending", "resolved", "dismissed"]);
+    }
+
+    #[test]
+    fn vuln_dismissal_reason_possible_values() {
+        let values: Vec<String> = VulnDismissalReason::value_variants()
+            .iter()
+            .map(|v| v.to_possible_value().unwrap().get_name().to_string())
+            .collect();
+        assert_eq!(
+            values,
+            ["not-exploitable", "wont-fix", "duplicate", "other"]
+        );
+    }
+
+    #[test]
+    fn vuln_state_and_reason_labels() {
+        assert_eq!(vuln_state_label(&VulnReviewState::Resolved), "Resolved");
+        assert_eq!(
+            vuln_dismissal_reason_label(&VulnDismissalReason::NotExploitable),
+            "Not Exploitable"
+        );
+        assert_eq!(
+            vuln_state_source_label(&VulnStateSource::GithubIssue),
+            "GitHub Issue"
+        );
     }
 
     #[test]

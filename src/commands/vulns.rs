@@ -1,14 +1,19 @@
 use std::convert::TryInto;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use clap::builder::{PossibleValuesParser, TypedValueParser};
 use clap::Subcommand;
-use console::Term;
+use console::{style, Term};
+use dialoguer::Select;
 
 use crate::api::client::{ApiClient, VulnListQuery};
 use crate::api::types::{
-    format_fix_pr, format_linked_issue, severity_label, ListPublicVulnsWorkflowRequestId, RepoId,
-    Vuln, VulnId, VulnScan, VulnSeverity, VulnSortOrder, WorkflowStatus,
+    format_fix_pr, format_linked_issue, severity_label, vuln_dismissal_reason_label,
+    vuln_state_label, vuln_state_source_label, ListPublicVulnsWorkflowRequestId, RepoId, Vuln,
+    VulnDismissalReason, VulnId, VulnReviewState, VulnScan, VulnSeverity, VulnSortOrder,
+    WorkflowStatus,
 };
+use crate::commands::bugs::prompt_notes;
 use crate::output::{clamp_page, output_list, SectionRenderer};
 use crate::utils::datetime::{format_datetime, parse_time_spec};
 use crate::utils::pagination::page_to_offset;
@@ -22,6 +27,11 @@ pub enum VulnCommands {
         /// Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli).
         /// If omitted, inferred from the git or jj remote (origin).
         repo: Option<String>,
+
+        /// Only show findings in this state. Takes one value. Default: pending
+        /// (applied by the API), so closed findings stay hidden unless asked for.
+        #[arg(long, value_enum)]
+        status: Option<VulnReviewState>,
 
         /// Only show findings at these severities — repeat the flag or
         /// comma-separate values (e.g. `--severity critical,high`).
@@ -74,6 +84,35 @@ pub enum VulnCommands {
         format: crate::OutputFormat,
     },
 
+    /// Close a security scan finding as resolved or dismissed
+    Close {
+        /// Vuln ID
+        vuln_id: String,
+
+        /// Close state (prompted interactively if omitted in a TTY)
+        #[arg(long, value_parser = close_state_parser())]
+        state: Option<VulnReviewState>,
+
+        /// Dismissal reason (required if state is dismissed)
+        #[arg(long, value_enum)]
+        dismissal_reason: Option<VulnDismissalReason>,
+
+        /// Additional notes (up to 2000 characters)
+        #[arg(long)]
+        notes: Option<String>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value = "table")]
+        format: crate::OutputFormat,
+    },
+
+    /// Reopen a previously resolved or dismissed finding — flips it back to
+    /// pending. Useful when a fix is reverted or a dismissal is overturned.
+    Reopen {
+        /// Vuln ID
+        vuln_id: String,
+    },
+
     /// List recent security scans for a repository
     Scans {
         /// Repository in owner/repo format or just repo name.
@@ -106,6 +145,93 @@ pub enum VulnCommands {
         #[arg(long, value_enum, default_value = "table")]
         format: crate::OutputFormat,
     },
+}
+
+// ── Interactive prompt helpers ──────────────────────────────────────
+
+/// Prompt for close state (Resolved / Dismissed) via arrow-key selection.
+fn prompt_close_state() -> Result<VulnReviewState> {
+    let items = ["Resolved", "Dismissed"];
+    let selection = Select::new()
+        .with_prompt("Close state")
+        .items(items)
+        .default(0)
+        .interact()
+        .context("Failed to read close state selection")?;
+    match selection {
+        0 => Ok(VulnReviewState::Resolved),
+        _ => Ok(VulnReviewState::Dismissed),
+    }
+}
+
+/// Prompt for dismissal reason via arrow-key selection.
+fn prompt_dismissal_reason() -> Result<VulnDismissalReason> {
+    let items = ["Not Exploitable", "Won't Fix", "Duplicate", "Other"];
+    let selection = Select::new()
+        .with_prompt("Dismissal reason")
+        .items(items)
+        .default(0)
+        .interact()
+        .context("Failed to read dismissal reason selection")?;
+    match selection {
+        0 => Ok(VulnDismissalReason::NotExploitable),
+        1 => Ok(VulnDismissalReason::WontFix),
+        2 => Ok(VulnDismissalReason::Duplicate),
+        _ => Ok(VulnDismissalReason::Other),
+    }
+}
+
+/// `--state` values `vulns close` accepts, so its help lists only these.
+fn close_state_parser() -> impl TypedValueParser<Value = VulnReviewState> {
+    PossibleValuesParser::new(["resolved", "dismissed"]).map(|state| {
+        if state == "resolved" {
+            VulnReviewState::Resolved
+        } else {
+            VulnReviewState::Dismissed
+        }
+    })
+}
+
+/// Validate the close-command flags that can be checked without prompting.
+/// A returned `None` means the field still needs interactive input.
+///
+/// Rules match `detail bugs close`:
+/// - `--state pending` is always rejected.
+/// - When `is_interactive` is false, `--state` is required.
+/// - When state is `Dismissed` and `is_interactive` is false,
+///   `--dismissal-reason` is required.
+/// - When state is not `Dismissed`, any supplied `--dismissal-reason` is
+///   passed through (the API drops it).
+fn validate_close_flags(
+    state: Option<VulnReviewState>,
+    dismissal_reason: Option<VulnDismissalReason>,
+    is_interactive: bool,
+) -> Result<(Option<VulnReviewState>, Option<VulnDismissalReason>)> {
+    if matches!(state, Some(VulnReviewState::Pending)) {
+        bail!("'pending' is not a valid close state. Use 'resolved' or 'dismissed'.");
+    }
+
+    let state = match state {
+        Some(s) => Some(s),
+        None if is_interactive => None, // will prompt
+        None => bail!(
+            "--state is required in non-interactive mode. Use --state resolved or --state dismissed."
+        ),
+    };
+
+    let dismissal_reason = if matches!(state, Some(VulnReviewState::Dismissed)) {
+        match dismissal_reason {
+            Some(r) => Some(r),
+            None if is_interactive => None, // will prompt
+            None => bail!(
+                "--dismissal-reason is required when state is 'dismissed' in non-interactive mode."
+            ),
+        }
+    } else {
+        dismissal_reason
+    };
+
+    Ok((state, dismissal_reason))
 }
 
 /// Join `--severity` values into the comma-separated form the API takes.
@@ -188,6 +314,27 @@ fn vuln_show_pairs(vuln: &Vuln) -> Vec<(&'static str, String)> {
         ("ID", vuln.id.to_string()),
         ("Title", vuln.title.clone()),
         ("Severity", severity_label(&vuln.severity).to_string()),
+        ("State", vuln_state_label(&vuln.state).to_string()),
+    ];
+    if let Some(reason) = &vuln.dismissal_reason {
+        pairs.push(("Dismissal", vuln_dismissal_reason_label(reason).to_string()));
+    }
+    if let Some(notes) = &vuln.notes {
+        pairs.push(("Notes", notes.clone()));
+    }
+    if let Some(source) = &vuln.state_source {
+        let label = vuln_state_source_label(source);
+        pairs.push((
+            "State Source",
+            vuln.tracker_state_name
+                .as_deref()
+                .map_or_else(|| label.to_string(), |name| format!("{label} ({name})")),
+        ));
+    }
+    if let Some(updated_at) = vuln.state_updated_at {
+        pairs.push(("State Updated", format_datetime(updated_at)));
+    }
+    pairs.extend([
         (
             "File",
             if vuln.file_path.is_empty() {
@@ -197,7 +344,7 @@ fn vuln_show_pairs(vuln: &Vuln) -> Vec<(&'static str, String)> {
             },
         ),
         ("Created", format_datetime(vuln.created_at)),
-    ];
+    ]);
     if let Some(sha) = vuln.commit_sha.as_deref() {
         let short = sha.get(..7).unwrap_or(sha);
         pairs.push(("Commit", short.to_string()));
@@ -275,6 +422,7 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
     match command {
         VulnCommands::List {
             repo,
+            status,
             severity,
             sort,
             scan_id,
@@ -300,12 +448,13 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
             let since_ms = resolve_time_flag("--since", since.as_deref(), now)?;
             let until_ms = resolve_time_flag("--until", until.as_deref(), now)?;
 
-            // `--severity`, `--sort` and `--scan-id` are applied by the API;
-            // only `--all` and the time window force a full fetch.
+            // `--status`, `--severity`, `--sort` and `--scan-id` are applied by
+            // the API; only `--all` and the time window force a full fetch.
             let severity_filter = severity_query(severity);
             let query = VulnListQuery {
                 severity: severity_filter.as_deref(),
                 sort: Some(*sort),
+                status: *status,
                 scan_id: scan_id.as_ref(),
             };
 
@@ -364,6 +513,83 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
                 .key_value("", &vuln_show_pairs(&vuln))
                 .markdown("", &vuln.description)
                 .print()
+        }
+
+        VulnCommands::Close {
+            vuln_id,
+            state,
+            dismissal_reason,
+            notes,
+            format,
+        } => {
+            let vuln_id: VulnId = vuln_id
+                .as_str()
+                .try_into()
+                .context("Invalid vuln ID format (expected ssf_...)")?;
+            let is_interactive = Term::stdout().is_term();
+
+            let (state, dismissal_reason) =
+                validate_close_flags(*state, *dismissal_reason, is_interactive)?;
+
+            // Resolve fields that still need interactive prompts
+            let state = match state {
+                Some(s) => s,
+                None => prompt_close_state()?,
+            };
+
+            let dismissal_reason = if matches!(state, VulnReviewState::Dismissed) {
+                match dismissal_reason {
+                    Some(r) => Some(r),
+                    None => Some(prompt_dismissal_reason()?),
+                }
+            } else {
+                dismissal_reason
+            };
+
+            let notes = match notes {
+                Some(n) => Some(n.clone()),
+                None if is_interactive => prompt_notes()?,
+                None => None,
+            };
+
+            let review = client
+                .update_vuln_close(&vuln_id, state, dismissal_reason, notes.as_deref())
+                .await
+                .context("Failed to close vuln")?;
+
+            if matches!(format, crate::OutputFormat::Json) {
+                // Emit only the review JSON — the human-friendly success
+                // banner would corrupt the structured output.
+                Term::stdout().write_line(&serde_json::to_string_pretty(&review)?)?;
+                return Ok(());
+            }
+
+            Term::stdout()
+                .write_line(&format!(
+                    "{}",
+                    style(format!("✓ Vuln closed as: {}", vuln_state_label(&state))).green()
+                ))
+                .ok();
+            Ok(())
+        }
+
+        VulnCommands::Reopen { vuln_id } => {
+            let vuln_id: VulnId = vuln_id
+                .as_str()
+                .try_into()
+                .context("Invalid vuln ID format (expected ssf_...)")?;
+
+            // A review is a new row, so the earlier reason and notes don't
+            // carry over: reopening is a pure state flip.
+            client
+                .update_vuln_close(&vuln_id, VulnReviewState::Pending, None, None)
+                .await
+                .context("Failed to reopen vuln")?;
+
+            Term::stdout()
+                .write_line(&format!("{}", style("✓ Vuln reopened (pending)").green()))
+                .ok();
+            Ok(())
         }
 
         VulnCommands::Scans {
@@ -429,7 +655,8 @@ mod tests {
             "repoId": "repo_1",
             "commitSha": null,
             "workflowRequestId": null,
-            "linkedIssues": []
+            "linkedIssues": [],
+            "state": "pending"
         }))
         .unwrap()
     }
@@ -447,6 +674,74 @@ mod tests {
 
     fn ids(vulns: &[Vuln]) -> Vec<String> {
         vulns.iter().map(|v| v.id.to_string()).collect()
+    }
+
+    // ── validate_close_flags ─────────────────────────────────────────
+
+    #[test]
+    fn close_resolved_non_interactive() {
+        let (state, reason) =
+            validate_close_flags(Some(VulnReviewState::Resolved), None, false).unwrap();
+        assert!(matches!(state, Some(VulnReviewState::Resolved)));
+        assert!(reason.is_none());
+    }
+
+    #[test]
+    fn close_dismissed_with_reason_non_interactive() {
+        let (state, reason) = validate_close_flags(
+            Some(VulnReviewState::Dismissed),
+            Some(VulnDismissalReason::NotExploitable),
+            false,
+        )
+        .unwrap();
+        assert!(matches!(state, Some(VulnReviewState::Dismissed)));
+        assert!(matches!(reason, Some(VulnDismissalReason::NotExploitable)));
+    }
+
+    #[test]
+    fn close_rejects_pending_in_both_modes() {
+        for is_interactive in [false, true] {
+            let err = validate_close_flags(Some(VulnReviewState::Pending), None, is_interactive)
+                .unwrap_err();
+            assert!(err.to_string().contains("not a valid close state"));
+        }
+    }
+
+    #[test]
+    fn close_no_state_non_interactive_errors() {
+        let err = validate_close_flags(None, None, false).unwrap_err();
+        assert!(err.to_string().contains("--state is required"));
+    }
+
+    #[test]
+    fn close_no_state_interactive_defers_to_prompt() {
+        let (state, _) = validate_close_flags(None, None, true).unwrap();
+        assert!(state.is_none());
+    }
+
+    #[test]
+    fn close_dismissed_no_reason_non_interactive_errors() {
+        let err = validate_close_flags(Some(VulnReviewState::Dismissed), None, false).unwrap_err();
+        assert!(err.to_string().contains("--dismissal-reason is required"));
+    }
+
+    #[test]
+    fn close_dismissed_no_reason_interactive_defers() {
+        let (state, reason) =
+            validate_close_flags(Some(VulnReviewState::Dismissed), None, true).unwrap();
+        assert!(matches!(state, Some(VulnReviewState::Dismissed)));
+        assert!(reason.is_none());
+    }
+
+    #[test]
+    fn close_resolved_passes_reason_through() {
+        let (_, reason) = validate_close_flags(
+            Some(VulnReviewState::Resolved),
+            Some(VulnDismissalReason::Other),
+            false,
+        )
+        .unwrap();
+        assert!(matches!(reason, Some(VulnDismissalReason::Other)));
     }
 
     // ── severity_query ───────────────────────────────────────────────
@@ -523,8 +818,50 @@ mod tests {
     fn show_pairs_minimal() {
         let pairs = vuln_show_pairs(&make_vuln("x", 1));
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
-        assert_eq!(keys, ["ID", "Title", "Severity", "File", "Created"]);
+        assert_eq!(
+            keys,
+            ["ID", "Title", "Severity", "State", "File", "Created"]
+        );
         assert_eq!(pairs[2].1, "High");
+        assert_eq!(pairs[3].1, "Pending");
+    }
+
+    #[test]
+    fn show_pairs_dismissed_by_review() {
+        let vuln: Vuln = serde_json::from_value(serde_json::json!({
+            "id": "ssf_d", "title": "t", "description": "...", "severity": "low",
+            "filePath": "a.rs", "createdAt": 1, "repoId": "repo_1", "commitSha": null,
+            "workflowRequestId": null, "linkedIssues": [], "state": "dismissed",
+            "dismissalReason": "not_exploitable", "notes": "behind auth",
+            "stateSource": "review", "stateUpdatedAt": 1_736_899_200_000_i64
+        }))
+        .unwrap();
+        let pairs = vuln_show_pairs(&vuln);
+        let get = |k: &str| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(get("State"), Some("Dismissed"));
+        assert_eq!(get("Dismissal"), Some("Not Exploitable"));
+        assert_eq!(get("Notes"), Some("behind auth"));
+        assert_eq!(get("State Source"), Some("Review"));
+        assert!(get("State Updated").is_some());
+    }
+
+    #[test]
+    fn show_pairs_tracker_state_has_name_and_no_reason() {
+        let vuln: Vuln = serde_json::from_value(serde_json::json!({
+            "id": "ssf_t", "title": "t", "description": "...", "severity": "low",
+            "filePath": "a.rs", "createdAt": 1, "repoId": "repo_1", "commitSha": null,
+            "workflowRequestId": null, "linkedIssues": [], "state": "dismissed",
+            "stateSource": "jira", "trackerStateName": "Won't Do"
+        }))
+        .unwrap();
+        let pairs = vuln_show_pairs(&vuln);
+        assert!(pairs.contains(&("State Source", "Jira (Won't Do)".to_string())));
+        assert!(!pairs.iter().any(|(k, _)| *k == "Dismissal"));
     }
 
     #[test]
@@ -533,7 +870,7 @@ mod tests {
             "id": "ssf_full", "title": "SSRF in fetcher", "description": "...",
             "severity": "critical", "filePath": "src/fetch.rs", "createdAt": 1,
             "repoId": "repo_1", "commitSha": "abcdef1234567",
-            "workflowRequestId": "wr_123",
+            "workflowRequestId": "wr_123", "state": "pending",
             "linkedIssues": [{ "tracker": "linear", "issueId": "SEC-1", "url": "https://l/SEC-1" }],
             "fixPr": { "prNumber": 7, "url": "https://gh/pr/7", "state": "open" }
         }))

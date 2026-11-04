@@ -37,6 +37,8 @@ This document contains the help content for the `detail` command-line program.
 * [`detail vulns`↴](#detail-vulns)
 * [`detail vulns list`↴](#detail-vulns-list)
 * [`detail vulns show`↴](#detail-vulns-show)
+* [`detail vulns close`↴](#detail-vulns-close)
+* [`detail vulns reopen`↴](#detail-vulns-reopen)
 * [`detail vulns scans`↴](#detail-vulns-scans)
 
 ## `detail`
@@ -63,7 +65,7 @@ Common workflow:
 * `skill` — Install Detail skills (default: detail-bugs, which also covers vulns)
 * `update` — Update immediately (auto-update also runs in the background)
 * `version` — Show version information
-* `vulns` — List and inspect findings from security scans
+* `vulns` — List, show, and close findings from security scans
 
 
 
@@ -568,7 +570,7 @@ Show version information
 
 ## `detail vulns`
 
-List and inspect findings from security scans
+List, show, and close findings from security scans
 
 **Usage:** `detail vulns <COMMAND>`
 
@@ -576,6 +578,8 @@ List and inspect findings from security scans
 
 * `list` — List security scan findings for a given repository
 * `show` — Show the report for a security scan finding
+* `close` — Close a security scan finding as resolved or dismissed
+* `reopen` — Reopen a previously resolved or dismissed finding — flips it back to pending. Useful when a fix is reverted or a dismissal is overturned
 * `scans` — List recent security scans for a repository
 
 
@@ -591,6 +595,10 @@ List security scan findings for a given repository
 * `<REPO>` — Repository by owner/repo (e.g., usedetail/cli) or repo (e.g., cli). If omitted, inferred from the git or jj remote (origin)
 
 ###### **Options:**
+
+* `--status <STATUS>` — Only show findings in this state. Takes one value. Default: pending (applied by the API), so closed findings stay hidden unless asked for
+
+  Possible values: `pending`, `resolved`, `dismissed`
 
 * `--severity <SEVERITY>` — Only show findings at these severities — repeat the flag or comma-separate values (e.g. `--severity critical,high`). Default: all severities
 
@@ -639,6 +647,48 @@ Show the report for a security scan finding
 
   Possible values: `table`, `json`
 
+
+
+
+## `detail vulns close`
+
+Close a security scan finding as resolved or dismissed
+
+**Usage:** `detail vulns close [OPTIONS] <VULN_ID>`
+
+###### **Arguments:**
+
+* `<VULN_ID>` — Vuln ID
+
+###### **Options:**
+
+* `--state <STATE>` — Close state (prompted interactively if omitted in a TTY)
+
+  Possible values: `resolved`, `dismissed`
+
+* `--dismissal-reason <DISMISSAL_REASON>` — Dismissal reason (required if state is dismissed)
+
+  Possible values: `not-exploitable`, `wont-fix`, `duplicate`, `other`
+
+* `--notes <NOTES>` — Additional notes (up to 2000 characters)
+* `--format <FORMAT>` — Output format
+
+  Default value: `table`
+
+  Possible values: `table`, `json`
+
+
+
+
+## `detail vulns reopen`
+
+Reopen a previously resolved or dismissed finding — flips it back to pending. Useful when a fix is reverted or a dismissal is overturned
+
+**Usage:** `detail vulns reopen <VULN_ID>`
+
+###### **Arguments:**
+
+* `<VULN_ID>` — Vuln ID
 
 
 
