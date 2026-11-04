@@ -572,6 +572,9 @@
       "Vuln": {
         "description": "A vulnerability found by a Detail security scan.",
         "properties": {
+          "category": {
+            "$ref": "#/components/schemas/VulnCategory"
+          },
           "commitSha": {
             "nullable": true,
             "type": "string"
@@ -639,6 +642,7 @@
           "title",
           "description",
           "severity",
+          "category",
           "filePath",
           "createdAt",
           "repoId",
@@ -647,6 +651,27 @@
           "linkedIssues"
         ],
         "type": "object"
+      },
+      "VulnCategory": {
+        "description": "Vulnerability class of a security scan finding. Null for findings reported before categories existed.",
+        "enum": [
+          "access-control",
+          "authentication",
+          "injection",
+          "xss",
+          "request-forgery",
+          "path-traversal",
+          "sensitive-data-exposure",
+          "denial-of-service",
+          "prompt-injection",
+          "vulnerable-dependency",
+          "supply-chain",
+          "abuse-of-functionality",
+          "other",
+          null
+        ],
+        "nullable": true,
+        "type": "string"
       },
       "VulnCounts": {
         "properties": {
@@ -2017,7 +2042,7 @@
     },
     "/public/v1/vulns/{vuln_id}/review": {
       "post": {
-        "description": "Records a review on a vulnerability: resolve, dismiss, or reopen (state `pending`). `dismissalReason` is kept only when dismissing.",
+        "description": "Records a review on a vulnerability: resolve, dismiss, or reopen (state `pending`). `dismissalReason` is optional, and is kept only when dismissing.",
         "operationId": "createPublicVulnReview",
         "parameters": [
           {
