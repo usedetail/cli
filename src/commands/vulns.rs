@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
 use anyhow::{bail, Context, Result};
+use clap::builder::{PossibleValuesParser, TypedValueParser};
 use clap::Subcommand;
 use console::{style, Term};
 use dialoguer::Select;
@@ -89,7 +90,7 @@ pub enum VulnCommands {
         vuln_id: String,
 
         /// Close state (prompted interactively if omitted in a TTY)
-        #[arg(long, value_enum)]
+        #[arg(long, value_parser = close_state_parser())]
         state: Option<VulnReviewState>,
 
         /// Dismissal reason (required if state is dismissed)
@@ -178,6 +179,17 @@ fn prompt_dismissal_reason() -> Result<VulnDismissalReason> {
         2 => Ok(VulnDismissalReason::Duplicate),
         _ => Ok(VulnDismissalReason::Other),
     }
+}
+
+/// `--state` values `vulns close` accepts, so its help lists only these.
+fn close_state_parser() -> impl TypedValueParser<Value = VulnReviewState> {
+    PossibleValuesParser::new(["resolved", "dismissed"]).map(|state| {
+        if state == "resolved" {
+            VulnReviewState::Resolved
+        } else {
+            VulnReviewState::Dismissed
+        }
+    })
 }
 
 /// Validate the close-command flags that can be checked without prompting.

@@ -664,7 +664,7 @@ Close a security scan finding as resolved or dismissed
 
 * `--state <STATE>` — Close state (prompted interactively if omitted in a TTY)
 
-  Possible values: `pending`, `resolved`, `dismissed`
+  Possible values: `resolved`, `dismissed`
 
 * `--dismissal-reason <DISMISSAL_REASON>` — Dismissal reason (required if state is dismissed)
 
