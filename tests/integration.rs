@@ -216,7 +216,8 @@ fn bugs_list_all_statuses() {
     let key = require_api_key!();
     let env = Env::authenticated(&key, "bugs_list_all_statuses");
 
-    for status in &["pending", "resolved", "dismissed"] {
+    // `pending` is the legacy alias for `open`.
+    for status in &["open", "pending", "resolved", "dismissed"] {
         let json = env.run_json(&["bugs", "list", REPO, "--status", status, "--format", "json"]);
         assert!(
             json["items"].is_array(),
@@ -261,7 +262,7 @@ fn bugs_show() {
 
     // Find a bug ID from any status
     let mut bug_id: Option<String> = None;
-    for status in &["pending", "resolved", "dismissed"] {
+    for status in &["open", "resolved", "dismissed"] {
         let json = env.run_json(&[
             "bugs", "list", REPO, "--status", status, "--limit", "1", "--format", "json",
         ]);

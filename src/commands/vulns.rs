@@ -8,9 +8,9 @@ use dialoguer::Select;
 
 use crate::api::client::{ApiClient, VulnListQuery};
 use crate::api::types::{
-    format_fix_pr, format_linked_issue, severity_label, vuln_dismissal_reason_label,
-    vuln_state_label, vuln_state_source_label, ListPublicVulnsWorkflowRequestId, RepoId, Vuln,
-    VulnDismissalReason, VulnId, VulnReviewState, VulnScan, VulnSeverity, VulnSortOrder,
+    format_fix_pr, format_linked_issue, review_state_label, severity_label,
+    vuln_dismissal_reason_label, vuln_state_source_label, ListPublicVulnsWorkflowRequestId, RepoId,
+    ReviewState, Vuln, VulnDismissalReason, VulnId, VulnScan, VulnSeverity, VulnSortOrder,
     WorkflowStatus,
 };
 use crate::commands::bugs::prompt_notes;
@@ -28,10 +28,11 @@ pub enum VulnCommands {
         /// If omitted, inferred from the git or jj remote (origin).
         repo: Option<String>,
 
-        /// Only show findings in this state. Takes one value. Default: pending
-        /// (applied by the API), so closed findings stay hidden unless asked for.
+        /// Only show findings in this state. Takes one value. `pending` is
+        /// accepted as an alias for `open`. Default: open (applied by the
+        /// API), so closed findings stay hidden unless asked for.
         #[arg(long, value_enum)]
-        status: Option<VulnReviewState>,
+        status: Option<ReviewState>,
 
         /// Only show findings at these severities — repeat the flag or
         /// comma-separate values (e.g. `--severity critical,high`).
@@ -91,7 +92,7 @@ pub enum VulnCommands {
 
         /// Close state (prompted interactively if omitted in a TTY)
         #[arg(long, value_parser = close_state_parser())]
-        state: Option<VulnReviewState>,
+        state: Option<ReviewState>,
 
         /// Dismissal reason (required if state is dismissed)
         #[arg(long, value_enum)]
@@ -107,7 +108,7 @@ pub enum VulnCommands {
     },
 
     /// Reopen a previously resolved or dismissed finding — flips it back to
-    /// pending. Useful when a fix is reverted or a dismissal is overturned.
+    /// open. Useful when a fix is reverted or a dismissal is overturned.
     Reopen {
         /// Vuln ID
         vuln_id: String,
@@ -150,7 +151,7 @@ pub enum VulnCommands {
 // ── Interactive prompt helpers ──────────────────────────────────────
 
 /// Prompt for close state (Resolved / Dismissed) via arrow-key selection.
-fn prompt_close_state() -> Result<VulnReviewState> {
+fn prompt_close_state() -> Result<ReviewState> {
     let items = ["Resolved", "Dismissed"];
     let selection = Select::new()
         .with_prompt("Close state")
@@ -159,8 +160,8 @@ fn prompt_close_state() -> Result<VulnReviewState> {
         .interact()
         .context("Failed to read close state selection")?;
     match selection {
-        0 => Ok(VulnReviewState::Resolved),
-        _ => Ok(VulnReviewState::Dismissed),
+        0 => Ok(ReviewState::Resolved),
+        _ => Ok(ReviewState::Dismissed),
     }
 }
 
@@ -182,12 +183,12 @@ fn prompt_dismissal_reason() -> Result<VulnDismissalReason> {
 }
 
 /// `--state` values `vulns close` accepts, so its help lists only these.
-fn close_state_parser() -> impl TypedValueParser<Value = VulnReviewState> {
+fn close_state_parser() -> impl TypedValueParser<Value = ReviewState> {
     PossibleValuesParser::new(["resolved", "dismissed"]).map(|state| {
         if state == "resolved" {
-            VulnReviewState::Resolved
+            ReviewState::Resolved
         } else {
-            VulnReviewState::Dismissed
+            ReviewState::Dismissed
         }
     })
 }
@@ -196,19 +197,19 @@ fn close_state_parser() -> impl TypedValueParser<Value = VulnReviewState> {
 /// A returned `None` means the field still needs interactive input.
 ///
 /// Rules match `detail bugs close`:
-/// - `--state pending` is always rejected.
+/// - `--state open` is always rejected.
 /// - When `is_interactive` is false, `--state` is required.
 /// - When state is `Dismissed` and `is_interactive` is false,
 ///   `--dismissal-reason` is required.
 /// - When state is not `Dismissed`, any supplied `--dismissal-reason` is
 ///   passed through (the API drops it).
 fn validate_close_flags(
-    state: Option<VulnReviewState>,
+    state: Option<ReviewState>,
     dismissal_reason: Option<VulnDismissalReason>,
     is_interactive: bool,
-) -> Result<(Option<VulnReviewState>, Option<VulnDismissalReason>)> {
-    if matches!(state, Some(VulnReviewState::Pending)) {
-        bail!("'pending' is not a valid close state. Use 'resolved' or 'dismissed'.");
+) -> Result<(Option<ReviewState>, Option<VulnDismissalReason>)> {
+    if matches!(state, Some(ReviewState::Open)) {
+        bail!("'open' is not a valid close state. Use 'resolved' or 'dismissed'.");
     }
 
     let state = match state {
@@ -219,7 +220,7 @@ fn validate_close_flags(
         ),
     };
 
-    let dismissal_reason = if matches!(state, Some(VulnReviewState::Dismissed)) {
+    let dismissal_reason = if matches!(state, Some(ReviewState::Dismissed)) {
         match dismissal_reason {
             Some(r) => Some(r),
             None if is_interactive => None, // will prompt
@@ -314,7 +315,7 @@ fn vuln_show_pairs(vuln: &Vuln) -> Vec<(&'static str, String)> {
         ("ID", vuln.id.to_string()),
         ("Title", vuln.title.clone()),
         ("Severity", severity_label(&vuln.severity).to_string()),
-        ("State", vuln_state_label(&vuln.state).to_string()),
+        ("State", review_state_label(&vuln.state).to_string()),
     ];
     if let Some(reason) = &vuln.dismissal_reason {
         pairs.push(("Dismissal", vuln_dismissal_reason_label(reason).to_string()));
@@ -454,7 +455,7 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
             let query = VulnListQuery {
                 severity: severity_filter.as_deref(),
                 sort: Some(*sort),
-                status: *status,
+                status: status.as_ref(),
                 scan_id: scan_id.as_ref(),
             };
 
@@ -529,7 +530,7 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
             let is_interactive = Term::stdout().is_term();
 
             let (state, dismissal_reason) =
-                validate_close_flags(*state, *dismissal_reason, is_interactive)?;
+                validate_close_flags(state.clone(), *dismissal_reason, is_interactive)?;
 
             // Resolve fields that still need interactive prompts
             let state = match state {
@@ -537,7 +538,7 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
                 None => prompt_close_state()?,
             };
 
-            let dismissal_reason = if matches!(state, VulnReviewState::Dismissed) {
+            let dismissal_reason = if matches!(state, ReviewState::Dismissed) {
                 match dismissal_reason {
                     Some(r) => Some(r),
                     None => Some(prompt_dismissal_reason()?),
@@ -553,7 +554,7 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
             };
 
             let review = client
-                .update_vuln_close(&vuln_id, state, dismissal_reason, notes.as_deref())
+                .update_vuln_close(&vuln_id, state.clone(), dismissal_reason, notes.as_deref())
                 .await
                 .context("Failed to close vuln")?;
 
@@ -567,7 +568,7 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
             Term::stdout()
                 .write_line(&format!(
                     "{}",
-                    style(format!("✓ Vuln closed as: {}", vuln_state_label(&state))).green()
+                    style(format!("✓ Vuln closed as: {}", review_state_label(&state))).green()
                 ))
                 .ok();
             Ok(())
@@ -582,12 +583,12 @@ pub async fn handle(command: &VulnCommands, cli: &crate::Cli) -> Result<()> {
             // A review is a new row, so the earlier reason and notes don't
             // carry over: reopening is a pure state flip.
             client
-                .update_vuln_close(&vuln_id, VulnReviewState::Pending, None, None)
+                .update_vuln_close(&vuln_id, ReviewState::Open, None, None)
                 .await
                 .context("Failed to reopen vuln")?;
 
             Term::stdout()
-                .write_line(&format!("{}", style("✓ Vuln reopened (pending)").green()))
+                .write_line(&format!("{}", style("✓ Vuln reopened").green()))
                 .ok();
             Ok(())
         }
@@ -681,28 +682,28 @@ mod tests {
     #[test]
     fn close_resolved_non_interactive() {
         let (state, reason) =
-            validate_close_flags(Some(VulnReviewState::Resolved), None, false).unwrap();
-        assert!(matches!(state, Some(VulnReviewState::Resolved)));
+            validate_close_flags(Some(ReviewState::Resolved), None, false).unwrap();
+        assert!(matches!(state, Some(ReviewState::Resolved)));
         assert!(reason.is_none());
     }
 
     #[test]
     fn close_dismissed_with_reason_non_interactive() {
         let (state, reason) = validate_close_flags(
-            Some(VulnReviewState::Dismissed),
+            Some(ReviewState::Dismissed),
             Some(VulnDismissalReason::NotExploitable),
             false,
         )
         .unwrap();
-        assert!(matches!(state, Some(VulnReviewState::Dismissed)));
+        assert!(matches!(state, Some(ReviewState::Dismissed)));
         assert!(matches!(reason, Some(VulnDismissalReason::NotExploitable)));
     }
 
     #[test]
-    fn close_rejects_pending_in_both_modes() {
+    fn close_rejects_open_in_both_modes() {
         for is_interactive in [false, true] {
-            let err = validate_close_flags(Some(VulnReviewState::Pending), None, is_interactive)
-                .unwrap_err();
+            let err =
+                validate_close_flags(Some(ReviewState::Open), None, is_interactive).unwrap_err();
             assert!(err.to_string().contains("not a valid close state"));
         }
     }
@@ -721,22 +722,22 @@ mod tests {
 
     #[test]
     fn close_dismissed_no_reason_non_interactive_errors() {
-        let err = validate_close_flags(Some(VulnReviewState::Dismissed), None, false).unwrap_err();
+        let err = validate_close_flags(Some(ReviewState::Dismissed), None, false).unwrap_err();
         assert!(err.to_string().contains("--dismissal-reason is required"));
     }
 
     #[test]
     fn close_dismissed_no_reason_interactive_defers() {
         let (state, reason) =
-            validate_close_flags(Some(VulnReviewState::Dismissed), None, true).unwrap();
-        assert!(matches!(state, Some(VulnReviewState::Dismissed)));
+            validate_close_flags(Some(ReviewState::Dismissed), None, true).unwrap();
+        assert!(matches!(state, Some(ReviewState::Dismissed)));
         assert!(reason.is_none());
     }
 
     #[test]
     fn close_resolved_passes_reason_through() {
         let (_, reason) = validate_close_flags(
-            Some(VulnReviewState::Resolved),
+            Some(ReviewState::Resolved),
             Some(VulnDismissalReason::Other),
             false,
         )
@@ -823,7 +824,7 @@ mod tests {
             ["ID", "Title", "Severity", "State", "File", "Created"]
         );
         assert_eq!(pairs[2].1, "High");
-        assert_eq!(pairs[3].1, "Pending");
+        assert_eq!(pairs[3].1, "Open");
     }
 
     #[test]

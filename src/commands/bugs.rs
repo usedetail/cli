@@ -10,8 +10,8 @@ use dialoguer::{Input, Select};
 use crate::api::client::{ApiClient, BugListQuery};
 use crate::api::types::{
     dismissal_reason_label, format_fix_pr, format_introduced_in, format_linked_issue,
-    priority_label, review_state_label, Bug, BugDismissalReason, BugId, BugReviewState,
-    BugSortOrder, ListPublicBugsWorkflowRequestId, Priority, RepoId,
+    priority_label, review_state_label, Bug, BugDismissalReason, BugId, BugSortOrder,
+    ListPublicBugsWorkflowRequestId, Priority, RepoId, ReviewState,
 };
 use crate::output::{clamp_page, output_list, SectionRenderer};
 use crate::utils::datetime::{format_datetime, parse_time_spec};
@@ -185,10 +185,10 @@ const fn priority_rank(bug: &Bug) -> u8 {
 
 /// Re-apply `sort` across bugs merged from several single-status requests.
 ///
-/// The API takes one status per call, so `--status pending,resolved` is two
+/// The API takes one status per call, so `--status open,resolved` is two
 /// calls whose results get concatenated: each block is ordered, the whole is
 /// not. Without this, `--sort priority` over two statuses would show every
-/// pending bug (P1 first) and only then start over at P1 for the resolved
+/// open bug (P1 first) and only then start over at P1 for the resolved
 /// ones. Single-status queries are already ordered by the server and skip it.
 fn sort_bugs(bugs: &mut [Bug], sort: BugSortOrder) {
     match sort {
@@ -230,9 +230,10 @@ pub enum BugCommands {
         repo: Option<String>,
 
         /// Status filter — repeat the flag or comma-separate values to
-        /// combine (e.g. `--status pending,resolved`). Default: pending.
-        #[arg(long, value_enum, value_delimiter = ',', default_value = "pending")]
-        status: Vec<BugReviewState>,
+        /// combine (e.g. `--status open,resolved`). `pending` is accepted as
+        /// an alias for `open`. Default: open.
+        #[arg(long, value_enum, value_delimiter = ',', default_value = "open")]
+        status: Vec<ReviewState>,
 
         /// Only show bugs that Detail's bug finder flagged as security
         /// vulnerabilities. For findings from security scans, use
@@ -303,7 +304,7 @@ pub enum BugCommands {
 
         /// Close state (prompted interactively if omitted in a TTY)
         #[arg(long, value_enum)]
-        state: Option<BugReviewState>,
+        state: Option<ReviewState>,
 
         /// Dismissal reason (required if state is dismissed)
         #[arg(long, value_enum)]
@@ -319,7 +320,7 @@ pub enum BugCommands {
     },
 
     /// Reopen a previously resolved or dismissed bug — flips it back to
-    /// pending. Useful when a "fix" PR is reverted or a "won't fix"
+    /// open. Useful when a "fix" PR is reverted or a "won't fix"
     /// decision is overturned.
     Reopen {
         /// Bug ID
@@ -348,7 +349,7 @@ pub enum BugCommands {
 // ── Interactive prompt helpers ──────────────────────────────────────
 
 /// Prompt for close state (Resolved / Dismissed) via arrow-key selection.
-fn prompt_close_state() -> Result<BugReviewState> {
+fn prompt_close_state() -> Result<ReviewState> {
     let items = ["Resolved", "Dismissed"];
     let selection = Select::new()
         .with_prompt("Close state")
@@ -357,8 +358,8 @@ fn prompt_close_state() -> Result<BugReviewState> {
         .interact()
         .context("Failed to read close state selection")?;
     match selection {
-        0 => Ok(BugReviewState::Resolved),
-        _ => Ok(BugReviewState::Dismissed),
+        0 => Ok(ReviewState::Resolved),
+        _ => Ok(ReviewState::Dismissed),
     }
 }
 
@@ -415,25 +416,25 @@ pub(crate) fn prompt_notes() -> Result<Option<String>> {
 /// for the `state/dismissal_reason` fields that still need interactive input.
 ///
 /// Rules:
-/// - `--state pending` is always rejected.
+/// - `--state open` is always rejected.
 /// - When `is_interactive` is false, `--state` is required.
 /// - When state is `Dismissed` and `is_interactive` is false,
 ///   `--dismissal-reason` is required.
 /// - When state is not `Dismissed`, any supplied `--dismissal-reason` is
 ///   passed through (the API will ignore it).
 fn validate_close_flags(
-    state: Option<BugReviewState>,
+    state: Option<ReviewState>,
     dismissal_reason: Option<BugDismissalReason>,
     notes: Option<String>,
     is_interactive: bool,
 ) -> Result<(
-    Option<BugReviewState>,
+    Option<ReviewState>,
     Option<BugDismissalReason>,
     Option<String>,
 )> {
-    // Reject --state pending
-    if matches!(state, Some(BugReviewState::Pending)) {
-        bail!("'pending' is not a valid close state. Use 'resolved' or 'dismissed'.");
+    // Reject --state open
+    if matches!(state, Some(ReviewState::Open)) {
+        bail!("'open' is not a valid close state. Use 'resolved' or 'dismissed'.");
     }
 
     // Non-interactive: --state is required
@@ -446,7 +447,7 @@ fn validate_close_flags(
     };
 
     // Non-interactive + Dismissed: --dismissal-reason is required
-    let dismissal_reason = if matches!(state, Some(BugReviewState::Dismissed)) {
+    let dismissal_reason = if matches!(state, Some(ReviewState::Dismissed)) {
         match dismissal_reason {
             Some(r) => Some(r),
             None if is_interactive => None, // will prompt
@@ -522,7 +523,7 @@ const BUG_PAGE_SIZE: u32 = 100;
 async fn fetch_all_bugs(
     client: &ApiClient,
     repo_id: &RepoId,
-    status: BugReviewState,
+    status: &ReviewState,
     query: BugListQuery<'_>,
 ) -> Result<Vec<Bug>> {
     let mut all_bugs = Vec::new();
@@ -547,15 +548,15 @@ async fn fetch_all_bugs(
     Ok(all_bugs)
 }
 
-/// Dedupe a slice of `BugReviewState` while preserving first-seen order.
-/// Used to normalize repeated `--status` inputs (e.g. `pending,pending`) so
+/// Dedupe a slice of `ReviewState` while preserving first-seen order.
+/// Used to normalize repeated `--status` inputs (e.g. `open,open`) so
 /// the multi-status helper doesn't fan out duplicate API calls and inflate
 /// totals.
-fn dedupe_statuses(statuses: &[BugReviewState]) -> Vec<BugReviewState> {
-    let mut out: Vec<BugReviewState> = Vec::with_capacity(statuses.len());
+fn dedupe_statuses(statuses: &[ReviewState]) -> Vec<ReviewState> {
+    let mut out: Vec<ReviewState> = Vec::with_capacity(statuses.len());
     for s in statuses {
         if !out.contains(s) {
-            out.push(*s);
+            out.push(s.clone());
         }
     }
     out
@@ -564,17 +565,17 @@ fn dedupe_statuses(statuses: &[BugReviewState]) -> Vec<BugReviewState> {
 /// Fetch every bug for each of `statuses`, concatenated in the order given.
 /// The bugs API only accepts a single status per request, so multi-status
 /// queries fan out into one paginated call per status. Repeated statuses
-/// are deduped first so `--status pending,pending` doesn't double-count.
+/// are deduped first so `--status open,open` doesn't double-count.
 async fn fetch_all_bugs_multi_status(
     client: &ApiClient,
     repo_id: &RepoId,
-    statuses: &[BugReviewState],
+    statuses: &[ReviewState],
     query: BugListQuery<'_>,
 ) -> Result<Vec<Bug>> {
     let deduped = dedupe_statuses(statuses);
     let mut combined = Vec::new();
     for status in &deduped {
-        let bugs = fetch_all_bugs(client, repo_id, *status, query).await?;
+        let bugs = fetch_all_bugs(client, repo_id, status, query).await?;
         combined.extend(bugs);
     }
     // Concatenating per-status blocks loses the global ordering the server
@@ -592,7 +593,7 @@ async fn fetch_all_bugs_multi_status(
 async fn fetch_bugs_up_to(
     client: &ApiClient,
     repo_id: &RepoId,
-    status: BugReviewState,
+    status: &ReviewState,
     max_items: u32,
     query: BugListQuery<'_>,
 ) -> Result<(Vec<Bug>, usize)> {
@@ -639,7 +640,7 @@ async fn fetch_bugs_up_to(
 async fn fetch_page_multi_status(
     client: &ApiClient,
     repo_id: &RepoId,
-    statuses: &[BugReviewState],
+    statuses: &[ReviewState],
     limit: u32,
     page: u32,
     query: BugListQuery<'_>,
@@ -651,7 +652,7 @@ async fn fetch_page_multi_status(
     let mut total: usize = 0;
     for status in &deduped {
         let (bugs, status_total) =
-            fetch_bugs_up_to(client, repo_id, *status, fetch_limit, query).await?;
+            fetch_bugs_up_to(client, repo_id, status, fetch_limit, query).await?;
         total += status_total;
         combined.extend(bugs);
     }
@@ -779,7 +780,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 // Single-status, no other filters: keep the original
                 // single-page server fetch — cheaper and lets the API drive
                 // pagination.
-                let single_status = status.first().copied().unwrap_or(BugReviewState::Pending);
+                let single_status = status.first().unwrap_or(&ReviewState::Open);
                 let offset = page_to_offset(*page, *limit);
                 let bugs = client
                     .list_bugs(&resolved_repo_id, single_status, *limit, offset, query)
@@ -826,8 +827,12 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .context("Invalid bug ID format (expected bug_...)")?;
             let is_interactive = Term::stdout().is_term();
 
-            let (state, dismissal_reason, notes) =
-                validate_close_flags(*state, *dismissal_reason, notes.clone(), is_interactive)?;
+            let (state, dismissal_reason, notes) = validate_close_flags(
+                state.clone(),
+                *dismissal_reason,
+                notes.clone(),
+                is_interactive,
+            )?;
 
             // Resolve fields that still need interactive prompts
             let state = match state {
@@ -835,7 +840,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 None => prompt_close_state()?,
             };
 
-            let dismissal_reason = if matches!(state, BugReviewState::Dismissed) {
+            let dismissal_reason = if matches!(state, ReviewState::Dismissed) {
                 match dismissal_reason {
                     Some(r) => Some(r),
                     None => Some(prompt_dismissal_reason()?),
@@ -851,7 +856,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             };
 
             let review = client
-                .update_bug_close(&bug_id, state, dismissal_reason, notes.as_deref())
+                .update_bug_close(&bug_id, state.clone(), dismissal_reason, notes.as_deref())
                 .await
                 .context("Failed to close bug")?;
 
@@ -883,12 +888,12 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
             // already carried. Until the API gains PATCH semantics, the
             // safe shape for `reopen` is a pure state flip.
             client
-                .update_bug_close(&bug_id, BugReviewState::Pending, None, None)
+                .update_bug_close(&bug_id, ReviewState::Open, None, None)
                 .await
                 .context("Failed to reopen bug")?;
 
             Term::stdout()
-                .write_line(&format!("{}", style("✓ Bug reopened (pending)").green()))
+                .write_line(&format!("{}", style("✓ Bug reopened").green()))
                 .ok();
             Ok(())
         }
@@ -948,8 +953,8 @@ mod tests {
     #[test]
     fn close_resolved_non_interactive() {
         let (state, reason, notes) =
-            validate_close_flags(Some(BugReviewState::Resolved), None, None, false).unwrap();
-        assert!(matches!(state, Some(BugReviewState::Resolved)));
+            validate_close_flags(Some(ReviewState::Resolved), None, None, false).unwrap();
+        assert!(matches!(state, Some(ReviewState::Resolved)));
         assert!(reason.is_none());
         assert!(notes.is_none());
     }
@@ -957,27 +962,25 @@ mod tests {
     #[test]
     fn close_dismissed_with_reason_non_interactive() {
         let (state, reason, _) = validate_close_flags(
-            Some(BugReviewState::Dismissed),
+            Some(ReviewState::Dismissed),
             Some(BugDismissalReason::WontFix),
             None,
             false,
         )
         .unwrap();
-        assert!(matches!(state, Some(BugReviewState::Dismissed)));
+        assert!(matches!(state, Some(ReviewState::Dismissed)));
         assert!(matches!(reason, Some(BugDismissalReason::WontFix)));
     }
 
     #[test]
-    fn close_rejects_pending() {
-        let err =
-            validate_close_flags(Some(BugReviewState::Pending), None, None, false).unwrap_err();
+    fn close_rejects_open() {
+        let err = validate_close_flags(Some(ReviewState::Open), None, None, false).unwrap_err();
         assert!(err.to_string().contains("not a valid close state"));
     }
 
     #[test]
-    fn close_rejects_pending_even_interactive() {
-        let err =
-            validate_close_flags(Some(BugReviewState::Pending), None, None, true).unwrap_err();
+    fn close_rejects_open_even_interactive() {
+        let err = validate_close_flags(Some(ReviewState::Open), None, None, true).unwrap_err();
         assert!(err.to_string().contains("not a valid close state"));
     }
 
@@ -996,22 +999,22 @@ mod tests {
     #[test]
     fn close_dismissed_no_reason_non_interactive_errors() {
         let err =
-            validate_close_flags(Some(BugReviewState::Dismissed), None, None, false).unwrap_err();
+            validate_close_flags(Some(ReviewState::Dismissed), None, None, false).unwrap_err();
         assert!(err.to_string().contains("--dismissal-reason is required"));
     }
 
     #[test]
     fn close_dismissed_no_reason_interactive_defers() {
         let (state, reason, _) =
-            validate_close_flags(Some(BugReviewState::Dismissed), None, None, true).unwrap();
-        assert!(matches!(state, Some(BugReviewState::Dismissed)));
+            validate_close_flags(Some(ReviewState::Dismissed), None, None, true).unwrap();
+        assert!(matches!(state, Some(ReviewState::Dismissed)));
         assert!(reason.is_none()); // will be filled by interactive prompt
     }
 
     #[test]
     fn close_passes_notes_through() {
         let (_, _, notes) = validate_close_flags(
-            Some(BugReviewState::Resolved),
+            Some(ReviewState::Resolved),
             None,
             Some("fixed it".into()),
             false,
@@ -1023,7 +1026,7 @@ mod tests {
     #[test]
     fn close_resolved_ignores_dismissal_reason() {
         let (_, reason, _) = validate_close_flags(
-            Some(BugReviewState::Resolved),
+            Some(ReviewState::Resolved),
             Some(BugDismissalReason::Duplicate),
             None,
             false,
@@ -1163,37 +1166,33 @@ mod tests {
     #[test]
     fn dedupe_statuses_passes_through_distinct_values() {
         let input = [
-            BugReviewState::Pending,
-            BugReviewState::Resolved,
-            BugReviewState::Dismissed,
+            ReviewState::Open,
+            ReviewState::Resolved,
+            ReviewState::Dismissed,
         ];
         assert_eq!(dedupe_statuses(&input), input.to_vec());
     }
 
     #[test]
     fn dedupe_statuses_drops_repeats_preserving_first_seen_order() {
-        // `--status resolved --status pending --status resolved` →
-        // [Resolved, Pending] (resolved deduped, original order kept).
+        // `--status resolved --status open --status resolved` →
+        // [Resolved, Open] (resolved deduped, original order kept).
         let input = [
-            BugReviewState::Resolved,
-            BugReviewState::Pending,
-            BugReviewState::Resolved,
+            ReviewState::Resolved,
+            ReviewState::Open,
+            ReviewState::Resolved,
         ];
         assert_eq!(
             dedupe_statuses(&input),
-            vec![BugReviewState::Resolved, BugReviewState::Pending]
+            vec![ReviewState::Resolved, ReviewState::Open]
         );
     }
 
     #[test]
     fn dedupe_statuses_collapses_all_repeats_to_single() {
-        // `--status pending,pending,pending` → [Pending]
-        let input = [
-            BugReviewState::Pending,
-            BugReviewState::Pending,
-            BugReviewState::Pending,
-        ];
-        assert_eq!(dedupe_statuses(&input), vec![BugReviewState::Pending]);
+        // `--status open,open,open` → [Open]
+        let input = [ReviewState::Open, ReviewState::Open, ReviewState::Open];
+        assert_eq!(dedupe_statuses(&input), vec![ReviewState::Open]);
     }
 
     #[test]

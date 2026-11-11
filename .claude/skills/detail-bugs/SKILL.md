@@ -27,7 +27,7 @@ The Detail CLI infers the repository from the git or jj remote; if the user spec
 
 Lists bugs for the inferred or specified repository.
 
-- `--status pending|resolved|dismissed` — default `pending`; comma-separate or repeat the flag to combine (e.g. `--status resolved,dismissed`).
+- `--status open|resolved|dismissed` — default `open`; comma-separate or repeat the flag to combine (e.g. `--status resolved,dismissed`). `pending` is a legacy alias for `open`. In `--format json` output an open bug's state may read `pending` or `open`; treat both as open.
 - `--vulns` — only bugs the bug finder flagged as security vulnerabilities. For findings from security scans, use `detail vulns list` instead.
 - `--priority p1|p2|p3|none` — only bugs at these priorities; comma-separate or repeat the flag (e.g. `--priority p1,p2`). `none` selects bugs Detail never scored — most bugs found before priority scoring shipped, so prefer `--priority p1,p2,p3` over `--priority p1` when the user asks for "prioritized" bugs. Default: every priority.
 - `--sort newest|oldest|priority` — default `newest`. `priority` puts the most severe first and unscored last.
@@ -57,7 +57,7 @@ Marks a bug as resolved or dismissed. The CLI prompts for `--state` interactivel
 
 ### `detail bugs reopen <BUG_ID>`
 
-Flips a previously resolved or dismissed bug back to `pending`. Takes only the bug ID — useful when a fix is reverted or a dismissal is overturned.
+Flips a previously resolved or dismissed bug back to `open`. Takes only the bug ID — useful when a fix is reverted or a dismissal is overturned.
 
 ### `detail bugs prioritize <BUG_ID>`
 
@@ -75,7 +75,7 @@ Security scans produce findings ("vulns") that are separate from bugs: they have
 
 ### `detail vulns list [REPO]`
 
-- `--status pending|resolved|dismissed` — one value; default `pending`, so closed findings are hidden unless asked for. To see every state, run it once per state.
+- `--status open|resolved|dismissed` — one value; default `open`, so closed findings are hidden unless asked for. `pending` is a legacy alias for `open`, and JSON output may show either. To see every state, run it once per state.
 - `--severity critical|high|medium|low` — comma-separate or repeat the flag (e.g. `--severity critical,high`). Default: every severity.
 - `--sort newest|oldest|severity` — default `newest`. `severity` puts the most severe first.
 - `--scan-id <wr_…>` — limit to a specific security scan. Workflow IDs come from `detail vulns scans`.
@@ -98,7 +98,7 @@ Marks a finding as resolved or dismissed. The CLI prompts for `--state` interact
 
 ### `detail vulns reopen <VULN_ID>`
 
-Flips a previously resolved or dismissed finding back to `pending`. Takes only the vuln ID. The earlier reason and notes do not carry over.
+Flips a previously resolved or dismissed finding back to `open`. Takes only the vuln ID. The earlier reason and notes do not carry over.
 
 ### `detail vulns scans [REPO]`
 
