@@ -11,7 +11,7 @@ use clap::builder::PossibleValue;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Value sent to the API for [`ReviewState::Open`].
-const OPEN_WIRE: &str = "pending";
+const OPEN_WIRE: &str = "open";
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ReviewState {
@@ -36,6 +36,8 @@ impl ReviewState {
 
     fn from_wire(value: &str) -> Self {
         match value {
+            // Legacy alias: "pending" is accepted from servers predating the
+            // open rename. Remove once unused.
             "open" | "pending" => Self::Open,
             "resolved" => Self::Resolved,
             "dismissed" => Self::Dismissed,
@@ -113,12 +115,18 @@ mod tests {
     }
 
     #[test]
-    fn open_is_sent_as_wire_value() {
+    fn open_is_sent_as_open() {
         assert_eq!(
             serde_json::to_value(ReviewState::Open).expect("serializes"),
-            serde_json::json!(OPEN_WIRE)
+            serde_json::json!("open")
         );
-        assert_eq!(ReviewState::Open.to_string(), OPEN_WIRE);
+        assert_eq!(ReviewState::Open.to_string(), "open");
+    }
+
+    #[test]
+    fn legacy_pending_payload_is_printed_as_open() {
+        let json = serde_json::to_value(decode("pending")).expect("serializes");
+        assert_eq!(json, serde_json::json!("open"));
     }
 
     #[test]
