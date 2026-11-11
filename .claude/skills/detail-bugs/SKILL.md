@@ -1,6 +1,7 @@
 ---
 name: detail-bugs
-description: Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, reopen previously closed bugs, and override a bug's priority. Also covers security scan findings (`detail vulns`): list, show, close, and reopen.
+description: >-
+  Interact with Detail bugs for a repository via the CLI — list and filter bugs, inspect reports, close as resolved or dismissed, reopen previously closed bugs, and override a bug's priority. Also covers security scan findings (`detail vulns`): list, show, close, and reopen.
 ---
 
 # Detail Bugs
