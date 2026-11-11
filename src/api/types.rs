@@ -414,7 +414,7 @@ impl Formattable for Scan {
             pairs.push(("Commit", short.to_string()));
         }
         pairs.push((
-            "Workflow ID",
+            "Scan ID",
             self.workflow_request_id
                 .clone()
                 .unwrap_or_else(|| "-".to_string()),
@@ -494,7 +494,7 @@ impl Formattable for VulnScan {
             let short = sha.get(..7).unwrap_or(sha);
             pairs.push(("Commit", short.to_string()));
         }
-        pairs.push(("Workflow ID", self.workflow_request_id.to_string()));
+        pairs.push(("Scan ID", self.workflow_request_id.to_string()));
         pairs.push(("Created", format_datetime(self.created_at)));
         (header, pairs)
     }
@@ -1019,7 +1019,7 @@ mod tests {
                 "Scan Type",
                 "Initiator",
                 "Commit",
-                "Workflow ID",
+                "Scan ID",
                 "Created",
             ]
         );
@@ -1075,7 +1075,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_card_workflow_id_none_shows_dash() {
+    fn scan_card_scan_id_none_shows_dash() {
         let scan: Scan = serde_json::from_value(serde_json::json!({
             "id": "scan_004",
             "repoId": "repo_001",
@@ -1089,16 +1089,13 @@ mod tests {
         }))
         .expect("valid Scan JSON");
         let (_, pairs) = scan.to_card();
-        assert_eq!(scan_pair(&pairs, "Workflow ID"), Some(&"-".to_string()));
+        assert_eq!(scan_pair(&pairs, "Scan ID"), Some(&"-".to_string()));
     }
 
     #[test]
-    fn scan_card_workflow_id_present() {
+    fn scan_card_scan_id_present() {
         let (_, pairs) = sample_scan().to_card();
-        assert_eq!(
-            scan_pair(&pairs, "Workflow ID"),
-            Some(&"wr_abc123".to_string())
-        );
+        assert_eq!(scan_pair(&pairs, "Scan ID"), Some(&"wr_abc123".to_string()));
     }
 
     // ── Vuln / VulnScan Formattable ──────────────────────────────────
@@ -1242,7 +1239,7 @@ mod tests {
         assert_eq!(header, "usedetail/cli 3 Vulns Found");
         assert_eq!(pairs[0], ("Severity", "1 Critical, 2 Medium".to_string()));
         assert!(pairs.contains(&("Commit", "abcdef1".to_string())));
-        assert!(pairs.contains(&("Workflow ID", "wr_1".to_string())));
+        assert!(pairs.contains(&("Scan ID", "wr_1".to_string())));
     }
 
     #[test]

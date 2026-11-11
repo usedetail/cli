@@ -255,7 +255,7 @@ pub enum BugCommands {
         #[arg(long, value_delimiter = ',')]
         introduced_by: Vec<String>,
 
-        /// Filter bugs to a specific scan by workflow request ID
+        /// Filter bugs to a specific scan by Scan ID (from `detail scans list`)
         #[arg(long)]
         scan_id: Option<String>,
 
