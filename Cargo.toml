@@ -66,6 +66,7 @@ regress = "0.10.5"
 
 [dev-dependencies]
 clap-markdown = "0.1"
+yaml-rust2 = "0.13"
 
 # The profile that 'dist' will build with
 [lints.clippy]
