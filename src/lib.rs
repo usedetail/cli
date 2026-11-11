@@ -33,7 +33,7 @@ const LONG_ABOUT: &str = "\
 Detail CLI - Manage bugs from your terminal
 
 Common workflow:
-  1. List pending bugs:   detail bugs list <owner/repo>
+  1. List open bugs:      detail bugs list <owner/repo>
   2. View a bug report:   detail bugs show <bug_id>
   3. Fix the bug
   4. Close the bug:       detail bugs close <bug_id>";
@@ -671,6 +671,39 @@ mod tests {
     fn rejects_repos_list_limit_zero() {
         let cli = Cli::try_parse_from(["detail", "repos", "list", "--limit", "0"]);
         assert!(cli.is_err());
+    }
+
+    #[test]
+    fn bugs_list_status_open_and_pending_parse_to_pending() {
+        for value in ["open", "pending"] {
+            let cli =
+                Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--status", value])
+                    .unwrap();
+            if let Commands::Bugs {
+                command: commands::bugs::BugCommands::List { status, .. },
+            } = &cli.command
+            {
+                assert_eq!(status.as_slice(), [BugReviewState::Pending], "{value}");
+            } else {
+                panic!("expected bugs list command");
+            }
+        }
+    }
+
+    #[test]
+    fn bugs_close_rejects_state_open() {
+        // `open` parses (it is the Pending variant) but close rejects it.
+        let cli =
+            Cli::try_parse_from(["detail", "bugs", "close", "bug_1", "--state", "open"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Bugs {
+                command: commands::bugs::BugCommands::Close {
+                    state: Some(BugReviewState::Pending),
+                    ..
+                },
+            }
+        ));
     }
 
     #[test]

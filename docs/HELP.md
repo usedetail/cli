@@ -46,7 +46,7 @@ This document contains the help content for the `detail` command-line program.
 Detail CLI - Manage bugs from your terminal
 
 Common workflow:
-  1. List pending bugs:   detail bugs list <owner/repo>
+  1. List open bugs:      detail bugs list <owner/repo>
   2. View a bug report:   detail bugs show <bug_id>
   3. Fix the bug
   4. Close the bug:       detail bugs close <bug_id>
@@ -122,7 +122,7 @@ List, show, and close bugs
 * `list` — List bugs for a given repository
 * `show` — Show the report for a bug
 * `close` — Close a bug as resolved or dismissed
-* `reopen` — Reopen a previously resolved or dismissed bug — flips it back to pending. Useful when a "fix" PR is reverted or a "won't fix" decision is overturned
+* `reopen` — Reopen a previously resolved or dismissed bug — flips it back to open. Useful when a "fix" PR is reverted or a "won't fix" decision is overturned
 * `prioritize` — Set a bug's priority, overriding Detail's own assessment
 
 
@@ -139,11 +139,11 @@ List bugs for a given repository
 
 ###### **Options:**
 
-* `--status <STATUS>` — Status filter — repeat the flag or comma-separate values to combine (e.g. `--status pending,resolved`). Default: pending
+* `--status <STATUS>` — Status filter — repeat the flag or comma-separate values to combine (e.g. `--status open,resolved`). `pending` is accepted as an alias for `open`. Default: open
 
-  Default value: `pending`
+  Default value: `open`
 
-  Possible values: `pending`, `resolved`, `dismissed`
+  Possible values: `open`, `resolved`, `dismissed`
 
 * `--vulns` — Only show bugs that Detail's bug finder flagged as security vulnerabilities. For findings from security scans, use `detail vulns list`
 * `--priority <PRIORITY>` — Only show bugs at these priorities — repeat the flag or comma-separate values (e.g. `--priority p1,p2`). Use `none` for bugs Detail never assigned a priority. Default: all priorities
@@ -211,7 +211,7 @@ Close a bug as resolved or dismissed
 
 * `--state <STATE>` — Close state (prompted interactively if omitted in a TTY)
 
-  Possible values: `pending`, `resolved`, `dismissed`
+  Possible values: `open`, `resolved`, `dismissed`
 
 * `--dismissal-reason <DISMISSAL_REASON>` — Dismissal reason (required if state is dismissed)
 
@@ -229,7 +229,7 @@ Close a bug as resolved or dismissed
 
 ## `detail bugs reopen`
 
-Reopen a previously resolved or dismissed bug — flips it back to pending. Useful when a "fix" PR is reverted or a "won't fix" decision is overturned
+Reopen a previously resolved or dismissed bug — flips it back to open. Useful when a "fix" PR is reverted or a "won't fix" decision is overturned
 
 **Usage:** `detail bugs reopen <BUG_ID>`
 

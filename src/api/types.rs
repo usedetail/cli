@@ -33,9 +33,11 @@ pub type VulnScansResponse = super::generated::types::ListPublicVulnScansRespons
 // progenitor already implements Display for the generated enums, so we
 // provide standalone helpers for user-friendly labels where needed.
 
+/// Human label for a bug's review state. The API's `pending` is shown as
+/// "Open"; JSON output keeps the raw API value.
 pub const fn review_state_label(s: &BugReviewState) -> &'static str {
     match s {
-        BugReviewState::Pending => "Pending",
+        BugReviewState::Pending => "Open",
         BugReviewState::Resolved => "Resolved",
         BugReviewState::Dismissed => "Dismissed",
     }
@@ -198,9 +200,11 @@ impl clap::ValueEnum for BugReviewState {
         &[Self::Pending, Self::Resolved, Self::Dismissed]
     }
 
+    /// `open` parses to `Pending`, which is sent to the API as `pending`;
+    /// `pending` itself is still accepted as a hidden alias.
     fn to_possible_value(&self) -> Option<PossibleValue> {
         match self {
-            Self::Pending => Some(PossibleValue::new("pending")),
+            Self::Pending => Some(PossibleValue::new("open").alias("pending")),
             Self::Resolved => Some(PossibleValue::new("resolved")),
             Self::Dismissed => Some(PossibleValue::new("dismissed")),
         }
@@ -519,7 +523,7 @@ mod tests {
 
     #[test]
     fn review_state_labels() {
-        assert_eq!(review_state_label(&BugReviewState::Pending), "Pending");
+        assert_eq!(review_state_label(&BugReviewState::Pending), "Open");
         assert_eq!(review_state_label(&BugReviewState::Resolved), "Resolved");
         assert_eq!(review_state_label(&BugReviewState::Dismissed), "Dismissed");
     }
@@ -559,7 +563,27 @@ mod tests {
                     .to_string()
             })
             .collect();
-        assert_eq!(values, vec!["pending", "resolved", "dismissed"]);
+        assert_eq!(values, vec!["open", "resolved", "dismissed"]);
+    }
+
+    #[test]
+    fn review_state_open_and_pending_both_parse_to_pending() {
+        for input in ["open", "pending", "OPEN"] {
+            let parsed = BugReviewState::from_str(input, true).expect("valid status");
+            assert_eq!(parsed, BugReviewState::Pending, "input {input}");
+        }
+        assert!(BugReviewState::from_str("open", false).is_ok());
+        assert!(BugReviewState::from_str("pending", false).is_ok());
+    }
+
+    #[test]
+    fn review_state_open_serializes_as_pending() {
+        let parsed = BugReviewState::from_str("open", false).expect("valid status");
+        assert_eq!(parsed.to_string(), "pending");
+        assert_eq!(
+            serde_json::to_value(parsed).expect("serializable"),
+            serde_json::json!("pending")
+        );
     }
 
     #[test]

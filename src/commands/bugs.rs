@@ -230,8 +230,9 @@ pub enum BugCommands {
         repo: Option<String>,
 
         /// Status filter — repeat the flag or comma-separate values to
-        /// combine (e.g. `--status pending,resolved`). Default: pending.
-        #[arg(long, value_enum, value_delimiter = ',', default_value = "pending")]
+        /// combine (e.g. `--status open,resolved`). `pending` is accepted as
+        /// an alias for `open`. Default: open.
+        #[arg(long, value_enum, value_delimiter = ',', default_value = "open")]
         status: Vec<BugReviewState>,
 
         /// Only show bugs that Detail's bug finder flagged as security
@@ -319,7 +320,7 @@ pub enum BugCommands {
     },
 
     /// Reopen a previously resolved or dismissed bug — flips it back to
-    /// pending. Useful when a "fix" PR is reverted or a "won't fix"
+    /// open. Useful when a "fix" PR is reverted or a "won't fix"
     /// decision is overturned.
     Reopen {
         /// Bug ID
@@ -431,9 +432,9 @@ fn validate_close_flags(
     Option<BugDismissalReason>,
     Option<String>,
 )> {
-    // Reject --state pending
+    // Reject --state open (or its alias, pending)
     if matches!(state, Some(BugReviewState::Pending)) {
-        bail!("'pending' is not a valid close state. Use 'resolved' or 'dismissed'.");
+        bail!("'open' is not a valid close state. Use 'resolved' or 'dismissed'.");
     }
 
     // Non-interactive: --state is required
@@ -888,7 +889,7 @@ pub async fn handle(command: &BugCommands, cli: &crate::Cli) -> Result<()> {
                 .context("Failed to reopen bug")?;
 
             Term::stdout()
-                .write_line(&format!("{}", style("✓ Bug reopened (pending)").green()))
+                .write_line(&format!("{}", style("✓ Bug reopened (open)").green()))
                 .ok();
             Ok(())
         }
