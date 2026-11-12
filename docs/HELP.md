@@ -157,7 +157,7 @@ List bugs for a given repository
   Possible values: `newest`, `oldest`, `priority`
 
 * `--introduced-by <INTRODUCED_BY>` — Only show bugs introduced by these authors (comma-separated or repeat flag)
-* `--scan-id <SCAN_ID>` — Filter bugs to a specific scan by workflow request ID
+* `--scan-id <SCAN_ID>` — Filter bugs to a specific scan by Scan ID (from `detail scans list`)
 * `--since <SINCE>` — Only show bugs created at or after this point. Accepts a duration (e.g. 1d, 24h, 30m) interpreted as "now minus this", an ISO date (YYYY-MM-DD), or an RFC3339 timestamp
 * `--until <UNTIL>` — Only show bugs created at or before this point. Same forms as --since
 * `--all` — Auto-paginate: fetch every matching bug instead of a single page
@@ -610,7 +610,7 @@ List security scan findings for a given repository
 
   Possible values: `newest`, `oldest`, `severity`
 
-* `--scan-id <SCAN_ID>` — Filter findings to a specific security scan by workflow request ID
+* `--scan-id <SCAN_ID>` — Filter findings to a specific security scan by Scan ID (from `detail vulns scans`)
 * `--since <SINCE>` — Only show findings created at or after this point. Accepts a duration (e.g. 1d, 24h, 30m) interpreted as "now minus this", an ISO date (YYYY-MM-DD), or an RFC3339 timestamp
 * `--until <UNTIL>` — Only show findings created at or before this point. Same forms as --since
 * `--all` — Auto-paginate: fetch every matching finding instead of a single page

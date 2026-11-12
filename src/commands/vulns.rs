@@ -43,7 +43,7 @@ pub enum VulnCommands {
         #[arg(long, value_enum, default_value = "newest")]
         sort: VulnSortOrder,
 
-        /// Filter findings to a specific security scan by workflow request ID
+        /// Filter findings to a specific security scan by Scan ID (from `detail vulns scans`)
         #[arg(long)]
         scan_id: Option<String>,
 

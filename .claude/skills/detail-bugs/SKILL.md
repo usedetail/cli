@@ -32,7 +32,7 @@ Lists bugs for the inferred or specified repository.
 - `--priority p1|p2|p3|none` — only bugs at these priorities; comma-separate or repeat the flag (e.g. `--priority p1,p2`). `none` selects bugs Detail never scored — most bugs found before priority scoring shipped, so prefer `--priority p1,p2,p3` over `--priority p1` when the user asks for "prioritized" bugs. Default: every priority.
 - `--sort newest|oldest|priority` — default `newest`. `priority` puts the most severe first and unscored last.
 - `--introduced-by <authors>` — filter by authors (comma-separated or repeated).
-- `--scan-id <wr_…>` — limit to a specific scan. Workflow IDs come from `detail scans list`.
+- `--scan-id <wr_…>` — limit to a specific scan. Scan IDs come from `detail scans list`.
 - `--since` / `--until` — accept a duration (`1d`, `24h`), an ISO date (`YYYY-MM-DD`), or an RFC3339 timestamp.
 - `--all` — auto-paginate across all matching bugs.
 - `--limit <1-100>` (default 50), `--page <N>` (default 1).
@@ -78,7 +78,7 @@ Security scans produce findings ("vulns") that are separate from bugs: they have
 - `--status pending|resolved|dismissed` — one value; default `pending`, so closed findings are hidden unless asked for. To see every state, run it once per state.
 - `--severity critical|high|medium|low` — comma-separate or repeat the flag (e.g. `--severity critical,high`). Default: every severity.
 - `--sort newest|oldest|severity` — default `newest`. `severity` puts the most severe first.
-- `--scan-id <wr_…>` — limit to a specific security scan. Workflow IDs come from `detail vulns scans`.
+- `--scan-id <wr_…>` — limit to a specific security scan. Scan IDs come from `detail vulns scans`.
 - `--since` / `--until`, `--all`, `--limit <1-100>` (default 50), `--page <N>`, `--format table|json` — same as `detail bugs list`.
 
 ### `detail vulns show <VULN_ID>`
