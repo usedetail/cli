@@ -308,7 +308,7 @@ impl ApiClient {
 
     pub async fn list_rules(&self, repo_id: &RepoId) -> Result<RulesResponse> {
         self.inner
-            .list_rules(repo_id)
+            .list_rules(None, None, repo_id)
             .await
             .map(ResponseValue::into_inner)
             .map_err(api_error)
@@ -335,7 +335,7 @@ impl ApiClient {
 
     pub async fn list_rule_requests(&self, repo_id: &RepoId) -> Result<RuleRequestsResponse> {
         self.inner
-            .list_rule_requests(repo_id)
+            .list_rule_requests(None, None, repo_id)
             .await
             .map(ResponseValue::into_inner)
             .map_err(api_error)

@@ -115,8 +115,7 @@ pub fn format_introduced_in(intro: &IntroducedIn) -> String {
     let author_part = intro
         .author
         .as_deref()
-        .map(|a| format!(" by {a}"))
-        .unwrap_or_default();
+        .map_or_else(String::new, |a| format!(" by {a}"));
     format!("{ref_label}{date_part}{author_part}")
 }
 

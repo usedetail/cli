@@ -865,7 +865,7 @@
     },
     "securitySchemes": {
       "BearerAuth": {
-        "description": "API key authentication. Keys are prefixed with \"dtl_live_\" or \"dtl_test_\".",
+        "description": "API key authentication. Keys are prefixed with \"dtl_live_\".",
         "scheme": "bearer",
         "type": "http"
       }
@@ -1310,7 +1310,7 @@
     },
     "/public/v1/rules": {
       "get": {
-        "description": "Returns all completed rule results for a repository, newest first.",
+        "description": "Returns completed rule results for a repository, newest first, paginated with `limit` and `offset`. `total` is the number of rule results across all pages.",
         "operationId": "listRules",
         "parameters": [
           {
@@ -1319,6 +1319,27 @@
             "required": true,
             "schema": {
               "$ref": "#/components/schemas/RepoId"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],
@@ -1333,10 +1354,14 @@
                         "$ref": "#/components/schemas/RuleListItem"
                       },
                       "type": "array"
+                    },
+                    "total": {
+                      "type": "integer"
                     }
                   },
                   "required": [
-                    "rules"
+                    "rules",
+                    "total"
                   ],
                   "type": "object"
                 }
@@ -1447,7 +1472,7 @@
     },
     "/public/v1/rules/requests": {
       "get": {
-        "description": "Returns all rule creation requests for a repository, newest first, including their status and result summaries.",
+        "description": "Returns rule creation requests for a repository, newest first, including their status and result summaries. Paginated with `limit` and `offset`; `total` is the number of requests across all pages.",
         "operationId": "listRuleRequests",
         "parameters": [
           {
@@ -1456,6 +1481,27 @@
             "required": true,
             "schema": {
               "$ref": "#/components/schemas/RepoId"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],
@@ -1470,10 +1516,14 @@
                         "$ref": "#/components/schemas/RuleRequestStatus"
                       },
                       "type": "array"
+                    },
+                    "total": {
+                      "type": "integer"
                     }
                   },
                   "required": [
-                    "requests"
+                    "requests",
+                    "total"
                   ],
                   "type": "object"
                 }
