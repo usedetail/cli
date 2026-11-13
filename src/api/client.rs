@@ -10,13 +10,12 @@ use progenitor::progenitor_client::{Error as ProgenitorError, ResponseValue};
 
 use super::generated::types::CreateRuleBody;
 use super::types::{
-    Bug, BugDismissalReason, BugId, BugReview, BugReviewState, BugSortOrder, BugsResponse,
+    Bug, BugDismissalReason, BugId, BugReview, BugSortOrder, BugsResponse,
     CreatePublicBugReviewBody, CreatePublicVulnReviewBody, CreateRuleInput, CreateRuleResponse,
     ListPublicBugsWorkflowRequestId, ListPublicVulnsWorkflowRequestId, Priority, PriorityUpdate,
-    RepoId, ReposResponse, Rule, RuleCreationRequestId, RuleId, RuleRequestStatus,
+    RepoId, ReposResponse, ReviewState, Rule, RuleCreationRequestId, RuleId, RuleRequestStatus,
     RuleRequestsResponse, RulesResponse, ScansResponse, UpdatePublicBugPriorityBody, UserInfo,
-    Vuln, VulnDismissalReason, VulnId, VulnReview, VulnReviewState, VulnScansResponse,
-    VulnSortOrder, VulnsResponse,
+    Vuln, VulnDismissalReason, VulnId, VulnReview, VulnScansResponse, VulnSortOrder, VulnsResponse,
 };
 
 /// Server-side knobs for `GET /public/v1/bugs` beyond repo, status, and paging.
@@ -36,8 +35,8 @@ pub struct VulnListQuery<'a> {
     /// Comma-separated severity filter, already in the API's wire form.
     pub severity: Option<&'a str>,
     pub sort: Option<VulnSortOrder>,
-    /// Omitted when `None`, which the API reads as `pending`.
-    pub status: Option<VulnReviewState>,
+    /// Omitted when `None`, which the API reads as open.
+    pub status: Option<&'a ReviewState>,
     pub scan_id: Option<&'a ListPublicVulnsWorkflowRequestId>,
 }
 
@@ -126,7 +125,7 @@ impl ApiClient {
     pub async fn list_bugs(
         &self,
         repo_id: &RepoId,
-        status: BugReviewState,
+        status: &ReviewState,
         limit: u32,
         offset: u32,
         query: BugListQuery<'_>,
@@ -157,7 +156,7 @@ impl ApiClient {
     pub async fn update_bug_close(
         &self,
         bug_id: &BugId,
-        state: BugReviewState,
+        state: ReviewState,
         dismissal_reason: Option<BugDismissalReason>,
         notes: Option<&str>,
     ) -> Result<BugReview> {
@@ -245,7 +244,7 @@ impl ApiClient {
     pub async fn update_vuln_close(
         &self,
         vuln_id: &VulnId,
-        state: VulnReviewState,
+        state: ReviewState,
         dismissal_reason: Option<VulnDismissalReason>,
         notes: Option<&str>,
     ) -> Result<VulnReview> {

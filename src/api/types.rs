@@ -3,19 +3,21 @@ use clap::builder::PossibleValue;
 use crate::output::Formattable;
 use crate::utils::datetime::{format_date, format_datetime};
 
+pub use super::review_state::ReviewState;
+
 // Re-export generated types as the public API for this crate.
 pub use super::generated::types::{
-    Bug, BugCounts, BugDismissalReason, BugId, BugReview, BugReviewId, BugReviewState,
-    BugSortOrder, CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, FixPr,
-    IntroducedIn, LinkedIssue, LinkedIssueTracker, ListPublicBugsWorkflowRequestId, Org, OrgId,
-    Priority, PriorityReason, Repo, RepoId, Rule, RuleCreationRequestId, RuleId, RuleListItem,
+    Bug, BugCounts, BugDismissalReason, BugId, BugReview, BugReviewId, BugSortOrder,
+    CreatePublicBugReviewBody, CreateRuleInput, CreateRuleResponse, FixPr, IntroducedIn,
+    LinkedIssue, LinkedIssueTracker, ListPublicBugsWorkflowRequestId, Org, OrgId, Priority,
+    PriorityReason, Repo, RepoId, Rule, RuleCreationRequestId, RuleId, RuleListItem,
     RuleRequestResult, RuleRequestStatus, RuleStatus, Scan, ScanInitiator, ScanType,
     UpdatePublicBugPriorityBody, WorkflowStatus,
 };
 pub use super::generated::types::{
     CreatePublicVulnReviewBody, ListPublicVulnsWorkflowRequestId, Vuln, VulnCounts,
-    VulnDismissalReason, VulnId, VulnLinkedIssue, VulnLinkedIssueTracker, VulnReview,
-    VulnReviewState, VulnScan, VulnSeverity, VulnSortOrder, VulnStateSource,
+    VulnDismissalReason, VulnId, VulnLinkedIssue, VulnLinkedIssueTracker, VulnReview, VulnScan,
+    VulnSeverity, VulnSortOrder, VulnStateSource,
 };
 
 // Friendlier aliases for the generated response-wrapper names.
@@ -33,11 +35,12 @@ pub type VulnScansResponse = super::generated::types::ListPublicVulnScansRespons
 // progenitor already implements Display for the generated enums, so we
 // provide standalone helpers for user-friendly labels where needed.
 
-pub const fn review_state_label(s: &BugReviewState) -> &'static str {
+pub fn review_state_label(s: &ReviewState) -> &str {
     match s {
-        BugReviewState::Pending => "Pending",
-        BugReviewState::Resolved => "Resolved",
-        BugReviewState::Dismissed => "Dismissed",
+        ReviewState::Open => "Open",
+        ReviewState::Resolved => "Resolved",
+        ReviewState::Dismissed => "Dismissed",
+        ReviewState::Unknown(raw) => raw,
     }
 }
 
@@ -66,14 +69,6 @@ pub const fn severity_label(s: &VulnSeverity) -> &'static str {
         VulnSeverity::High => "High",
         VulnSeverity::Medium => "Medium",
         VulnSeverity::Low => "Low",
-    }
-}
-
-pub const fn vuln_state_label(s: &VulnReviewState) -> &'static str {
-    match s {
-        VulnReviewState::Pending => "Pending",
-        VulnReviewState::Resolved => "Resolved",
-        VulnReviewState::Dismissed => "Dismissed",
     }
 }
 
@@ -192,20 +187,6 @@ pub fn format_fix_pr(fix_pr: &FixPr) -> String {
 
 // ── clap::ValueEnum ──────────────────────────────────────────────────
 
-impl clap::ValueEnum for BugReviewState {
-    fn value_variants<'a>() -> &'a [Self] {
-        &[Self::Pending, Self::Resolved, Self::Dismissed]
-    }
-
-    fn to_possible_value(&self) -> Option<PossibleValue> {
-        match self {
-            Self::Pending => Some(PossibleValue::new("pending")),
-            Self::Resolved => Some(PossibleValue::new("resolved")),
-            Self::Dismissed => Some(PossibleValue::new("dismissed")),
-        }
-    }
-}
-
 impl clap::ValueEnum for BugDismissalReason {
     fn value_variants<'a>() -> &'a [Self] {
         &[Self::NotABug, Self::WontFix, Self::Duplicate, Self::Other]
@@ -260,20 +241,6 @@ impl clap::ValueEnum for VulnSeverity {
             Self::High => Some(PossibleValue::new("high")),
             Self::Medium => Some(PossibleValue::new("medium")),
             Self::Low => Some(PossibleValue::new("low")),
-        }
-    }
-}
-
-impl clap::ValueEnum for VulnReviewState {
-    fn value_variants<'a>() -> &'a [Self] {
-        &[Self::Pending, Self::Resolved, Self::Dismissed]
-    }
-
-    fn to_possible_value(&self) -> Option<PossibleValue> {
-        match self {
-            Self::Pending => Some(PossibleValue::new("pending")),
-            Self::Resolved => Some(PossibleValue::new("resolved")),
-            Self::Dismissed => Some(PossibleValue::new("dismissed")),
         }
     }
 }
@@ -428,7 +395,7 @@ impl Formattable for Vuln {
         let mut pairs = vec![
             ("Vuln ID", self.id.to_string()),
             ("Severity", severity_label(&self.severity).to_string()),
-            ("State", vuln_state_label(&self.state).to_string()),
+            ("State", review_state_label(&self.state).to_string()),
         ];
         if let Some(reason) = &self.dismissal_reason {
             pairs.push(("Dismissal", vuln_dismissal_reason_label(reason).to_string()));
@@ -518,9 +485,13 @@ mod tests {
 
     #[test]
     fn review_state_labels() {
-        assert_eq!(review_state_label(&BugReviewState::Pending), "Pending");
-        assert_eq!(review_state_label(&BugReviewState::Resolved), "Resolved");
-        assert_eq!(review_state_label(&BugReviewState::Dismissed), "Dismissed");
+        assert_eq!(review_state_label(&ReviewState::Open), "Open");
+        assert_eq!(review_state_label(&ReviewState::Resolved), "Resolved");
+        assert_eq!(review_state_label(&ReviewState::Dismissed), "Dismissed");
+        assert_eq!(
+            review_state_label(&ReviewState::Unknown("bogus".to_string())),
+            "bogus"
+        );
     }
 
     #[test]
@@ -541,25 +512,6 @@ mod tests {
     }
 
     // ── ValueEnum ────────────────────────────────────────────────────
-
-    #[test]
-    fn review_state_variant_count() {
-        assert_eq!(BugReviewState::value_variants().len(), 3);
-    }
-
-    #[test]
-    fn review_state_possible_values() {
-        let values: Vec<String> = BugReviewState::value_variants()
-            .iter()
-            .map(|v| {
-                v.to_possible_value()
-                    .expect("variant has a value")
-                    .get_name()
-                    .to_string()
-            })
-            .collect();
-        assert_eq!(values, vec!["pending", "resolved", "dismissed"]);
-    }
 
     #[test]
     fn dismissal_reason_variant_count() {
@@ -1150,13 +1102,48 @@ mod tests {
         let keys: Vec<&str> = pairs.iter().map(|(k, _)| *k).collect();
         assert_eq!(keys, ["Vuln ID", "Severity", "State", "Created", "File"]);
         assert_eq!(pairs[1].1, "Critical");
-        assert_eq!(pairs[2].1, "Pending");
+        assert_eq!(pairs[2].1, "Open");
+    }
+
+    #[test]
+    fn vuln_decodes_open_and_unknown_states() {
+        let with_state = |state: &str| -> Vuln {
+            let mut value = serde_json::to_value(sample_vuln()).expect("serializable");
+            value["state"] = serde_json::json!(state);
+            serde_json::from_value(value).expect("decodes")
+        };
+
+        let open = with_state("open");
+        assert_eq!(open.state, ReviewState::Open);
+        assert_eq!(open.to_card().1[2].1, "Open");
+
+        let bogus = with_state("bogus");
+        assert_eq!(bogus.state, ReviewState::Unknown("bogus".to_string()));
+        assert_eq!(bogus.to_card().1[2].1, "bogus");
+        let json = serde_json::to_value(&bogus).expect("serializable");
+        assert_eq!(json["state"], "bogus");
+    }
+
+    #[test]
+    fn bug_review_decodes_open_and_unknown_states() {
+        for (state, expected) in [
+            ("open", ReviewState::Open),
+            ("pending", ReviewState::Open),
+            ("bogus", ReviewState::Unknown("bogus".to_string())),
+        ] {
+            let mut value = serde_json::to_value(sample_bug()).expect("serializable");
+            value["review"] = serde_json::json!({
+                "id": "bfrv_1", "state": state, "createdAt": 1_736_899_200_000_i64
+            });
+            let bug: Bug = serde_json::from_value(value).expect("decodes");
+            assert_eq!(bug.review.expect("has review").state, expected, "{state}");
+        }
     }
 
     #[test]
     fn vuln_card_shows_dismissal_reason_when_dismissed() {
         let mut vuln = sample_vuln();
-        vuln.state = VulnReviewState::Dismissed;
+        vuln.state = ReviewState::Dismissed;
         vuln.dismissal_reason = Some(VulnDismissalReason::NotExploitable);
         let (_, pairs) = vuln.to_card();
         assert!(pairs.contains(&("State", "Dismissed".to_string())));
@@ -1167,19 +1154,10 @@ mod tests {
     fn vuln_card_handles_dismissal_without_reason() {
         // A tracker can dismiss a finding without giving a reason.
         let mut vuln = sample_vuln();
-        vuln.state = VulnReviewState::Dismissed;
+        vuln.state = ReviewState::Dismissed;
         let (_, pairs) = vuln.to_card();
         assert!(pairs.contains(&("State", "Dismissed".to_string())));
         assert!(!pairs.iter().any(|(k, _)| *k == "Dismissal"));
-    }
-
-    #[test]
-    fn vuln_state_possible_values() {
-        let values: Vec<String> = VulnReviewState::value_variants()
-            .iter()
-            .map(|v| v.to_possible_value().unwrap().get_name().to_string())
-            .collect();
-        assert_eq!(values, ["pending", "resolved", "dismissed"]);
     }
 
     #[test]
@@ -1196,7 +1174,7 @@ mod tests {
 
     #[test]
     fn vuln_state_and_reason_labels() {
-        assert_eq!(vuln_state_label(&VulnReviewState::Resolved), "Resolved");
+        assert_eq!(review_state_label(&ReviewState::Resolved), "Resolved");
         assert_eq!(
             vuln_dismissal_reason_label(&VulnDismissalReason::NotExploitable),
             "Not Exploitable"

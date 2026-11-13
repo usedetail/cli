@@ -33,7 +33,7 @@ const LONG_ABOUT: &str = "\
 Detail CLI - Manage bugs from your terminal
 
 Common workflow:
-  1. List pending bugs:   detail bugs list <owner/repo>
+  1. List open bugs:      detail bugs list <owner/repo>
   2. View a bug report:   detail bugs show <bug_id>
   3. Fix the bug
   4. Close the bug:       detail bugs close <bug_id>";
@@ -242,9 +242,7 @@ enum Commands {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::types::{
-        BugReviewState, VulnDismissalReason, VulnReviewState, VulnSeverity, VulnSortOrder,
-    };
+    use crate::api::types::{ReviewState, VulnDismissalReason, VulnSeverity, VulnSortOrder};
 
     #[test]
     fn silent_when_bugs_list_json() {
@@ -469,7 +467,7 @@ mod tests {
 
     #[test]
     fn vulns_list_status_defaults_to_unset() {
-        // Left unset so the API's own default (pending) applies.
+        // Left unset so the API's own default (open) applies.
         let cli = Cli::try_parse_from(["detail", "vulns", "list"]).unwrap();
         if let Commands::Vulns {
             command: commands::vulns::VulnCommands::List { status, .. },
@@ -489,7 +487,7 @@ mod tests {
             command: commands::vulns::VulnCommands::List { status, .. },
         } = cli.command
         {
-            assert_eq!(status, Some(VulnReviewState::Dismissed));
+            assert_eq!(status, Some(ReviewState::Dismissed));
         } else {
             panic!("expected vulns list command");
         }
@@ -530,7 +528,7 @@ mod tests {
         } = cli.command
         {
             assert_eq!(vuln_id, "ssf_1");
-            assert_eq!(state, Some(VulnReviewState::Dismissed));
+            assert_eq!(state, Some(ReviewState::Dismissed));
             assert_eq!(dismissal_reason, Some(VulnDismissalReason::NotExploitable));
             assert_eq!(notes.as_deref(), Some("behind auth"));
         } else {
@@ -674,14 +672,14 @@ mod tests {
     }
 
     #[test]
-    fn bugs_list_status_default_is_pending() {
+    fn bugs_list_status_default_is_open() {
         let cli = Cli::try_parse_from(["detail", "bugs", "list", "owner/repo"]).unwrap();
         if let Commands::Bugs {
             command: commands::bugs::BugCommands::List { status, .. },
         } = &cli.command
         {
             assert_eq!(status.len(), 1);
-            assert!(matches!(status[0], BugReviewState::Pending));
+            assert!(matches!(status[0], ReviewState::Open));
         } else {
             panic!("expected bugs list command");
         }
@@ -695,7 +693,7 @@ mod tests {
             "list",
             "owner/repo",
             "--status",
-            "pending,resolved",
+            "open,resolved",
         ])
         .unwrap();
         if let Commands::Bugs {
@@ -703,10 +701,37 @@ mod tests {
         } = &cli.command
         {
             assert_eq!(status.len(), 2);
-            assert!(matches!(status[0], BugReviewState::Pending));
-            assert!(matches!(status[1], BugReviewState::Resolved));
+            assert!(matches!(status[0], ReviewState::Open));
+            assert!(matches!(status[1], ReviewState::Resolved));
         } else {
             panic!("expected bugs list command");
+        }
+    }
+
+    #[test]
+    fn list_status_accepts_open_and_legacy_pending() {
+        for value in ["open", "pending"] {
+            let cli =
+                Cli::try_parse_from(["detail", "bugs", "list", "owner/repo", "--status", value])
+                    .unwrap();
+            if let Commands::Bugs {
+                command: commands::bugs::BugCommands::List { status, .. },
+            } = &cli.command
+            {
+                assert_eq!(status.as_slice(), [ReviewState::Open], "{value}");
+            } else {
+                panic!("expected bugs list command");
+            }
+
+            let cli = Cli::try_parse_from(["detail", "vulns", "list", "--status", value]).unwrap();
+            if let Commands::Vulns {
+                command: commands::vulns::VulnCommands::List { status, .. },
+            } = &cli.command
+            {
+                assert_eq!(status.as_ref(), Some(&ReviewState::Open), "{value}");
+            } else {
+                panic!("expected vulns list command");
+            }
         }
     }
 
@@ -728,8 +753,8 @@ mod tests {
         } = &cli.command
         {
             assert_eq!(status.len(), 2);
-            assert!(matches!(status[0], BugReviewState::Resolved));
-            assert!(matches!(status[1], BugReviewState::Dismissed));
+            assert!(matches!(status[0], ReviewState::Resolved));
+            assert!(matches!(status[1], ReviewState::Dismissed));
         } else {
             panic!("expected bugs list command");
         }
