@@ -28,7 +28,8 @@ pub fn format_datetime(timestamp_ms: i64) -> String {
 ///   * Relative duration suffixed with `s|m|h|d|w` — e.g. `30s`, `15m`,
 ///     `24h`, `7d`, `2w`. Resolves to `now - duration`.
 ///   * RFC3339 timestamp — e.g. `2024-01-15T12:00:00Z`.
-///   * `YYYY-MM-DD` — interpreted as midnight UTC on that date.
+///   * `YYYY-MM-DD` — interpreted as midnight *local* time on that date, so
+///     the window lines up with the dates the CLI prints (see `format_date`).
 pub fn parse_time_spec(s: &str, now: DateTime<Utc>) -> Result<DateTime<Utc>> {
     let trimmed = s.trim();
     if let Some(d) = parse_relative_duration(trimmed) {
@@ -41,7 +42,13 @@ pub fn parse_time_spec(s: &str, now: DateTime<Utc>) -> Result<DateTime<Utc>> {
     }
     if let Ok(date) = NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
         if let Some(naive) = date.and_hms_opt(0, 0, 0) {
-            return Ok(naive.and_utc());
+            // Anchor at *local* midnight, matching how `format_date` renders
+            // the same timestamps. Zones without a unique local midnight on
+            // that date (DST) fall back to midnight UTC.
+            return Ok(naive
+                .and_local_timezone(Local)
+                .single()
+                .map_or(naive.and_utc(), |dt| dt.with_timezone(&Utc)));
         }
     }
     Err(anyhow!(
@@ -196,8 +203,32 @@ mod tests {
     fn parse_time_spec_iso_date() {
         let now = fixed_now();
         let parsed = parse_time_spec("2024-01-15", now).expect("parses");
-        // Independent of `now`: midnight UTC on the literal date.
-        assert_eq!(parsed.timestamp(), 1_705_276_800);
+        // Independent of `now`: midnight *local* time on the literal date,
+        // matching how `format_date` renders the same timestamps.
+        let expected = NaiveDate::from_ymd_opt(2024, 1, 15)
+            .expect("valid date")
+            .and_hms_opt(0, 0, 0)
+            .expect("valid time")
+            .and_local_timezone(Local)
+            .single()
+            .expect("unambiguous local midnight")
+            .with_timezone(&Utc);
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn parse_time_spec_iso_date_is_local_midnight() {
+        let now = fixed_now();
+        let parsed = parse_time_spec("2024-01-15", now).expect("parses");
+        // The bound lands at 00:00 in the machine's zone — the same wall
+        // clock the user sees in `format_date` output — not at UTC midnight.
+        assert_eq!(
+            parsed
+                .with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
+            "2024-01-15 00:00:00"
+        );
     }
 
     #[test]
