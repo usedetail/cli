@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
 
 /// Format a UTC timestamp (in milliseconds) in the machine's local timezone.
 fn format_timestamp(timestamp_ms: i64, fmt: &str) -> String {
@@ -29,7 +29,8 @@ pub fn format_datetime(timestamp_ms: i64) -> String {
 ///     `24h`, `7d`, `2w`. Resolves to `now - duration`.
 ///   * RFC3339 timestamp — e.g. `2024-01-15T12:00:00Z`.
 ///   * `YYYY-MM-DD` — interpreted as midnight *local* time on that date, so
-///     the window lines up with the dates the CLI prints (see `format_date`).
+///     the window lines up with the dates the CLI prints (see `format_date`);
+///     ambiguous or nonexistent local midnights fall back to midnight UTC.
 pub fn parse_time_spec(s: &str, now: DateTime<Utc>) -> Result<DateTime<Utc>> {
     let trimmed = s.trim();
     if let Some(d) = parse_relative_duration(trimmed) {
@@ -43,18 +44,25 @@ pub fn parse_time_spec(s: &str, now: DateTime<Utc>) -> Result<DateTime<Utc>> {
     if let Ok(date) = NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
         if let Some(naive) = date.and_hms_opt(0, 0, 0) {
             // Anchor at *local* midnight, matching how `format_date` renders
-            // the same timestamps. Zones without a unique local midnight on
-            // that date (DST) fall back to midnight UTC.
-            return Ok(naive
-                .and_local_timezone(Local)
-                .single()
-                .map_or(naive.and_utc(), |dt| dt.with_timezone(&Utc)));
+            // the same timestamps; DST-gap dates fall back to UTC (see
+            // `midnight_in_tz`).
+            return Ok(midnight_in_tz(naive, &Local));
         }
     }
     Err(anyhow!(
         "could not parse '{trimmed}' as a duration (e.g. 1d, 24h), \
          a date (YYYY-MM-DD), or an RFC3339 timestamp"
     ))
+}
+
+/// Resolve a naive midnight into a UTC instant in the given time zone.
+/// Zones without a unique local midnight on that date (DST transitions)
+/// fall back to midnight UTC.
+fn midnight_in_tz<Tz: TimeZone>(naive: NaiveDateTime, tz: &Tz) -> DateTime<Utc> {
+    naive
+        .and_local_timezone(tz)
+        .single()
+        .map_or(naive.and_utc(), |dt| dt.with_timezone(&Utc))
 }
 
 /// Parse `<n><unit>` where unit is one of `s|m|h|d|w` (case-insensitive).
@@ -82,6 +90,7 @@ fn parse_relative_duration(s: &str) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{FixedOffset, MappedLocalTime, Offset};
 
     fn expected_local(timestamp_ms: i64, fmt: &str) -> String {
         DateTime::from_timestamp_millis(timestamp_ms)
@@ -199,29 +208,72 @@ mod tests {
         assert_eq!(parsed, now);
     }
 
+    /// A minimal time zone for exercising the DST fallback: offset fixed at
+    /// +00:00, except local midnight on 2024-01-15 does not exist (as on DST
+    /// spring-forward dates that skip 00:00).
+    #[derive(Clone, Copy, Debug)]
+    struct GapZone;
+
+    #[derive(Clone, Copy, Debug)]
+    struct GapZoneOffset(FixedOffset);
+
+    impl Offset for GapZoneOffset {
+        fn fix(&self) -> FixedOffset {
+            self.0
+        }
+    }
+
+    fn gap_offset() -> GapZoneOffset {
+        GapZoneOffset(FixedOffset::east_opt(0).expect("valid offset"))
+    }
+
+    fn gap_midnight() -> NaiveDateTime {
+        NaiveDate::from_ymd_opt(2024, 1, 15)
+            .expect("valid date")
+            .and_hms_opt(0, 0, 0)
+            .expect("valid time")
+    }
+
+    impl TimeZone for GapZone {
+        type Offset = GapZoneOffset;
+
+        fn from_offset(_offset: &GapZoneOffset) -> GapZone {
+            GapZone
+        }
+
+        fn offset_from_local_date(&self, _local: &NaiveDate) -> MappedLocalTime<GapZoneOffset> {
+            MappedLocalTime::Single(gap_offset())
+        }
+
+        fn offset_from_local_datetime(
+            &self,
+            local: &NaiveDateTime,
+        ) -> MappedLocalTime<GapZoneOffset> {
+            if *local == gap_midnight() {
+                MappedLocalTime::None
+            } else {
+                MappedLocalTime::Single(gap_offset())
+            }
+        }
+
+        fn offset_from_utc_date(&self, _utc: &NaiveDate) -> GapZoneOffset {
+            gap_offset()
+        }
+
+        fn offset_from_utc_datetime(&self, _utc: &NaiveDateTime) -> GapZoneOffset {
+            gap_offset()
+        }
+    }
+
     #[test]
     fn parse_time_spec_iso_date() {
         let now = fixed_now();
         let parsed = parse_time_spec("2024-01-15", now).expect("parses");
-        // Independent of `now`: midnight *local* time on the literal date,
-        // matching how `format_date` renders the same timestamps.
-        let expected = NaiveDate::from_ymd_opt(2024, 1, 15)
-            .expect("valid date")
-            .and_hms_opt(0, 0, 0)
-            .expect("valid time")
-            .and_local_timezone(Local)
-            .single()
-            .expect("unambiguous local midnight")
-            .with_timezone(&Utc);
-        assert_eq!(parsed, expected);
-    }
-
-    #[test]
-    fn parse_time_spec_iso_date_is_local_midnight() {
-        let now = fixed_now();
-        let parsed = parse_time_spec("2024-01-15", now).expect("parses");
-        // The bound lands at 00:00 in the machine's zone — the same wall
-        // clock the user sees in `format_date` output — not at UTC midnight.
+        // Independent of `now`: the bound lands at 00:00 in the machine's
+        // zone — the same wall clock the user sees in `format_date` output —
+        // not at UTC midnight. On a UTC machine this coincides with UTC
+        // midnight, so the anchoring itself is pinned by the `midnight_in_tz`
+        // tests below, which use fixed non-UTC offsets and a DST-gap zone.
         assert_eq!(
             parsed
                 .with_timezone(&Local)
@@ -229,6 +281,29 @@ mod tests {
                 .to_string(),
             "2024-01-15 00:00:00"
         );
+    }
+
+    #[test]
+    fn midnight_in_tz_fixed_offset_anchors_local_midnight() {
+        // UTC-5: local midnight on 2024-01-15 is 2024-01-15T05:00:00Z — five
+        // hours *after* the UTC midnight the old UTC-anchored parser returned.
+        // A concrete instant, so the test discriminates the anchoring even on
+        // a UTC CI runner.
+        let tz = FixedOffset::west_opt(5 * 3600).expect("valid offset");
+        let naive = NaiveDate::from_ymd_opt(2024, 1, 15)
+            .expect("valid date")
+            .and_hms_opt(0, 0, 0)
+            .expect("valid time");
+        assert_eq!(midnight_in_tz(naive, &tz).timestamp(), 1_705_294_800);
+    }
+
+    #[test]
+    fn midnight_in_tz_missing_local_midnight_falls_back_to_utc() {
+        // DST spring-forward gap: 00:00 local does not exist on this date, so
+        // the bound falls back to midnight UTC (2024-01-15T00:00:00Z) instead
+        // of panicking or guessing an offset.
+        let naive = gap_midnight();
+        assert_eq!(midnight_in_tz(naive, &GapZone).timestamp(), 1_705_276_800);
     }
 
     #[test]
