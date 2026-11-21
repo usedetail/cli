@@ -46,7 +46,7 @@ pub fn parse_time_spec(s: &str, now: DateTime<Utc>) -> Result<DateTime<Utc>> {
             // Anchor at *local* midnight, matching how `format_date` renders
             // the same timestamps; DST-gap dates fall back to UTC (see
             // `midnight_in_tz`).
-            return Ok(midnight_in_tz(naive, &Local));
+            return Ok(midnight_in_tz(naive, Local));
         }
     }
     Err(anyhow!(
@@ -58,7 +58,7 @@ pub fn parse_time_spec(s: &str, now: DateTime<Utc>) -> Result<DateTime<Utc>> {
 /// Resolve a naive midnight into a UTC instant in the given time zone.
 /// Zones without a unique local midnight on that date (DST transitions)
 /// fall back to midnight UTC.
-fn midnight_in_tz<Tz: TimeZone>(naive: NaiveDateTime, tz: &Tz) -> DateTime<Utc> {
+fn midnight_in_tz<Tz: TimeZone>(naive: NaiveDateTime, tz: Tz) -> DateTime<Utc> {
     naive
         .and_local_timezone(tz)
         .single()
@@ -294,7 +294,7 @@ mod tests {
             .expect("valid date")
             .and_hms_opt(0, 0, 0)
             .expect("valid time");
-        assert_eq!(midnight_in_tz(naive, &tz).timestamp(), 1_705_294_800);
+        assert_eq!(midnight_in_tz(naive, tz).timestamp(), 1_705_294_800);
     }
 
     #[test]
@@ -303,7 +303,7 @@ mod tests {
         // the bound falls back to midnight UTC (2024-01-15T00:00:00Z) instead
         // of panicking or guessing an offset.
         let naive = gap_midnight();
-        assert_eq!(midnight_in_tz(naive, &GapZone).timestamp(), 1_705_276_800);
+        assert_eq!(midnight_in_tz(naive, GapZone).timestamp(), 1_705_276_800);
     }
 
     #[test]
